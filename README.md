@@ -55,6 +55,16 @@ gradlew.bat test
 Também dá para baixar direto do GitHub:
 `https://github.com/willendary/chaveirocar/releases/latest`
 
+## Como organizamos as entregas
+
+- Cada versão é um **milestone** no GitHub (ex.: `v1.2`) com **10 tarefas**.
+- Quando as 10 fecham, sobe `versionCode`/`versionName`, cria a tag `vX.Y` e o CI
+  publica a release.
+- Na primeira abertura depois da atualização, o app mostra a tela **Novidades**
+  com o texto da própria release (issue #1).
+
+Backlog: `https://github.com/willendary/chaveirocar/issues`
+
 ## Como publicar uma versão nova
 
 O GitHub Actions compila, testa, assina e publica sozinho quando você cria uma tag.
