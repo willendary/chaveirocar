@@ -10,11 +10,23 @@ bolso — busca por placa, modelo, defeito ou solução.
 
 - Cadastro de serviço por **placa** (aceita Mercosul e placa antiga) com marca,
   modelo, ano, chassi, data, tipo de serviço, defeito, solução, ferramenta e valor.
-- **Fotos** tiradas na hora ou escolhidas da galeria (várias por registro).
+- **Abertura** (técnica usada) e **código de chave** / **código de configuração**
+  por serviço, com botão de copiar.
+- **Fotos** do carro e **fotos de procedimento** ("como se faz"), com legenda e
+  ordem por passo.
 - Busca instantânea em todos os campos, sem acento e sem diferenciar maiúsculas.
+- Filtros combináveis por tipo de serviço, período (30/90 dias, este ano ou
+  personalizado) e "só com fotos".
+- Sugestões do próprio histórico em marca, modelo, defeito, solução e abertura.
 - Ao digitar a placa de um carro já atendido, o app mostra o histórico dele.
+- **Fichário** por marca/modelo/ano: quantos serviços, abertura, códigos e
+  procedimentos consolidados.
 - Botão **Novo p/ este carro** para repetir um atendimento do mesmo veículo.
-- **Backup** completo em ZIP (dados + fotos) para exportar/importar.
+- **Compartilhar** o registro em texto ou gerar **PDF** com os dados e as fotos.
+- **Bloqueio** com PIN de 4 a 6 números e digital (quando o aparelho tem).
+- **Backup** completo em ZIP (dados + fotos) para exportar/importar, mais uma
+  cópia automática semanal (mantém as 4 últimas).
+- **Novidades** ao atualizar: mostra o que mudou naquela versão uma única vez.
 - **Atualização** pelo próprio app: verifica a última release do GitHub e, se
   houver versão nova, baixa o APK e abre o instalador. Checa sozinho uma vez
   por dia e também pelo botão "Verificar atualização" em Ajustes.
@@ -106,5 +118,6 @@ app/src/main/kotlin/com/willendary/chaveirocar/
 
 ## Versão
 
-1.0 — histórico de carros/serviços com fotos e backup. Próximos passos possíveis:
-orçamento, cadastro de clientes, fichário técnico de chaves/transponder.
+1.2 — fichário por carro, abertura, códigos de chave/configuração, fotos de
+procedimento, filtros, sugestões, compartilhamento em PDF, bloqueio por PIN e
+backup automático.

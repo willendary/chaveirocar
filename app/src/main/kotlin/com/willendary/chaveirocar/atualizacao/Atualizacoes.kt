@@ -61,8 +61,7 @@ object Atualizacoes {
     }
   }
 
-  suspend fun baixar(contexto: Context, atualizacao: AtualizacaoDisponivel): File = withContext(Dispatchers.IO) {
-    val pasta = File(contexto.cacheDir, "atualizacao").apply { mkdirs() }
+  suspend fun baixar(contexto: Context, atualizacao: AtualizacaoDisponivel): File = withContext(Dispatchers.IO) {    val pasta = File(contexto.cacheDir, "atualizacao").apply { mkdirs() }
     pasta.listFiles()?.forEach { it.delete() }
     val destino = File(pasta, "chaveirocar-${atualizacao.versao}.apk")
     val conexao = (URL(atualizacao.enderecoApk).openConnection() as HttpURLConnection).apply {
@@ -79,6 +78,26 @@ object Atualizacoes {
     }
     if (destino.length() == 0L) error("download vazio")
     destino
+  }
+
+  /**
+   * Texto de novidades da versão instalada, direto da release no GitHub.
+   */
+  suspend fun notasDaVersao(versao: String): String? = withContext(Dispatchers.IO) {
+    val endereco = "https://api.github.com/repos/$REPOSITORIO/releases/tags/v$versao"
+    val conexao = (URL(endereco).openConnection() as HttpURLConnection).apply {
+      connectTimeout = 10_000
+      readTimeout = 10_000
+      setRequestProperty("Accept", "application/vnd.github+json")
+      setRequestProperty("User-Agent", "ChaveiroCar")
+    }
+    try {
+      if (conexao.responseCode != 200) return@withContext null
+      val corpo = conexao.inputStream.bufferedReader().use { it.readText() }
+      JSONObject(corpo).optString("body").takeIf { it.isNotBlank() }
+    } finally {
+      conexao.disconnect()
+    }
   }
 
   fun abrirInstalador(contexto: Context, arquivo: File) {

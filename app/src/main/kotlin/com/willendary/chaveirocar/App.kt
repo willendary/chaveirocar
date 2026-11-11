@@ -1,87 +1,365 @@
 package com.willendary.chaveirocar
 
+import android.widget.Toast
 import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.padding
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Build
+import androidx.compose.material.icons.automirrored.filled.List
+import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.NavigationBar
+import androidx.compose.material3.NavigationBarItem
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
+import com.willendary.chaveirocar.atualizacao.AtualizacaoDisponivel
+import com.willendary.chaveirocar.atualizacao.Atualizacoes
 import com.willendary.chaveirocar.dados.BancoDeAtendimentos
+import com.willendary.chaveirocar.dados.BackupAutomatico
+import com.willendary.chaveirocar.dados.Preferencias
 import com.willendary.chaveirocar.modelo.Atendimento
+import com.willendary.chaveirocar.ui.DialogoNovidades
+import com.willendary.chaveirocar.ui.FiltroLista
+import com.willendary.chaveirocar.ui.TelaAjustes
+import com.willendary.chaveirocar.ui.TelaBloqueio
 import com.willendary.chaveirocar.ui.TelaDetalhe
+import com.willendary.chaveirocar.ui.TelaFichario
+import com.willendary.chaveirocar.ui.TelaFicharioModelo
 import com.willendary.chaveirocar.ui.TelaFormulario
 import com.willendary.chaveirocar.ui.TelaLista
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
-private const val TELA_LISTA = "lista"
+private enum class Aba { HISTORICO, FICHARIO, AJUSTES }
+
+private const val TELA_PRINCIPAL = ""
 private const val TELA_FORMULARIO = "formulario"
 private const val TELA_DETALHE = "detalhe"
+private const val TELA_FICHARIO_MODELO = "fichario_modelo"
 
 @Composable
 fun ChaveiroCarApp() {
   val contexto = LocalContext.current
   val banco = remember { BancoDeAtendimentos(contexto) }
-  var tela by rememberSaveable { mutableStateOf(TELA_LISTA) }
+  val preferencias = remember { Preferencias.obter(contexto) }
+  val escopo = rememberCoroutineScope()
+  val cicloDeVida = LocalLifecycleOwner.current
+
+  var aba by rememberSaveable { mutableStateOf(Aba.HISTORICO.name) }
+  var tela by rememberSaveable { mutableStateOf(TELA_PRINCIPAL) }
   var idSelecionado by rememberSaveable { mutableStateOf(0L) }
   var baseParaNovo by remember { mutableStateOf<Atendimento?>(null) }
+  var filtro by rememberSaveable(stateSaver = FiltroLista.Saver) { mutableStateOf(FiltroLista()) }
 
-  BackHandler(enabled = tela != TELA_LISTA) {
-    tela = if (tela == TELA_FORMULARIO && idSelecionado > 0L) TELA_DETALHE else TELA_LISTA
+  var modeloMarca by rememberSaveable { mutableStateOf("") }
+  var modeloNome by rememberSaveable { mutableStateOf("") }
+  var modeloAno by rememberSaveable { mutableStateOf("") }
+  var voltarParaFichario by rememberSaveable { mutableStateOf(false) }
+
+  var bloqueado by remember { mutableStateOf(preferencias.getBoolean(Preferencias.PIN_ATIVO, false)) }
+  var biometriaAtiva by remember {
+    mutableStateOf(preferencias.getBoolean(Preferencias.BIOMETRIA_ATIVA, false))
   }
 
-  when (tela) {
-    TELA_LISTA ->
-      TelaLista(
-        banco = banco,
-        onAbrir = { id ->
-          idSelecionado = id
-          tela = TELA_DETALHE
-        },
-        onNovo = {
-          baseParaNovo = null
-          idSelecionado = 0L
-          tela = TELA_FORMULARIO
-        },
-      )
+  var atualizacao by remember { mutableStateOf<AtualizacaoDisponivel?>(null) }
+  var baixandoAtualizacao by remember { mutableStateOf(false) }
 
-    TELA_FORMULARIO ->
-      TelaFormulario(
-        banco = banco,
-        id = idSelecionado,
-        base = if (idSelecionado == 0L) baseParaNovo else null,
-        onSalvo = { id ->
-          idSelecionado = id
-          baseParaNovo = null
-          tela = TELA_DETALHE
-        },
-        onVoltar = { tela = if (idSelecionado > 0L) TELA_DETALHE else TELA_LISTA },
-      )
+  val versaoAtual = remember { Atualizacoes.versaoInstalada(contexto) }
+  var dialogoNovidades by rememberSaveable { mutableStateOf(false) }
+  var notasNovidades by remember { mutableStateOf<String?>(null) }
+  var carregandoNovidades by remember { mutableStateOf(false) }
 
-    TELA_DETALHE ->
-      TelaDetalhe(
-        banco = banco,
-        id = idSelecionado,
-        onEditar = { tela = TELA_FORMULARIO },
-        onDuplicar = { registro ->
-          baseParaNovo = registro.copy(
-            id = 0,
-            dataServico = System.currentTimeMillis(),
-            defeito = "",
-            solucao = "",
-            ferramenta = "",
-            valorCentavos = 0,
-            quantidadeFotos = 0,
-          )
-          idSelecionado = 0L
-          tela = TELA_FORMULARIO
-        },
-        onExcluido = {
-          baseParaNovo = null
-          idSelecionado = 0L
-          tela = TELA_LISTA
-        },
-        onVoltar = { tela = TELA_LISTA },
+  suspend fun abrirNovidades() {
+    dialogoNovidades = true
+    if (notasNovidades != null) return
+    carregandoNovidades = true
+    notasNovidades = withContext(Dispatchers.IO) { Atualizacoes.notasDaVersao(versaoAtual) }
+    carregandoNovidades = false
+  }
+
+  fun fecharNovidades() {
+    dialogoNovidades = false
+    preferencias.edit().putString(Preferencias.VERSAO_VISTA, versaoAtual).apply()
+  }
+
+  DisposableEffect(cicloDeVida) {
+    val observador = LifecycleEventObserver { _, evento ->
+      when (evento) {
+        Lifecycle.Event.ON_START -> {
+          biometriaAtiva = preferencias.getBoolean(Preferencias.BIOMETRIA_ATIVA, false)
+        }
+
+        Lifecycle.Event.ON_STOP -> {
+          if (preferencias.getBoolean(Preferencias.PIN_ATIVO, false)) bloqueado = true
+        }
+
+        else -> Unit
+      }
+    }
+    cicloDeVida.lifecycle.addObserver(observador)
+    onDispose { cicloDeVida.lifecycle.removeObserver(observador) }
+  }
+
+  LaunchedEffect(Unit) {
+    withContext(Dispatchers.IO) {
+      runCatching { BackupAutomatico.executarSeNecessario(banco, contexto) }
+    }
+  }
+
+  LaunchedEffect(Unit) {
+    atualizacao = withContext(Dispatchers.IO) {
+      runCatching { Atualizacoes.verificar(versaoAtual) }.getOrNull()
+    }
+  }
+
+  LaunchedEffect(Unit) {
+    val vista = preferencias.getString(Preferencias.VERSAO_VISTA, "")
+    when {
+      vista.isNullOrBlank() -> {
+        preferencias.edit().putString(Preferencias.VERSAO_VISTA, versaoAtual).apply()
+        // 1.0/1.1 não guardavam a versão vista: quem já tem histórico veio de atualização.
+        val veioDeVersaoAnterior = withContext(Dispatchers.IO) { banco.contarTodos() > 0 }
+        if (veioDeVersaoAnterior) abrirNovidades()
+      }
+
+      vista != versaoAtual -> abrirNovidades()
+    }
+  }
+
+  fun voltarDoDetalhe() {
+    tela = if (voltarParaFichario) TELA_FICHARIO_MODELO else TELA_PRINCIPAL
+    if (!voltarParaFichario) idSelecionado = 0L
+  }
+
+  BackHandler(enabled = bloqueado) {}
+
+  BackHandler(
+    enabled = !bloqueado && tela == TELA_FORMULARIO,
+  ) {
+    tela = if (idSelecionado > 0L) TELA_DETALHE else TELA_PRINCIPAL
+  }
+
+  BackHandler(
+    enabled = !bloqueado && (tela == TELA_DETALHE || tela == TELA_FICHARIO_MODELO),
+  ) {
+    if (tela == TELA_DETALHE) voltarDoDetalhe() else tela = TELA_PRINCIPAL
+  }
+
+  BackHandler(
+    enabled = !bloqueado && tela == TELA_PRINCIPAL && aba != Aba.HISTORICO.name,
+  ) {
+    aba = Aba.HISTORICO.name
+  }
+
+  Box(modifier = Modifier.fillMaxSize()) {
+    when (tela) {
+      TELA_FORMULARIO ->
+        TelaFormulario(
+          banco = banco,
+          id = idSelecionado,
+          base = if (idSelecionado == 0L) baseParaNovo else null,
+          onSalvo = { id ->
+            idSelecionado = id
+            baseParaNovo = null
+            tela = TELA_DETALHE
+          },
+          onVoltar = {
+            tela = if (idSelecionado > 0L) TELA_DETALHE else TELA_PRINCIPAL
+          },
+        )
+
+      TELA_DETALHE ->
+        TelaDetalhe(
+          banco = banco,
+          id = idSelecionado,
+          onEditar = { tela = TELA_FORMULARIO },
+          onDuplicar = { registro ->
+            baseParaNovo = registro.copy(
+              id = 0,
+              dataServico = System.currentTimeMillis(),
+              defeito = "",
+              solucao = "",
+              ferramenta = "",
+              valorCentavos = 0,
+              quantidadeFotos = 0,
+            )
+            voltarParaFichario = false
+            idSelecionado = 0L
+            tela = TELA_FORMULARIO
+          },
+          onExcluido = {
+            baseParaNovo = null
+            idSelecionado = 0L
+            tela = if (voltarParaFichario) TELA_FICHARIO_MODELO else TELA_PRINCIPAL
+          },
+          onVoltar = { voltarDoDetalhe() },
+        )
+
+      TELA_FICHARIO_MODELO ->
+        TelaFicharioModelo(
+          banco = banco,
+          marca = modeloMarca,
+          modelo = modeloNome,
+          ano = modeloAno,
+          onAbrirServico = { id ->
+            idSelecionado = id
+            voltarParaFichario = true
+            tela = TELA_DETALHE
+          },
+          onVoltar = { tela = TELA_PRINCIPAL },
+        )
+
+      else ->
+        Scaffold(
+          bottomBar = {
+            NavigationBar {
+              NavigationBarItem(
+                selected = aba == Aba.HISTORICO.name,
+                onClick = { aba = Aba.HISTORICO.name },
+                icon = { Icon(Icons.AutoMirrored.Filled.List, contentDescription = null) },
+                label = { Text("Histórico") },
+              )
+              NavigationBarItem(
+                selected = aba == Aba.FICHARIO.name,
+                onClick = { aba = Aba.FICHARIO.name },
+                icon = { Icon(Icons.Default.Build, contentDescription = null) },
+                label = { Text("Fichário") },
+              )
+              NavigationBarItem(
+                selected = aba == Aba.AJUSTES.name,
+                onClick = { aba = Aba.AJUSTES.name },
+                icon = { Icon(Icons.Default.Settings, contentDescription = null) },
+                label = { Text("Ajustes") },
+              )
+            }
+          },
+          contentWindowInsets = WindowInsets(0, 0, 0, 0),
+          containerColor = MaterialTheme.colorScheme.background,
+        ) { espacamento ->
+          Box(modifier = Modifier.fillMaxSize().padding(espacamento)) {
+            when (aba) {
+              Aba.FICHARIO.name ->
+                TelaFichario(
+                  banco = banco,
+                  onAbrirModelo = { modelo ->
+                    modeloMarca = modelo.marca
+                    modeloNome = modelo.modelo
+                    modeloAno = modelo.ano
+                    tela = TELA_FICHARIO_MODELO
+                  },
+                )
+
+              Aba.AJUSTES.name ->
+                TelaAjustes(
+                  banco = banco,
+                  atualizacao = atualizacao,
+                  baixandoAtualizacao = baixandoAtualizacao,
+                  onAtualizarApp = {
+                    val disponivel = atualizacao ?: return@TelaAjustes
+                    if (baixandoAtualizacao) return@TelaAjustes
+                    baixandoAtualizacao = true
+                    escopo.launch {
+                      runCatching {
+                        withContext(Dispatchers.IO) { Atualizacoes.baixar(contexto, disponivel) }
+                      }.onSuccess { arquivo ->
+                        Atualizacoes.abrirInstalador(contexto, arquivo)
+                      }.onFailure {
+                        Toast.makeText(contexto, "Não foi possível baixar a atualização", Toast.LENGTH_LONG).show()
+                      }
+                      baixandoAtualizacao = false
+                    }
+                  },
+                  onProcurarAtualizacao = {
+                    escopo.launch {
+                      val encontrada = withContext(Dispatchers.IO) {
+                        runCatching { Atualizacoes.verificar(versaoAtual) }.getOrNull()
+                      }
+                      atualizacao = encontrada
+                      if (encontrada == null) {
+                        Toast.makeText(contexto, "Você já está na versão mais nova", Toast.LENGTH_SHORT).show()
+                      }
+                    }
+                  },
+                  onVerNovidades = { escopo.launch { abrirNovidades() } },
+                  onDadosRestaurados = {
+                    aba = Aba.HISTORICO.name
+                    filtro = FiltroLista()
+                  },
+                )
+
+              else ->
+                TelaLista(
+                  banco = banco,
+                  filtro = filtro,
+                  aoMudarFiltro = { filtro = it },
+                  onAbrir = { id ->
+                    idSelecionado = id
+                    voltarParaFichario = false
+                    tela = TELA_DETALHE
+                  },
+                  onNovo = {
+                    baseParaNovo = null
+                    voltarParaFichario = false
+                    idSelecionado = 0L
+                    tela = TELA_FORMULARIO
+                  },
+                  onIrParaAjustes = { aba = Aba.AJUSTES.name },
+                  atualizacao = atualizacao,
+                  baixandoAtualizacao = baixandoAtualizacao,
+                  onAtualizarApp = {
+                    val disponivel = atualizacao ?: return@TelaLista
+                    if (baixandoAtualizacao) return@TelaLista
+                    baixandoAtualizacao = true
+                    escopo.launch {
+                      runCatching {
+                        withContext(Dispatchers.IO) { Atualizacoes.baixar(contexto, disponivel) }
+                      }.onSuccess { arquivo ->
+                        Atualizacoes.abrirInstalador(contexto, arquivo)
+                      }.onFailure {
+                        Toast.makeText(contexto, "Não foi possível baixar a atualização", Toast.LENGTH_LONG).show()
+                      }
+                      baixandoAtualizacao = false
+                    }
+                  },
+                )
+            }
+          }
+        }
+    }
+
+    if (!bloqueado && dialogoNovidades) {
+      DialogoNovidades(
+        versao = versaoAtual,
+        notas = notasNovidades,
+        carregando = carregandoNovidades,
+        onFechar = { fecharNovidades() },
       )
+    }
+
+    if (bloqueado) {
+      TelaBloqueio(
+        biometriaAtiva = biometriaAtiva,
+        aoDesbloquear = { bloqueado = false },
+      )
+    }
   }
 }

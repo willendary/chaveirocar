@@ -1,0 +1,415 @@
+package com.willendary.chaveirocar.ui
+
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Search
+import androidx.compose.material3.Card
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.Dialog
+import com.willendary.chaveirocar.dados.BancoDeAtendimentos
+import com.willendary.chaveirocar.modelo.Atendimento
+import com.willendary.chaveirocar.modelo.CategoriaFoto
+import com.willendary.chaveirocar.modelo.Foto
+import com.willendary.chaveirocar.modelo.ResumoModelo
+import com.willendary.chaveirocar.util.formatarData
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+
+/**
+ * Fichário: o chaveiro pensa por carro, não por serviço.
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun TelaFichario(
+  banco: BancoDeAtendimentos,
+  onAbrirModelo: (ResumoModelo) -> Unit,
+) {
+  var busca by remember { mutableStateOf("") }
+  var modelos by remember { mutableStateOf<List<ResumoModelo>>(emptyList()) }
+  var carregado by remember { mutableStateOf(false) }
+
+  LaunchedEffect(Unit) {
+    modelos = withContext(Dispatchers.IO) { banco.resumoPorModelo() }
+    carregado = true
+  }
+
+  val visiveis = remember(busca, modelos) {
+    val termo = busca.trim()
+    if (termo.isBlank()) modelos
+    else modelos.filter { modelo ->
+      "${modelo.marca} ${modelo.modelo} ${modelo.ano}".contains(termo, ignoreCase = true)
+    }
+  }
+
+  Scaffold(
+    topBar = {
+      TopAppBar(
+        title = {
+          Column {
+            Text("Fichário", style = MaterialTheme.typography.titleLarge)
+            Text(
+              text = if (modelos.isEmpty()) "Carros já atendidos" else "${modelos.size} modelo(s)",
+              style = MaterialTheme.typography.bodySmall,
+              color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+          }
+        },
+        colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.background),
+      )
+    },
+    contentWindowInsets = WindowInsets(0, 0, 0, 0),
+    containerColor = MaterialTheme.colorScheme.background,
+  ) { espacamento ->
+    Column(modifier = Modifier.fillMaxSize().padding(espacamento)) {
+      OutlinedTextField(
+        value = busca,
+        onValueChange = { busca = it },
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
+        placeholder = { Text("Buscar marca ou modelo") },
+        leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
+        singleLine = true,
+        shape = MaterialTheme.shapes.extraLarge,
+      )
+
+      when {
+        !carregado -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+          CircularProgressIndicator()
+        }
+
+        visiveis.isEmpty() -> Box(
+          Modifier.fillMaxSize().padding(32.dp),
+          contentAlignment = Alignment.Center,
+        ) {
+          Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            Text(
+              text = if (busca.isBlank()) "Fichário vazio" else "Nada encontrado",
+              style = MaterialTheme.typography.titleMedium,
+            )
+            Spacer(Modifier.height(6.dp))
+            Text(
+              text = if (busca.isBlank()) "Os carros aparecem aqui depois do primeiro serviço."
+              else "Tente outra marca ou modelo.",
+              style = MaterialTheme.typography.bodyMedium,
+              color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+          }
+        }
+
+        else -> LazyColumn(
+          modifier = Modifier.fillMaxSize(),
+          verticalArrangement = Arrangement.spacedBy(10.dp),
+          contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 10.dp, bottom = 24.dp),
+        ) {
+          items(visiveis) { modelo ->
+            CartaoModelo(modelo = modelo, onAbrir = { onAbrirModelo(modelo) })
+          }
+        }
+      }
+    }
+  }
+}
+
+@Composable
+private fun CartaoModelo(modelo: ResumoModelo, onAbrir: () -> Unit) {
+  Card(
+    modifier = Modifier.fillMaxWidth().clickable(onClick = onAbrir),
+    shape = MaterialTheme.shapes.large,
+  ) {
+    Column(modifier = Modifier.padding(16.dp)) {
+      Row(verticalAlignment = Alignment.CenterVertically) {
+        Text(
+          text = listOf(modelo.marca, modelo.modelo).filter { it.isNotBlank() }.joinToString(" ")
+            .ifBlank { "Sem nome" },
+          style = MaterialTheme.typography.titleMedium,
+          modifier = Modifier.weight(1f),
+        )
+        if (modelo.ano.isNotBlank()) Selo(modelo.ano)
+      }
+      Spacer(Modifier.height(6.dp))
+      Text(
+        text = "${modelo.quantidade} serviço(s) · último em ${formatarData(modelo.ultimaData)}",
+        style = MaterialTheme.typography.bodySmall,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+      )
+      if (!modelo.temProcedimento) {
+        Spacer(Modifier.height(8.dp))
+        Text(
+          text = "Sem procedimento registrado",
+          style = MaterialTheme.typography.bodySmall,
+          color = MaterialTheme.colorScheme.error,
+        )
+      }
+    }
+  }
+}
+
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
+@Composable
+fun TelaFicharioModelo(
+  banco: BancoDeAtendimentos,
+  marca: String,
+  modelo: String,
+  ano: String,
+  onAbrirServico: (Long) -> Unit,
+  onVoltar: () -> Unit,
+) {
+  val contexto = LocalContext.current
+  var servicos by remember { mutableStateOf<List<Atendimento>>(emptyList()) }
+  var procedimentos by remember { mutableStateOf<List<Foto>>(emptyList()) }
+  var carregado by remember { mutableStateOf(false) }
+  var fotoAberta by remember { mutableStateOf<String?>(null) }
+
+  LaunchedEffect(marca, modelo, ano) {
+    withContext(Dispatchers.IO) {
+      val encontrados = banco.servicosDoVeiculo(marca, modelo, ano)
+      servicos = encontrados
+      procedimentos = encontrados.flatMap { servico ->
+        banco.listarFotos(servico.id).filter { it.categoria == CategoriaFoto.PROCEDIMENTO }
+      }
+    }
+    carregado = true
+  }
+
+  val abertura = servicos.firstOrNull { it.abertura.isNotBlank() }?.abertura
+  val codigoChave = servicos.firstOrNull { it.codigoChave.isNotBlank() }?.codigoChave
+  val codigoConfiguracao = servicos.firstOrNull { it.codigoConfiguracao.isNotBlank() }?.codigoConfiguracao
+
+  Scaffold(
+    topBar = {
+      TopAppBar(
+        title = {
+          Column {
+            Text(
+              listOf(marca, modelo, ano).filter { it.isNotBlank() }.joinToString(" "),
+              style = MaterialTheme.typography.titleMedium,
+              maxLines = 1,
+              overflow = TextOverflow.Ellipsis,
+            )
+            Text(
+              text = "${servicos.size} serviço(s)",
+              style = MaterialTheme.typography.bodySmall,
+              color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+          }
+        },
+        navigationIcon = { TextButton(onClick = onVoltar) { Text("Voltar") } },
+      )
+    },
+  ) { espacamento ->
+    if (!carregado) {
+      Box(Modifier.fillMaxSize().padding(espacamento), contentAlignment = Alignment.Center) {
+        CircularProgressIndicator()
+      }
+      return@Scaffold
+    }
+
+    Column(
+      modifier = Modifier
+        .fillMaxSize()
+        .padding(espacamento)
+        .verticalScroll(rememberScrollState())
+        .padding(16.dp),
+      verticalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+      if (abertura.isNullOrBlank() && codigoChave.isNullOrBlank() && codigoConfiguracao.isNullOrBlank()) {
+        Card(modifier = Modifier.fillMaxWidth()) {
+          Column(Modifier.padding(14.dp)) {
+            Text("Sem procedimento registrado", style = MaterialTheme.typography.titleSmall)
+            Text(
+              text = "Na próxima vez, preencha a abertura ou os códigos no serviço.",
+              style = MaterialTheme.typography.bodySmall,
+              color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+          }
+        }
+      }
+
+      if (!abertura.isNullOrBlank()) {
+        Card(
+          modifier = Modifier.fillMaxWidth(),
+          colors = androidx.compose.material3.CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.secondaryContainer,
+          ),
+        ) {
+          Column(Modifier.padding(14.dp)) {
+            Text("Abertura", style = MaterialTheme.typography.labelLarge)
+            Spacer(Modifier.height(4.dp))
+            Text(abertura, style = MaterialTheme.typography.bodyLarge)
+          }
+        }
+      }
+
+      if (!codigoChave.isNullOrBlank()) {
+        Card(modifier = Modifier.fillMaxWidth()) {
+          Row(modifier = Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
+            Column(modifier = Modifier.weight(1f)) {
+              Text("Código de chave", style = MaterialTheme.typography.labelMedium)
+              Text(
+                codigoChave,
+                fontFamily = FontFamily.Monospace,
+                fontWeight = FontWeight.Bold,
+                fontSize = 20.sp,
+              )
+            }
+            TextButton(onClick = { copiarTexto(contexto, "Código de chave", codigoChave) }) {
+              Text("Copiar")
+            }
+          }
+        }
+      }
+
+      if (!codigoConfiguracao.isNullOrBlank()) {
+        Card(modifier = Modifier.fillMaxWidth()) {
+          Row(modifier = Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
+            Column(modifier = Modifier.weight(1f)) {
+              Text("Código de configuração", style = MaterialTheme.typography.labelMedium)
+              Text(
+                codigoConfiguracao,
+                fontFamily = FontFamily.Monospace,
+                fontWeight = FontWeight.Bold,
+                fontSize = 20.sp,
+              )
+            }
+            TextButton(
+              onClick = { copiarTexto(contexto, "Código de configuração", codigoConfiguracao) },
+            ) { Text("Copiar") }
+          }
+        }
+      }
+
+      if (procedimentos.isNotEmpty()) {
+        TituloSecao("Como se faz")
+        FlowRow(
+          horizontalArrangement = Arrangement.spacedBy(8.dp),
+          verticalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+          procedimentos.forEach { foto ->
+            Column(modifier = Modifier.width(140.dp)) {
+              ImagemLocal(
+                caminho = foto.caminho,
+                ladoMaximo = 800,
+                modificador = Modifier
+                  .width(140.dp)
+                  .height(140.dp)
+                  .clip(RoundedCornerShape(12.dp))
+                  .clickable { fotoAberta = foto.caminho },
+              )
+              if (foto.legenda.isNotBlank()) {
+                Text(
+                  text = foto.legenda,
+                  style = MaterialTheme.typography.bodySmall,
+                  maxLines = 2,
+                  overflow = TextOverflow.Ellipsis,
+                )
+              }
+            }
+          }
+        }
+      }
+
+      TituloSecao("Serviços deste carro")
+      servicos.forEach { servico ->
+        Card(
+          modifier = Modifier.fillMaxWidth().clickable { onAbrirServico(servico.id) },
+        ) {
+          Column(Modifier.padding(14.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+              Selo(servico.tipoServico.rotulo)
+              Spacer(Modifier.width(8.dp))
+              Text(
+                text = formatarData(servico.dataServico),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+              )
+              if (servico.quantidadeFotos > 0) {
+                Spacer(Modifier.width(8.dp))
+                Text(
+                  text = "${servico.quantidadeFotos} foto(s)",
+                  style = MaterialTheme.typography.bodySmall,
+                  color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+              }
+            }
+            val resumo = servico.solucao.ifBlank { servico.defeito }.ifBlank { servico.abertura }
+            if (resumo.isNotBlank()) {
+              Spacer(Modifier.height(4.dp))
+              Text(
+                text = resumo,
+                style = MaterialTheme.typography.bodyMedium,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
+              )
+            }
+          }
+        }
+      }
+      Spacer(Modifier.height(24.dp))
+    }
+  }
+
+  val foto = fotoAberta
+  if (foto != null) {
+    Dialog(onDismissRequest = { fotoAberta = null }) {
+      Card {
+        Column {
+          ImagemLocal(
+            caminho = foto,
+            ladoMaximo = 2000,
+            modificador = Modifier
+              .fillMaxWidth()
+              .heightIn(max = 520.dp)
+              .clickable { fotoAberta = null },
+          )
+          TextButton(onClick = { fotoAberta = null }, modifier = Modifier.fillMaxWidth()) {
+            Text("Fechar")
+          }
+        }
+      }
+    }
+  }
+}

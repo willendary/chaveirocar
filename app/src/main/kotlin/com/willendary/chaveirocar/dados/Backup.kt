@@ -2,6 +2,7 @@ package com.willendary.chaveirocar.dados
 
 import android.content.Context
 import com.willendary.chaveirocar.modelo.Atendimento
+import com.willendary.chaveirocar.modelo.CategoriaFoto
 import com.willendary.chaveirocar.modelo.TipoServico
 import org.json.JSONArray
 import org.json.JSONObject
@@ -23,7 +24,7 @@ object Backup {
   fun exportar(banco: BancoDeAtendimentos, contexto: Context, saida: OutputStream) {
     val zip = ZipOutputStream(BufferedOutputStream(saida))
     val raiz = JSONObject()
-    raiz.put("versao", 1)
+    raiz.put("versao", 2)
     raiz.put("exportadoEm", System.currentTimeMillis())
     val lista = JSONArray()
 
@@ -38,6 +39,9 @@ object Backup {
         put("tipoServico", atendimento.tipoServico.name)
         put("defeito", atendimento.defeito)
         put("solucao", atendimento.solucao)
+        put("abertura", atendimento.abertura)
+        put("codigoChave", atendimento.codigoChave)
+        put("codigoConfiguracao", atendimento.codigoConfiguracao)
         put("ferramenta", atendimento.ferramenta)
         put("valorCentavos", atendimento.valorCentavos)
       }
@@ -49,7 +53,14 @@ object Backup {
         zip.putNextEntry(ZipEntry(nomeDentroDoZip))
         arquivo.inputStream().use { it.copyTo(zip) }
         zip.closeEntry()
-        fotos.put(foto.caminho)
+        fotos.put(
+          JSONObject().apply {
+            put("arquivo", foto.caminho)
+            put("categoria", foto.categoria.name)
+            put("legenda", foto.legenda)
+            put("ordem", foto.ordem)
+          },
+        )
       }
       objeto.put("fotos", fotos)
       lista.put(objeto)
@@ -112,16 +123,33 @@ object Backup {
         tipoServico = TipoServico.de(objeto.optString("tipoServico")),
         defeito = objeto.optString("defeito"),
         solucao = objeto.optString("solucao"),
+        abertura = objeto.optString("abertura"),
+        codigoChave = objeto.optString("codigoChave"),
+        codigoConfiguracao = objeto.optString("codigoConfiguracao"),
         ferramenta = objeto.optString("ferramenta"),
         valorCentavos = objeto.optLong("valorCentavos"),
       )
       val id = banco.salvar(atendimento)
       val fotos = objeto.optJSONArray("fotos") ?: JSONArray()
       for (indiceFoto in 0 until fotos.length()) {
-        val nomeOriginal = fotos.optString(indiceFoto)
-        val bytes = fotosDoZip[nomeOriginal] ?: continue
+        val item = fotos.opt(indiceFoto)
+        val arquivo: String
+        val categoria: CategoriaFoto
+        val legenda: String
+        if (item is JSONObject) {
+          arquivo = item.optString("arquivo")
+          categoria = CategoriaFoto.de(item.optString("categoria"))
+          legenda = item.optString("legenda")
+        } else {
+          // backups antigos (1.0) guardavam só o nome do arquivo
+          arquivo = item?.toString().orEmpty()
+          categoria = CategoriaFoto.CARRO
+          legenda = ""
+        }
+        if (arquivo.isBlank()) continue
+        val bytes = fotosDoZip[arquivo] ?: continue
         val nomeNovo = Fotos.salvarDeBytes(contexto, bytes)
-        banco.adicionarFoto(id, nomeNovo)
+        banco.adicionarFoto(id, nomeNovo, categoria, legenda)
       }
       importados++
     }

@@ -2,13 +2,16 @@ package com.willendary.chaveirocar.ui
 
 import android.app.DatePickerDialog
 import android.widget.Toast
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -24,6 +27,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CircularProgressIndicator
@@ -51,22 +55,31 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.FileProvider
 import com.willendary.chaveirocar.dados.BancoDeAtendimentos
 import com.willendary.chaveirocar.dados.Fotos
 import com.willendary.chaveirocar.modelo.Atendimento
+import com.willendary.chaveirocar.modelo.CategoriaFoto
 import com.willendary.chaveirocar.modelo.Foto
 import com.willendary.chaveirocar.modelo.TipoServico
 import com.willendary.chaveirocar.util.formatarData
 import com.willendary.chaveirocar.util.formatarValorEditavel
 import com.willendary.chaveirocar.util.paraCentavos
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
 import java.util.Calendar
+
+private data class FotoNova(
+  val nome: String,
+  val categoria: CategoriaFoto,
+  val legenda: String = "",
+)
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
@@ -82,12 +95,22 @@ fun TelaFormulario(
 
   var atendimento by remember { mutableStateOf(base ?: Atendimento()) }
   var fotosSalvas by remember { mutableStateOf<List<Foto>>(emptyList()) }
-  var fotosNovas by remember { mutableStateOf<List<String>>(emptyList()) }
+  var fotosNovas by remember { mutableStateOf<List<FotoNova>>(emptyList()) }
   var valorTexto by remember { mutableStateOf(formatarValorEditavel((base ?: Atendimento()).valorCentavos)) }
   var carregado by remember { mutableStateOf(id == 0L) }
   var historico by remember { mutableStateOf<List<Atendimento>>(emptyList()) }
   var arquivoCamera by remember { mutableStateOf<File?>(null) }
+  var categoriaPendente by remember { mutableStateOf(CategoriaFoto.CARRO) }
   var salvando by remember { mutableStateOf(false) }
+  var fotoEditando by remember { mutableStateOf<Foto?>(null) }
+  var novaEditando by remember { mutableStateOf<FotoNova?>(null) }
+
+  var sugestoesMarca by remember { mutableStateOf<List<String>>(emptyList()) }
+  var sugestoesModelo by remember { mutableStateOf<List<String>>(emptyList()) }
+  var sugestoesDefeito by remember { mutableStateOf<List<String>>(emptyList()) }
+  var sugestoesSolucaoBase by remember { mutableStateOf<List<String>>(emptyList()) }
+  var sugestoesSolucaoDefeito by remember { mutableStateOf<List<String>>(emptyList()) }
+  var sugestoesAbertura by remember { mutableStateOf<List<String>>(emptyList()) }
 
   LaunchedEffect(id) {
     if (id > 0) {
@@ -101,6 +124,18 @@ fun TelaFormulario(
     }
   }
 
+  LaunchedEffect(Unit) {
+    withContext(Dispatchers.IO) {
+      sugestoesMarca = banco.valoresUsados("marca")
+      sugestoesDefeito = banco.valoresUsados("defeito")
+      sugestoesSolucaoBase = banco.valoresUsados("solucao")
+    }
+  }
+
+  LaunchedEffect(atendimento.marca) {
+    sugestoesModelo = withContext(Dispatchers.IO) { banco.modelosDaMarca(atendimento.marca) }
+  }
+
   val placaParaHistorico = atendimento.placa.trim().uppercase()
   LaunchedEffect(placaParaHistorico) {
     historico = if (placaParaHistorico.length >= 7) {
@@ -110,14 +145,38 @@ fun TelaFormulario(
     }
   }
 
-  fun anexarFoto(nome: String) {
+  LaunchedEffect(atendimento.modelo) {
+    sugestoesAbertura = if (atendimento.modelo.isBlank()) {
+      emptyList()
+    } else {
+      withContext(Dispatchers.IO) {
+        banco.servicosDoModelo(atendimento.modelo, id)
+          .mapNotNull { registro -> registro.abertura.takeIf { it.isNotBlank() } }
+          .distinct()
+          .take(4)
+      }
+    }
+  }
+
+  LaunchedEffect(atendimento.defeito) {
+    if (atendimento.defeito.length < 4) {
+      sugestoesSolucaoDefeito = emptyList()
+      return@LaunchedEffect
+    }
+    delay(400)
+    sugestoesSolucaoDefeito = withContext(Dispatchers.IO) {
+      banco.solucoesPorDefeito(atendimento.defeito)
+    }
+  }
+
+  fun anexarFoto(nome: String, categoria: CategoriaFoto) {
     if (id > 0) {
       escopo.launch {
-        withContext(Dispatchers.IO) { banco.adicionarFoto(id, nome) }
+        withContext(Dispatchers.IO) { banco.adicionarFoto(id, nome, categoria) }
         fotosSalvas = withContext(Dispatchers.IO) { banco.listarFotos(id) }
       }
     } else {
-      fotosNovas = fotosNovas + nome
+      fotosNovas = fotosNovas + FotoNova(nome, categoria)
     }
   }
 
@@ -128,7 +187,7 @@ fun TelaFormulario(
       escopo.launch {
         val nome = withContext(Dispatchers.IO) { Fotos.salvarDeArquivo(contexto, arquivo) }
         arquivo.delete()
-        anexarFoto(nome)
+        anexarFoto(nome, categoriaPendente)
       }
     } else {
       arquivo?.delete()
@@ -141,16 +200,22 @@ fun TelaFormulario(
         val nome = withContext(Dispatchers.IO) {
           contexto.contentResolver.openInputStream(uri)?.use { Fotos.salvarDeFluxo(contexto, it) }
         }
-        if (nome != null) anexarFoto(nome)
+        if (nome != null) anexarFoto(nome, categoriaPendente)
       }
     }
   }
 
-  fun tirarFoto() {
+  fun tirarFoto(categoria: CategoriaFoto) {
+    categoriaPendente = categoria
     val arquivo = File(contexto.cacheDir, "camera_${System.currentTimeMillis()}.jpg")
     arquivoCamera = arquivo
     val uri = FileProvider.getUriForFile(contexto, "${contexto.packageName}.arquivos", arquivo)
     camera.launch(uri)
+  }
+
+  fun escolherDaGaleria(categoria: CategoriaFoto) {
+    categoriaPendente = categoria
+    galeria.launch("image/*")
   }
 
   fun removerFotoSalva(foto: Foto) {
@@ -161,9 +226,35 @@ fun TelaFormulario(
     }
   }
 
-  fun removerFotoNova(nome: String) {
-    fotosNovas = fotosNovas - nome
-    Fotos.excluir(contexto, nome)
+  fun removerFotoNova(foto: FotoNova) {
+    fotosNovas = fotosNovas - foto
+    Fotos.excluir(contexto, foto.nome)
+  }
+
+  fun moverFotoSalva(foto: Foto, passo: Int) {
+    val daCategoria = fotosSalvas.filter { it.categoria == foto.categoria }
+    val indice = daCategoria.indexOfFirst { it.id == foto.id }
+    val alvo = daCategoria.getOrNull(indice + passo) ?: return
+    escopo.launch {
+      withContext(Dispatchers.IO) {
+        banco.atualizarFoto(foto.copy(ordem = alvo.ordem))
+        banco.atualizarFoto(alvo.copy(ordem = foto.ordem))
+      }
+      fotosSalvas = withContext(Dispatchers.IO) { banco.listarFotos(id) }
+    }
+  }
+
+  fun moverFotoNova(foto: FotoNova, passo: Int) {
+    val daCategoria = fotosNovas.filter { it.categoria == foto.categoria }
+    val indice = daCategoria.indexOfFirst { it.nome == foto.nome }
+    val alvo = daCategoria.getOrNull(indice + passo) ?: return
+    val lista = fotosNovas.toMutableList()
+    val posicaoAtual = lista.indexOfFirst { it.nome == foto.nome }
+    val posicaoAlvo = lista.indexOfFirst { it.nome == alvo.nome }
+    if (posicaoAtual < 0 || posicaoAlvo < 0) return
+    lista[posicaoAtual] = alvo
+    lista[posicaoAlvo] = foto
+    fotosNovas = lista
   }
 
   fun salvar() {
@@ -177,7 +268,7 @@ fun TelaFormulario(
     escopo.launch {
       val idSalvo = withContext(Dispatchers.IO) {
         val idGravado = banco.salvar(atendimento.copy(placa = placa))
-        fotosNovas.forEach { banco.adicionarFoto(idGravado, it) }
+        fotosNovas.forEach { banco.adicionarFoto(idGravado, it.nome, it.categoria, it.legenda) }
         idGravado
       }
       salvando = false
@@ -185,15 +276,19 @@ fun TelaFormulario(
     }
   }
 
+  fun sairDescartandoNovas() {
+    fotosNovas.forEach { Fotos.excluir(contexto, it.nome) }
+    onVoltar()
+  }
+
+  BackHandler { sairDescartandoNovas() }
+
   Scaffold(
     topBar = {
       TopAppBar(
         title = { Text(if (id > 0) "Editar serviço" else "Novo serviço") },
         navigationIcon = {
-          TextButton(onClick = {
-            fotosNovas.forEach { Fotos.excluir(contexto, it) }
-            onVoltar()
-          }) { Text("Voltar") }
+          TextButton(onClick = { sairDescartandoNovas() }) { Text("Voltar") }
         },
         actions = {
           TextButton(onClick = { salvar() }, enabled = !salvando) { Text("Salvar", fontWeight = FontWeight.Bold) }
@@ -216,16 +311,15 @@ fun TelaFormulario(
         .padding(horizontal = 16.dp, vertical = 8.dp),
       verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-      OutlinedTextField(
-        value = atendimento.placa,
-        onValueChange = { texto ->
+      CampoTexto(
+        rotulo = "Placa *",
+        valor = atendimento.placa,
+        aoMudar = { texto ->
           atendimento = atendimento.copy(placa = texto.uppercase().filter { it.isLetterOrDigit() }.take(10))
         },
-        label = { Text("Placa *") },
-        placeholder = { Text("ABC1D23") },
-        singleLine = true,
-        textStyle = MaterialTheme.typography.titleLarge.copy(fontFamily = FontFamily.Monospace),
-        modifier = Modifier.fillMaxWidth(),
+        dica = "ABC1D23",
+        estiloTexto = MaterialTheme.typography.titleLarge.copy(fontFamily = FontFamily.Monospace),
+        modificador = Modifier.fillMaxWidth(),
       )
 
       if (historico.isNotEmpty()) {
@@ -251,13 +345,13 @@ fun TelaFormulario(
       }
 
       Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-        OutlinedTextField(
-          value = atendimento.marca,
-          onValueChange = { atendimento = atendimento.copy(marca = it) },
-          label = { Text("Marca") },
-          placeholder = { Text("Volkswagen") },
-          singleLine = true,
-          modifier = Modifier.weight(1f),
+        CampoTexto(
+          rotulo = "Marca",
+          valor = atendimento.marca,
+          aoMudar = { atendimento = atendimento.copy(marca = it) },
+          sugestoes = sugestoesMarca,
+          dica = "Volkswagen",
+          modificador = Modifier.weight(1f),
         )
         OutlinedTextField(
           value = atendimento.ano,
@@ -270,13 +364,13 @@ fun TelaFormulario(
         )
       }
 
-      OutlinedTextField(
-        value = atendimento.modelo,
-        onValueChange = { atendimento = atendimento.copy(modelo = it) },
-        label = { Text("Modelo") },
-        placeholder = { Text("Gol 1.6") },
-        singleLine = true,
-        modifier = Modifier.fillMaxWidth(),
+      CampoTexto(
+        rotulo = "Modelo",
+        valor = atendimento.modelo,
+        aoMudar = { atendimento = atendimento.copy(modelo = it) },
+        sugestoes = sugestoesModelo,
+        dica = "Gol 1.6",
+        modificador = Modifier.fillMaxWidth(),
       )
 
       OutlinedTextField(
@@ -318,80 +412,126 @@ fun TelaFormulario(
         }
       }
 
-      OutlinedTextField(
-        value = atendimento.defeito,
-        onValueChange = { atendimento = atendimento.copy(defeito = it) },
-        label = { Text("Defeito encontrado") },
-        placeholder = { Text("Ex.: chave não reconhecida, imobilizador travado") },
-        minLines = 3,
-        modifier = Modifier.fillMaxWidth(),
-        keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences),
+      CampoTexto(
+        rotulo = "Defeito encontrado",
+        valor = atendimento.defeito,
+        aoMudar = { atendimento = atendimento.copy(defeito = it) },
+        sugestoes = sugestoesDefeito,
+        dica = "Ex.: chave não reconhecida, imobilizador travado",
+        linhaUnica = false,
+        minimoLinhas = 3,
+        teclado = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences),
+        modificador = Modifier.fillMaxWidth(),
       )
 
-      OutlinedTextField(
-        value = atendimento.solucao,
-        onValueChange = { atendimento = atendimento.copy(solucao = it) },
-        label = { Text("Solução aplicada") },
-        placeholder = { Text("Ex.: reprogramei o transponder e sincronizei o telecomando") },
-        minLines = 3,
-        modifier = Modifier.fillMaxWidth(),
-        keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences),
+      CampoTexto(
+        rotulo = "Solução aplicada",
+        valor = atendimento.solucao,
+        aoMudar = { atendimento = atendimento.copy(solucao = it) },
+        sugestoes = (sugestoesSolucaoDefeito + sugestoesSolucaoBase).distinct(),
+        dica = "Ex.: reprogramei o transponder e sincronizei o telecomando",
+        linhaUnica = false,
+        minimoLinhas = 3,
+        teclado = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences),
+        modificador = Modifier.fillMaxWidth(),
       )
 
-      OutlinedTextField(
-        value = atendimento.ferramenta,
-        onValueChange = { atendimento = atendimento.copy(ferramenta = it) },
-        label = { Text("Ferramenta / equipamento usado") },
-        placeholder = { Text("VVDI, KD-X2, Autel...") },
-        singleLine = true,
-        modifier = Modifier.fillMaxWidth(),
+      CampoTexto(
+        rotulo = "Ferramenta / equipamento usado",
+        valor = atendimento.ferramenta,
+        aoMudar = { atendimento = atendimento.copy(ferramenta = it) },
+        dica = "VVDI, KD-X2, Autel...",
+        modificador = Modifier.fillMaxWidth(),
       )
 
-      OutlinedTextField(
-        value = valorTexto,
-        onValueChange = {
+      CampoTexto(
+        rotulo = "Valor cobrado (opcional)",
+        valor = valorTexto,
+        aoMudar = {
           valorTexto = it
           atendimento = atendimento.copy(valorCentavos = paraCentavos(it))
         },
-        label = { Text("Valor cobrado (opcional)") },
-        prefix = { Text("R$ ") },
-        singleLine = true,
-        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-        modifier = Modifier.fillMaxWidth(),
+        dica = "150,00",
+        teclado = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+        modificador = Modifier.fillMaxWidth(),
       )
 
-      Text("Fotos", style = MaterialTheme.typography.titleSmall)
-      if (fotosSalvas.isEmpty() && fotosNovas.isEmpty()) {
-        Text(
-          "Nenhuma foto. Foto ajuda a lembrar do carro e do serviço.",
-          style = MaterialTheme.typography.bodySmall,
-        )
-      } else {
-        LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp), contentPadding = PaddingValues(vertical = 4.dp)) {
-          items(fotosSalvas, key = { "s${it.id}" }) { foto ->
-            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-              ImagemLocal(
-                caminho = foto.caminho,
-                modificador = Modifier.size(110.dp).clip(RoundedCornerShape(10.dp)),
-              )
-              TextButton(onClick = { removerFotoSalva(foto) }) { Text("Remover", fontSize = 11.sp) }
-            }
-          }
-          items(fotosNovas, key = { "n$it" }) { nome ->
-            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-              ImagemLocal(
-                caminho = nome,
-                modificador = Modifier.size(110.dp).clip(RoundedCornerShape(10.dp)),
-              )
-              TextButton(onClick = { removerFotoNova(nome) }) { Text("Remover", fontSize = 11.sp) }
-            }
-          }
-        }
-      }
+      TituloSecao("Abertura")
+      CampoTexto(
+        rotulo = "Como se abre este carro",
+        valor = atendimento.abertura,
+        aoMudar = { atendimento = atendimento.copy(abertura = it) },
+        sugestoes = sugestoesAbertura,
+        dica = "Ex.: puxar a maçaneta e usar cunha no canto superior",
+        linhaUnica = false,
+        minimoLinhas = 2,
+        teclado = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences),
+        modificador = Modifier.fillMaxWidth(),
+      )
+
+      TituloSecao("Códigos")
+      CampoTexto(
+        rotulo = "Código de chave",
+        valor = atendimento.codigoChave,
+        aoMudar = {
+          atendimento = atendimento.copy(codigoChave = it.uppercase().filter { letra -> letra.isLetterOrDigit() || letra == '-' })
+        },
+        dica = "Corte / key code",
+        estiloTexto = MaterialTheme.typography.bodyLarge.copy(fontFamily = FontFamily.Monospace),
+        modificador = Modifier.fillMaxWidth(),
+      )
       Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        OutlinedButton(onClick = { tirarFoto() }) { Text("Tirar foto") }
-        OutlinedButton(onClick = { galeria.launch("image/*") }) { Text("Escolher da galeria") }
+        TextButton(
+          onClick = { copiarTexto(contexto, "Código de chave", atendimento.codigoChave) },
+          enabled = atendimento.codigoChave.isNotBlank(),
+        ) { Text("Copiar código de chave") }
       }
+      CampoTexto(
+        rotulo = "Código de configuração",
+        valor = atendimento.codigoConfiguracao,
+        aoMudar = { atendimento = atendimento.copy(codigoConfiguracao = it) },
+        dica = "Imobilizador / PIN",
+        estiloTexto = MaterialTheme.typography.bodyLarge.copy(fontFamily = FontFamily.Monospace),
+        modificador = Modifier.fillMaxWidth(),
+      )
+      Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        TextButton(
+          onClick = { copiarTexto(contexto, "Código de configuração", atendimento.codigoConfiguracao) },
+          enabled = atendimento.codigoConfiguracao.isNotBlank(),
+        ) { Text("Copiar código de configuração") }
+      }
+
+      TituloSecao("Fotos do carro")
+      SecaoDeFotos(
+        descricao = "Fotos do veículo, do painel, do defeito.",
+        categoria = CategoriaFoto.CARRO,
+        fotosSalvas = fotosSalvas.filter { it.categoria == CategoriaFoto.CARRO },
+        fotosNovas = fotosNovas.filter { it.categoria == CategoriaFoto.CARRO },
+        onTirarFoto = { tirarFoto(CategoriaFoto.CARRO) },
+        onGaleria = { escolherDaGaleria(CategoriaFoto.CARRO) },
+        onRemoverSalva = { removerFotoSalva(it) },
+        onRemoverNova = { removerFotoNova(it) },
+        onEditarLegendaSalva = { fotoEditando = it },
+        onEditarLegendaNova = { novaEditando = it },
+        onMoverSalva = { foto, passo -> moverFotoSalva(foto, passo) },
+        onMoverNova = { foto, passo -> moverFotoNova(foto, passo) },
+      )
+
+      TituloSecao("Como se faz")
+      SecaoDeFotos(
+        descricao = "Passo a passo do serviço. Use as setas para ordenar.",
+        categoria = CategoriaFoto.PROCEDIMENTO,
+        fotosSalvas = fotosSalvas.filter { it.categoria == CategoriaFoto.PROCEDIMENTO },
+        fotosNovas = fotosNovas.filter { it.categoria == CategoriaFoto.PROCEDIMENTO },
+        onTirarFoto = { tirarFoto(CategoriaFoto.PROCEDIMENTO) },
+        onGaleria = { escolherDaGaleria(CategoriaFoto.PROCEDIMENTO) },
+        onRemoverSalva = { removerFotoSalva(it) },
+        onRemoverNova = { removerFotoNova(it) },
+        onEditarLegendaSalva = { fotoEditando = it },
+        onEditarLegendaNova = { novaEditando = it },
+        onMoverSalva = { foto, passo -> moverFotoSalva(foto, passo) },
+        onMoverNova = { foto, passo -> moverFotoNova(foto, passo) },
+      )
 
       Spacer(Modifier.height(8.dp))
       Button(onClick = { salvar() }, enabled = !salvando, modifier = Modifier.fillMaxWidth()) {
@@ -400,4 +540,170 @@ fun TelaFormulario(
       Spacer(Modifier.height(24.dp))
     }
   }
+
+  fotoEditando?.let { foto ->
+    DialogoLegenda(
+      titulo = "Legenda da foto",
+      legendaAtual = foto.legenda,
+      onSalvar = { legenda ->
+        fotoEditando = null
+        escopo.launch {
+          withContext(Dispatchers.IO) { banco.atualizarFoto(foto.copy(legenda = legenda)) }
+          fotosSalvas = withContext(Dispatchers.IO) { banco.listarFotos(id) }
+        }
+      },
+      onCancelar = { fotoEditando = null },
+    )
+  }
+
+  novaEditando?.let { foto ->
+    DialogoLegenda(
+      titulo = "Legenda da foto",
+      legendaAtual = foto.legenda,
+      onSalvar = { legenda ->
+        fotosNovas = fotosNovas.map { if (it.nome == foto.nome) it.copy(legenda = legenda) else it }
+        novaEditando = null
+      },
+      onCancelar = { novaEditando = null },
+    )
+  }
+}
+
+@Composable
+private fun SecaoDeFotos(
+  descricao: String,
+  categoria: CategoriaFoto,
+  fotosSalvas: List<Foto>,
+  fotosNovas: List<FotoNova>,
+  onTirarFoto: () -> Unit,
+  onGaleria: () -> Unit,
+  onRemoverSalva: (Foto) -> Unit,
+  onRemoverNova: (FotoNova) -> Unit,
+  onEditarLegendaSalva: (Foto) -> Unit,
+  onEditarLegendaNova: (FotoNova) -> Unit,
+  onMoverSalva: (Foto, Int) -> Unit,
+  onMoverNova: (FotoNova, Int) -> Unit,
+) {
+  Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+    Text(descricao, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+    if (fotosSalvas.isEmpty() && fotosNovas.isEmpty()) {
+      Text(
+        text = if (categoria == CategoriaFoto.CARRO) "Nenhuma foto do carro ainda."
+        else "Nenhuma foto de procedimento ainda.",
+        style = MaterialTheme.typography.bodySmall,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+      )
+    } else {
+      LazyRow(
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        contentPadding = PaddingValues(vertical = 4.dp),
+      ) {
+        items(fotosSalvas, key = { "s${it.id}" }) { foto ->
+          CartaoFotoLegenda(
+            caminho = foto.caminho,
+            legenda = foto.legenda,
+            indice = fotosSalvas.indexOf(foto) + 1,
+            onEditarLegenda = { onEditarLegendaSalva(foto) },
+            onEsquerda = { onMoverSalva(foto, -1) },
+            onDireita = { onMoverSalva(foto, 1) },
+            onRemover = { onRemoverSalva(foto) },
+          )
+        }
+        items(fotosNovas, key = { "n${it.nome}" }) { foto ->
+          CartaoFotoLegenda(
+            caminho = foto.nome,
+            legenda = foto.legenda,
+            indice = fotosNovas.indexOf(foto) + 1,
+            onEditarLegenda = { onEditarLegendaNova(foto) },
+            onEsquerda = { onMoverNova(foto, -1) },
+            onDireita = { onMoverNova(foto, 1) },
+            onRemover = { onRemoverNova(foto) },
+          )
+        }
+      }
+    }
+    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+      OutlinedButton(onClick = onTirarFoto) { Text("Tirar foto") }
+      OutlinedButton(onClick = onGaleria) { Text("Galeria") }
+    }
+  }
+}
+
+@Composable
+private fun CartaoFotoLegenda(
+  caminho: String,
+  legenda: String,
+  indice: Int,
+  onEditarLegenda: () -> Unit,
+  onEsquerda: () -> Unit,
+  onDireita: () -> Unit,
+  onRemover: () -> Unit,
+) {
+  Column(
+    modifier = Modifier.width(150.dp),
+    horizontalAlignment = Alignment.CenterHorizontally,
+  ) {
+    Box(
+      modifier = Modifier
+        .fillMaxWidth()
+        .height(110.dp)
+        .clip(RoundedCornerShape(12.dp))
+        .clickable(onClick = onEditarLegenda),
+    ) {
+      ImagemLocal(caminho = caminho, modificador = Modifier.fillMaxSize(), ladoMaximo = 400)
+      Text(
+        text = indice.toString(),
+        style = MaterialTheme.typography.labelSmall,
+        modifier = Modifier
+          .padding(6.dp)
+          .clip(RoundedCornerShape(6.dp))
+          .background(MaterialTheme.colorScheme.secondaryContainer)
+          .padding(horizontal = 6.dp, vertical = 2.dp),
+      )
+    }
+    Spacer(Modifier.height(4.dp))
+    Text(
+      text = legenda.ifBlank { "Sem legenda" },
+      style = MaterialTheme.typography.bodySmall,
+      color = if (legenda.isBlank()) MaterialTheme.colorScheme.onSurfaceVariant
+      else MaterialTheme.colorScheme.onSurface,
+      maxLines = 2,
+      overflow = TextOverflow.Ellipsis,
+      modifier = Modifier.height(32.dp).clickable(onClick = onEditarLegenda),
+    )
+    Row(horizontalArrangement = Arrangement.spacedBy(2.dp)) {
+      TextButton(onClick = onEsquerda, contentPadding = PaddingValues(4.dp)) { Text("←", fontSize = 14.sp) }
+      TextButton(onClick = onDireita, contentPadding = PaddingValues(4.dp)) { Text("→", fontSize = 14.sp) }
+      TextButton(onClick = onRemover, contentPadding = PaddingValues(4.dp)) {
+        Text("✕", fontSize = 14.sp, color = MaterialTheme.colorScheme.error)
+      }
+    }
+  }
+}
+
+@Composable
+private fun DialogoLegenda(
+  titulo: String,
+  legendaAtual: String,
+  onSalvar: (String) -> Unit,
+  onCancelar: () -> Unit,
+) {
+  var texto by remember(legendaAtual) { mutableStateOf(legendaAtual) }
+  AlertDialog(
+    onDismissRequest = onCancelar,
+    title = { Text(titulo) },
+    text = {
+      OutlinedTextField(
+        value = texto,
+        onValueChange = { texto = it },
+        label = { Text("Legenda (opcional)") },
+        placeholder = { Text("Ex.: 1. tirar a forração") },
+        singleLine = false,
+        minLines = 2,
+        modifier = Modifier.fillMaxWidth(),
+      )
+    },
+    confirmButton = { TextButton(onClick = { onSalvar(texto.trim()) }) { Text("Salvar") } },
+    dismissButton = { TextButton(onClick = onCancelar) { Text("Cancelar") } },
+  )
 }

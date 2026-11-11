@@ -1,5 +1,7 @@
 package com.willendary.chaveirocar.ui
 
+import android.widget.Toast
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -11,8 +13,9 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
@@ -40,13 +43,16 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import com.willendary.chaveirocar.dados.BancoDeAtendimentos
 import com.willendary.chaveirocar.dados.Fotos
 import com.willendary.chaveirocar.modelo.Atendimento
+import com.willendary.chaveirocar.modelo.CategoriaFoto
 import com.willendary.chaveirocar.modelo.Foto
+import com.willendary.chaveirocar.util.Compartilhamento
 import com.willendary.chaveirocar.util.formatarData
 import com.willendary.chaveirocar.util.formatarValor
 import kotlinx.coroutines.Dispatchers
@@ -69,6 +75,7 @@ fun TelaDetalhe(
   var fotos by remember { mutableStateOf<List<Foto>>(emptyList()) }
   var fotoAberta by remember { mutableStateOf<String?>(null) }
   var confirmandoExclusao by remember { mutableStateOf(false) }
+  var gerandoPdf by remember { mutableStateOf(false) }
 
   LaunchedEffect(id) {
     withContext(Dispatchers.IO) {
@@ -101,12 +108,17 @@ fun TelaDetalhe(
         .padding(16.dp),
       verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-      Text(
-        text = registro.placa,
-        fontFamily = FontFamily.Monospace,
-        fontWeight = FontWeight.Bold,
-        fontSize = 32.sp,
-      )
+      Row(verticalAlignment = Alignment.CenterVertically) {
+        Text(
+          text = registro.placa,
+          fontFamily = FontFamily.Monospace,
+          fontWeight = FontWeight.Bold,
+          fontSize = 32.sp,
+          color = MaterialTheme.colorScheme.primary,
+        )
+        Spacer(Modifier.width(12.dp))
+        Selo(registro.tipoServico.rotulo)
+      }
       Text(
         text = listOf(registro.marca, registro.modelo, registro.ano)
           .filter { it.isNotBlank() }
@@ -114,18 +126,54 @@ fun TelaDetalhe(
         style = MaterialTheme.typography.titleMedium,
       )
       Text(
-        text = "${formatarData(registro.dataServico)} · ${registro.tipoServico.rotulo}",
-        style = MaterialTheme.typography.bodyMedium,
+        text = formatarData(registro.dataServico) +
+          if (registro.chassi.isNotBlank()) " · Chassi ${registro.chassi}" else "",
+        style = MaterialTheme.typography.bodySmall,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
       )
-      if (registro.chassi.isNotBlank()) {
-        Text(
-          text = "Chassi: ${registro.chassi}",
-          style = MaterialTheme.typography.bodySmall,
-          fontFamily = FontFamily.Monospace,
-        )
-      }
       if (registro.valorCentavos > 0) {
         Text("Valor: ${formatarValor(registro.valorCentavos)}", style = MaterialTheme.typography.bodyMedium)
+      }
+
+      if (registro.abertura.isNotBlank()) {
+        Card(
+          modifier = Modifier.fillMaxWidth(),
+          colors = androidx.compose.material3.CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.secondaryContainer,
+          ),
+        ) {
+          Column(Modifier.padding(14.dp)) {
+            Text("Abertura", style = MaterialTheme.typography.labelLarge)
+            Spacer(Modifier.height(4.dp))
+            Text(registro.abertura, style = MaterialTheme.typography.bodyLarge)
+          }
+        }
+      }
+
+      if (registro.codigoChave.isNotBlank() || registro.codigoConfiguracao.isNotBlank()) {
+        Card(modifier = Modifier.fillMaxWidth()) {
+          Column(
+            modifier = Modifier.padding(14.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp),
+          ) {
+            if (registro.codigoChave.isNotBlank()) {
+              CodigoCopiado(
+                rotulo = "Código de chave",
+                valor = registro.codigoChave,
+                onCopiar = { copiarTexto(contexto, "Código de chave", registro.codigoChave) },
+              )
+            }
+            if (registro.codigoConfiguracao.isNotBlank()) {
+              CodigoCopiado(
+                rotulo = "Código de configuração",
+                valor = registro.codigoConfiguracao,
+                onCopiar = {
+                  copiarTexto(contexto, "Código de configuração", registro.codigoConfiguracao)
+                },
+              )
+            }
+          }
+        }
       }
 
       if (registro.defeito.isNotBlank()) {
@@ -152,30 +200,69 @@ fun TelaDetalhe(
         Text("Ferramenta: ${registro.ferramenta}", style = MaterialTheme.typography.bodyMedium)
       }
 
-      if (fotos.isNotEmpty()) {
-        Text("Fotos", style = MaterialTheme.typography.titleSmall)
-        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-          fotos.forEach { foto ->
-            ImagemLocal(
-              caminho = foto.caminho,
-              ladoMaximo = 800,
-              modificador = Modifier
-                .size(140.dp)
-                .clip(RoundedCornerShape(10.dp))
-                .clickable { fotoAberta = foto.caminho },
-            )
+      val fotosDoCarro = fotos.filter { it.categoria == CategoriaFoto.CARRO }
+      val fotosDeProcedimento = fotos.filter { it.categoria == CategoriaFoto.PROCEDIMENTO }
+
+      if (fotosDoCarro.isNotEmpty()) {
+        TituloSecao("Fotos do carro")
+        GradeDeFotos(fotosDoCarro) { fotoAberta = it }
+      }
+
+      if (fotosDeProcedimento.isNotEmpty()) {
+        TituloSecao("Como se faz")
+        GradeDeFotos(fotosDeProcedimento, mostrarPasso = true) { fotoAberta = it }
+      }
+
+      Card(modifier = Modifier.fillMaxWidth()) {
+        Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+          Text("Passar adiante", style = MaterialTheme.typography.titleSmall)
+          Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            OutlinedButton(
+              onClick = {
+                Compartilhamento.compartilharTexto(
+                  contexto,
+                  Compartilhamento.textoDoAtendimento(registro),
+                )
+              },
+              modifier = Modifier.weight(1f),
+            ) { Text("Compartilhar") }
+            OutlinedButton(
+              onClick = {
+                if (gerandoPdf) return@OutlinedButton
+                gerandoPdf = true
+                escopo.launch {
+                  runCatching {
+                    val arquivo = withContext(Dispatchers.IO) {
+                      Compartilhamento.gerarPdf(
+                        contexto,
+                        registro,
+                        fotos.sortedBy { if (it.categoria == CategoriaFoto.CARRO) 0 else 1 },
+                      )
+                    }
+                    Compartilhamento.compartilharPdf(contexto, arquivo)
+                  }.onFailure {
+                    Toast.makeText(contexto, "Não foi possível gerar o PDF", Toast.LENGTH_SHORT).show()
+                  }
+                  gerandoPdf = false
+                }
+              },
+              enabled = !gerandoPdf,
+              modifier = Modifier.weight(1f),
+            ) { Text(if (gerandoPdf) "Gerando..." else "Gerar PDF") }
           }
         }
       }
 
-      Spacer(Modifier.height(8.dp))
       Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         Button(onClick = { onEditar(registro.id) }, modifier = Modifier.weight(1f)) { Text("Editar") }
-        OutlinedButton(onClick = { onDuplicar(registro) }, modifier = Modifier.weight(1f)) { Text("Novo p/ este carro") }
+        OutlinedButton(onClick = { onDuplicar(registro) }, modifier = Modifier.weight(1f)) {
+          Text("Novo p/ este carro")
+        }
       }
       TextButton(onClick = { confirmandoExclusao = true }) {
         Text("Excluir registro", color = MaterialTheme.colorScheme.error)
       }
+      Spacer(Modifier.height(24.dp))
     }
   }
 
@@ -183,11 +270,17 @@ fun TelaDetalhe(
   if (foto != null) {
     Dialog(onDismissRequest = { fotoAberta = null }) {
       Card {
-        ImagemLocal(
-          caminho = foto,
-          ladoMaximo = 2000,
-          modificador = Modifier.fillMaxWidth().clickable { fotoAberta = null },
-        )
+        Column {
+          ImagemLocal(
+            caminho = foto,
+            ladoMaximo = 2000,
+            modificador = Modifier
+              .fillMaxWidth()
+              .heightIn(max = 520.dp)
+              .clickable { fotoAberta = null },
+          )
+          TextButton(onClick = { fotoAberta = null }, modifier = Modifier.fillMaxWidth()) { Text("Fechar") }
+        }
       }
     }
   }
@@ -211,5 +304,72 @@ fun TelaDetalhe(
         TextButton(onClick = { confirmandoExclusao = false }) { Text("Cancelar") }
       },
     )
+  }
+}
+
+@Composable
+private fun CodigoCopiado(rotulo: String, valor: String, onCopiar: () -> Unit) {
+  Row(verticalAlignment = Alignment.CenterVertically) {
+    Column(modifier = Modifier.weight(1f)) {
+      Text(rotulo, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+      Text(
+        text = valor,
+        fontFamily = FontFamily.Monospace,
+        fontWeight = FontWeight.Bold,
+        fontSize = 20.sp,
+        maxLines = 1,
+        overflow = TextOverflow.Ellipsis,
+      )
+    }
+    TextButton(onClick = onCopiar) { Text("Copiar") }
+  }
+}
+
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun GradeDeFotos(
+  fotos: List<Foto>,
+  mostrarPasso: Boolean = false,
+  aoAbrir: (String) -> Unit,
+) {
+  FlowRow(
+    horizontalArrangement = Arrangement.spacedBy(8.dp),
+    verticalArrangement = Arrangement.spacedBy(8.dp),
+  ) {
+    fotos.forEachIndexed { indice, foto ->
+      Column(modifier = Modifier.width(140.dp)) {
+        Box {
+          ImagemLocal(
+            caminho = foto.caminho,
+            ladoMaximo = 800,
+            modificador = Modifier
+              .width(140.dp)
+              .height(140.dp)
+              .clip(RoundedCornerShape(12.dp))
+              .clickable { aoAbrir(foto.caminho) },
+          )
+          if (mostrarPasso) {
+            Text(
+              text = (indice + 1).toString(),
+              style = MaterialTheme.typography.labelSmall,
+              modifier = Modifier
+                .padding(6.dp)
+                .clip(RoundedCornerShape(6.dp))
+                .background(MaterialTheme.colorScheme.secondaryContainer)
+                .padding(horizontal = 6.dp, vertical = 2.dp),
+            )
+          }
+        }
+        if (foto.legenda.isNotBlank()) {
+          Spacer(Modifier.height(2.dp))
+          Text(
+            text = foto.legenda,
+            style = MaterialTheme.typography.bodySmall,
+            maxLines = 2,
+            overflow = TextOverflow.Ellipsis,
+          )
+        }
+      }
+    }
   }
 }
