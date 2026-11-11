@@ -9,10 +9,12 @@ import androidx.compose.material3.Surface
 import androidx.compose.ui.Modifier
 import androidx.fragment.app.FragmentActivity
 import com.willendary.chaveirocar.ui.theme.ChaveiroCarTheme
+import com.willendary.chaveirocar.util.Erros
 
 class MainActivity : FragmentActivity() {
   override fun onCreate(savedInstanceState: Bundle?) {
     super.onCreate(savedInstanceState)
+    Erros.instalar(this)
 
     enableEdgeToEdge()
     setContent {

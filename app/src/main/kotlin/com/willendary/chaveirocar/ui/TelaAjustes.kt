@@ -39,6 +39,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
@@ -51,6 +52,7 @@ import com.willendary.chaveirocar.dados.BackupAutomatico
 import com.willendary.chaveirocar.dados.Preferencias
 import com.willendary.chaveirocar.util.Biometria
 import com.willendary.chaveirocar.util.Compartilhamento
+import com.willendary.chaveirocar.util.Erros
 import com.willendary.chaveirocar.util.Seguranca
 import com.willendary.chaveirocar.util.formatarData
 import kotlinx.coroutines.Dispatchers
@@ -87,6 +89,8 @@ fun TelaAjustes(
   var pedindoPinAtual by remember { mutableStateOf<AcaoComPin?>(null) }
   var uriParaImportar by remember { mutableStateOf<Uri?>(null) }
   var importando by remember { mutableStateOf(false) }
+  var erroRegistrado by remember { mutableStateOf(Erros.ultimo(contexto)) }
+  var mostrandoErro by remember { mutableStateOf(false) }
 
   val versao = remember { Atualizacoes.versaoInstalada(contexto) }
   val aparelhoTemBiometria = remember { Biometria.disponivel(contexto) }
@@ -317,10 +321,46 @@ fun TelaAjustes(
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
           )
+          if (erroRegistrado != null) {
+            Spacer(Modifier.height(8.dp))
+            TextButton(onClick = { mostrandoErro = true }) {
+              Text("Ver último erro do app")
+            }
+          }
         }
       }
       Spacer(Modifier.height(24.dp))
     }
+  }
+
+  if (mostrandoErro) {
+    val texto = erroRegistrado.orEmpty()
+    AlertDialog(
+      onDismissRequest = { mostrandoErro = false },
+      title = { Text("Último erro do app") },
+      text = {
+        Column(modifier = Modifier.height(320.dp).verticalScroll(rememberScrollState())) {
+          Text(
+            text = texto,
+            style = MaterialTheme.typography.bodySmall,
+            fontFamily = FontFamily.Monospace,
+          )
+        }
+      },
+      confirmButton = {
+        TextButton(onClick = {
+          copiarTexto(contexto, "Erro do ChaveiroCar", texto)
+          mostrandoErro = false
+        }) { Text("Copiar") }
+      },
+      dismissButton = {
+        TextButton(onClick = {
+          Erros.limpar(contexto)
+          erroRegistrado = null
+          mostrandoErro = false
+        }) { Text("Apagar") }
+      },
+    )
   }
 
   if (definindoPin) {

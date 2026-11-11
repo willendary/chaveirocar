@@ -65,6 +65,7 @@ import com.willendary.chaveirocar.modelo.Atendimento
 import com.willendary.chaveirocar.modelo.CategoriaFoto
 import com.willendary.chaveirocar.modelo.Foto
 import com.willendary.chaveirocar.modelo.TipoServico
+import com.willendary.chaveirocar.util.Erros
 import com.willendary.chaveirocar.util.formatarData
 import com.willendary.chaveirocar.util.formatarValorEditavel
 import com.willendary.chaveirocar.util.paraCentavos
@@ -182,25 +183,46 @@ fun TelaFormulario(
 
   val camera = rememberLauncherForActivityResult(ActivityResultContracts.TakePicture()) { sucesso ->
     val arquivo = arquivoCamera
+    val categoria = categoriaPendente
     arquivoCamera = null
     if (sucesso && arquivo != null && arquivo.exists() && arquivo.length() > 0) {
       escopo.launch {
-        val nome = withContext(Dispatchers.IO) { Fotos.salvarDeArquivo(contexto, arquivo) }
+        val nome = runCatching {
+          withContext(Dispatchers.IO) { Fotos.salvarDeArquivo(contexto, arquivo) }
+        }.onFailure { erro ->
+          Erros.registrar(contexto, "Salvar foto da câmera", erro)
+        }.getOrNull()
         arquivo.delete()
-        anexarFoto(nome, categoriaPendente)
+        if (nome != null) {
+          anexarFoto(nome, categoria)
+        } else {
+          Toast.makeText(contexto, "Não foi possível salvar a foto. Tente de novo.", Toast.LENGTH_LONG).show()
+        }
       }
     } else {
       arquivo?.delete()
+      if (sucesso) {
+        Toast.makeText(contexto, "Não foi possível salvar a foto. Tente de novo.", Toast.LENGTH_LONG).show()
+      }
     }
   }
 
   val galeria = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
     if (uri != null) {
+      val categoria = categoriaPendente
       escopo.launch {
-        val nome = withContext(Dispatchers.IO) {
-          contexto.contentResolver.openInputStream(uri)?.use { Fotos.salvarDeFluxo(contexto, it) }
+        val nome = runCatching {
+          withContext(Dispatchers.IO) {
+            contexto.contentResolver.openInputStream(uri)?.use { Fotos.salvarDeFluxo(contexto, it) }
+          }
+        }.onFailure { erro ->
+          Erros.registrar(contexto, "Salvar foto da galeria", erro)
+        }.getOrNull()
+        if (nome != null) {
+          anexarFoto(nome, categoria)
+        } else {
+          Toast.makeText(contexto, "Não foi possível abrir essa imagem.", Toast.LENGTH_LONG).show()
         }
-        if (nome != null) anexarFoto(nome, categoriaPendente)
       }
     }
   }
@@ -209,8 +231,15 @@ fun TelaFormulario(
     categoriaPendente = categoria
     val arquivo = File(contexto.cacheDir, "camera_${System.currentTimeMillis()}.jpg")
     arquivoCamera = arquivo
-    val uri = FileProvider.getUriForFile(contexto, "${contexto.packageName}.arquivos", arquivo)
-    camera.launch(uri)
+    runCatching {
+      val uri = FileProvider.getUriForFile(contexto, "${contexto.packageName}.arquivos", arquivo)
+      camera.launch(uri)
+    }.onFailure { erro ->
+      arquivoCamera = null
+      arquivo.delete()
+      Erros.registrar(contexto, "Abrir câmera", erro)
+      Toast.makeText(contexto, "Não foi possível abrir a câmera", Toast.LENGTH_LONG).show()
+    }
   }
 
   fun escolherDaGaleria(categoria: CategoriaFoto) {

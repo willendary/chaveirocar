@@ -124,3 +124,7 @@ backup automático.
 
 1.2.1 — corrige o fluxo de atualização: pede a autorização de "instalar apps
 desconhecidos" antes de abrir o instalador e reaproveita o APK já baixado.
+
+1.2.2 — corrige o fechamento do app ao tirar foto (erros da câmera e de
+gravação da imagem agora viram aviso) e adiciona "Ver último erro do app" em
+Ajustes.
