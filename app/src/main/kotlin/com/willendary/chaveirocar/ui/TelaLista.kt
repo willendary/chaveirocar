@@ -44,6 +44,8 @@ import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.willendary.chaveirocar.atualizacao.AtualizacaoDisponivel
+import com.willendary.chaveirocar.atualizacao.Atualizacoes
 import com.willendary.chaveirocar.dados.Backup
 import com.willendary.chaveirocar.dados.BancoDeAtendimentos
 import com.willendary.chaveirocar.modelo.Atendimento
@@ -58,6 +60,7 @@ import java.util.Locale
 
 private const val PREFERENCIAS = "chaveirocar"
 private const val CHAVE_ULTIMO_BACKUP = "ultimo_backup"
+private const val CHAVE_ULTIMA_CHECAGEM = "ultima_checagem"
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -75,6 +78,8 @@ fun TelaLista(
   var uriParaImportar by remember { mutableStateOf<Uri?>(null) }
   var menuImportacao by remember { mutableStateOf(false) }
   var ultimoBackup by remember { mutableStateOf(0L) }
+  var atualizacao by remember { mutableStateOf<AtualizacaoDisponivel?>(null) }
+  var baixandoAtualizacao by remember { mutableStateOf(false) }
 
   val preferencias = remember { contexto.getSharedPreferences(PREFERENCIAS, android.content.Context.MODE_PRIVATE) }
 
@@ -92,6 +97,11 @@ fun TelaLista(
   LaunchedEffect(Unit) {
     totalRegistros = withContext(Dispatchers.IO) { banco.contarTodos() }
     ultimoBackup = preferencias.getLong(CHAVE_ULTIMO_BACKUP, 0)
+    val ultimaChecagem = preferencias.getLong(CHAVE_ULTIMA_CHECAGEM, 0)
+    if (diasDesde(ultimaChecagem) >= 1) {
+      atualizacao = runCatching { Atualizacoes.verificar(Atualizacoes.versaoInstalada(contexto)) }.getOrNull()
+      preferencias.edit().putLong(CHAVE_ULTIMA_CHECAGEM, System.currentTimeMillis()).apply()
+    }
   }
 
   val exportar = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/zip")) { uri ->
@@ -137,11 +147,45 @@ fun TelaLista(
     }
   }
 
+  fun verificarAtualizacao(mostrarAviso: Boolean) {
+    escopo.launch {
+      val encontrada = runCatching {
+        Atualizacoes.verificar(Atualizacoes.versaoInstalada(contexto))
+      }.getOrNull()
+      atualizacao = encontrada
+      preferencias.edit().putLong(CHAVE_ULTIMA_CHECAGEM, System.currentTimeMillis()).apply()
+      if (mostrarAviso) {
+        Toast.makeText(
+          contexto,
+          if (encontrada == null) "Você já está na versão mais nova" else "Versão ${encontrada.versao} disponível",
+          Toast.LENGTH_SHORT,
+        ).show()
+      }
+    }
+  }
+
+  fun baixarAtualizacao() {
+    val alvo = atualizacao ?: return
+    if (baixandoAtualizacao) return
+    baixandoAtualizacao = true
+    escopo.launch {
+      val resultado = runCatching { Atualizacoes.baixar(contexto, alvo) }
+      baixandoAtualizacao = false
+      resultado.onSuccess { arquivo ->
+        runCatching { Atualizacoes.abrirInstalador(contexto, arquivo) }.onFailure {
+          Toast.makeText(contexto, "Autorize a instalação de apps para o ChaveiroCar", Toast.LENGTH_LONG).show()
+        }
+      }.onFailure {
+        Toast.makeText(contexto, "Falha ao baixar: ${it.message}", Toast.LENGTH_LONG).show()
+      }
+    }
+  }
+
   Scaffold(
     topBar = {
       TopAppBar(
         title = { Text("ChaveiroCar", fontWeight = FontWeight.Bold) },
-        actions = { TextButton(onClick = { dialogoBackup = true }) { Text("Backup") } },
+        actions = { TextButton(onClick = { dialogoBackup = true }) { Text("Ajustes") } },
       )
     },
     floatingActionButton = {
@@ -183,6 +227,24 @@ fun TelaLista(
 
       Spacer(Modifier.height(8.dp))
 
+      val novaVersao = atualizacao
+      if (novaVersao != null) {
+        Card(modifier = Modifier.fillMaxWidth().padding(top = 8.dp)) {
+          Row(modifier = Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
+            Column(modifier = Modifier.weight(1f)) {
+              Text("Versão ${novaVersao.versao} disponível", style = MaterialTheme.typography.titleSmall)
+              Text(
+                "Baixa o APK novo e abre o instalador. Seus dados continuam.",
+                style = MaterialTheme.typography.bodySmall,
+              )
+            }
+            TextButton(onClick = { baixarAtualizacao() }, enabled = !baixandoAtualizacao) {
+              Text(if (baixandoAtualizacao) "Baixando..." else "Atualizar")
+            }
+          }
+        }
+      }
+
       if (registros.isEmpty()) {
         Column(
           modifier = Modifier.fillMaxSize().padding(24.dp),
@@ -217,7 +279,7 @@ fun TelaLista(
   if (dialogoBackup) {
     AlertDialog(
       onDismissRequest = { dialogoBackup = false },
-      title = { Text("Backup") },
+      title = { Text("Ajustes") },
       text = {
         Column {
           Text(
@@ -234,6 +296,10 @@ fun TelaLista(
             dialogoBackup = false
             importar.launch(arrayOf("*/*"))
           }) { Text("Importar backup (ZIP)") }
+          TextButton(onClick = {
+            dialogoBackup = false
+            verificarAtualizacao(mostrarAviso = true)
+          }) { Text("Verificar atualização") }
         }
       },
       confirmButton = {

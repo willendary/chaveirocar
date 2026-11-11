@@ -15,6 +15,9 @@ bolso — busca por placa, modelo, defeito ou solução.
 - Ao digitar a placa de um carro já atendido, o app mostra o histórico dele.
 - Botão **Novo p/ este carro** para repetir um atendimento do mesmo veículo.
 - **Backup** completo em ZIP (dados + fotos) para exportar/importar.
+- **Atualização** pelo próprio app: verifica a última release do GitHub e, se
+  houver versão nova, baixa o APK e abre o instalador. Checa sozinho uma vez
+  por dia e também pelo botão "Verificar atualização" em Ajustes.
 
 ## Onde ficam os dados
 

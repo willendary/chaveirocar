@@ -1,0 +1,71 @@
+name: Android APK
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Baixar codigo
+        uses: actions/checkout@v4
+
+      - name: Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Cache do Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Configurar assinatura
+        env:
+          CHAVEIRO_KEYSTORE_BASE64: ${{ secrets.CHAVEIRO_KEYSTORE_BASE64 }}
+          CHAVEIRO_KEYSTORE_SENHA: ${{ secrets.CHAVEIRO_KEYSTORE_SENHA }}
+          CHAVEIRO_KEY_ALIAS: ${{ secrets.CHAVEIRO_KEY_ALIAS }}
+          CHAVEIRO_KEY_SENHA: ${{ secrets.CHAVEIRO_KEY_SENHA }}
+        run: |
+          echo "$CHAVEIRO_KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/chaveirocar.jks"
+          {
+            echo "sdk.dir=$ANDROID_HOME"
+            echo "CHAVEIRO_KEYSTORE=$RUNNER_TEMP/chaveirocar.jks"
+            echo "CHAVEIRO_KEYSTORE_SENHA=$CHAVEIRO_KEYSTORE_SENHA"
+            echo "CHAVEIRO_KEY_ALIAS=$CHAVEIRO_KEY_ALIAS"
+            echo "CHAVEIRO_KEY_SENHA=$CHAVEIRO_KEY_SENHA"
+          } > local.properties
+
+      - name: Testes unitarios
+        run: ./gradlew --no-daemon testDebugUnitTest
+
+      - name: Gerar APK
+        run: ./gradlew --no-daemon assembleRelease
+
+      - name: Nomear APK
+        run: |
+          mkdir -p dist
+          versao="${GITHUB_REF_NAME#v}"
+          cp app/build/outputs/apk/release/app-release.apk "dist/chaveirocar-${versao}.apk"
+
+      - name: Guardar APK do build
+        uses: actions/upload-artifact@v4
+        with:
+          name: chaveirocar-apk
+          path: dist/*.apk
+
+      - name: Publicar release
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          name: ChaveiroCar ${{ github.ref_name }}
+          files: dist/*.apk
+          generate_release_notes: true
