@@ -2,6 +2,9 @@ package com.willendary.chaveirocar.atualizacao
 
 import android.content.Context
 import android.content.Intent
+import android.net.Uri
+import android.os.Build
+import android.provider.Settings
 import androidx.core.content.FileProvider
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -100,7 +103,31 @@ object Atualizacoes {
     }
   }
 
-  fun abrirInstalador(contexto: Context, arquivo: File) {
+  /**
+   * Abre o instalador do Android. Devolve false quando o aparelho ainda não
+   * autorizou o ChaveiroCar a instalar apps (abre a tela de autorização).
+   */
+  fun instalar(contexto: Context, arquivo: File): Boolean {
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O &&
+      !contexto.packageManager.canRequestPackageInstalls()
+    ) {
+      runCatching {
+        contexto.startActivity(
+          Intent(
+            Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES,
+            Uri.parse("package:${contexto.packageName}"),
+          ).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
+        )
+      }
+      return false
+    }
+    return runCatching {
+      abrirInstalador(contexto, arquivo)
+      true
+    }.getOrDefault(false)
+  }
+
+  private fun abrirInstalador(contexto: Context, arquivo: File) {
     val uri = FileProvider.getUriForFile(contexto, "${contexto.packageName}.arquivos", arquivo)
     val intencao = Intent(Intent.ACTION_VIEW).apply {
       setDataAndType(uri, "application/vnd.android.package-archive")

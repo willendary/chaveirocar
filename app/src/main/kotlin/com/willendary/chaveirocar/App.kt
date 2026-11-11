@@ -48,6 +48,7 @@ import com.willendary.chaveirocar.ui.TelaLista
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import java.io.File
 
 private enum class Aba { HISTORICO, FICHARIO, AJUSTES }
 
@@ -55,6 +56,9 @@ private const val TELA_PRINCIPAL = ""
 private const val TELA_FORMULARIO = "formulario"
 private const val TELA_DETALHE = "detalhe"
 private const val TELA_FICHARIO_MODELO = "fichario_modelo"
+
+private const val AVISO_INSTALACAO =
+  "Autorize \"Instalar apps desconhecidos\" para o ChaveiroCar e toque em Atualizar de novo."
 
 @Composable
 fun ChaveiroCarApp() {
@@ -82,6 +86,33 @@ fun ChaveiroCarApp() {
 
   var atualizacao by remember { mutableStateOf<AtualizacaoDisponivel?>(null) }
   var baixandoAtualizacao by remember { mutableStateOf(false) }
+  var apkBaixado by remember { mutableStateOf<File?>(null) }
+
+  fun instalarAtualizacao() {
+    val disponivel = atualizacao ?: return
+    if (baixandoAtualizacao) return
+    val pronto = apkBaixado
+    if (pronto != null && pronto.exists()) {
+      if (!Atualizacoes.instalar(contexto, pronto)) {
+        Toast.makeText(contexto, AVISO_INSTALACAO, Toast.LENGTH_LONG).show()
+      }
+      return
+    }
+    baixandoAtualizacao = true
+    escopo.launch {
+      runCatching { withContext(Dispatchers.IO) { Atualizacoes.baixar(contexto, disponivel) } }
+        .onSuccess { arquivo ->
+          apkBaixado = arquivo
+          if (!Atualizacoes.instalar(contexto, arquivo)) {
+            Toast.makeText(contexto, AVISO_INSTALACAO, Toast.LENGTH_LONG).show()
+          }
+        }
+        .onFailure {
+          Toast.makeText(contexto, "Não foi possível baixar a atualização", Toast.LENGTH_LONG).show()
+        }
+      baixandoAtualizacao = false
+    }
+  }
 
   val versaoAtual = remember { Atualizacoes.versaoInstalada(contexto) }
   var dialogoNovidades by rememberSaveable { mutableStateOf(false) }
@@ -273,21 +304,7 @@ fun ChaveiroCarApp() {
                   banco = banco,
                   atualizacao = atualizacao,
                   baixandoAtualizacao = baixandoAtualizacao,
-                  onAtualizarApp = {
-                    val disponivel = atualizacao ?: return@TelaAjustes
-                    if (baixandoAtualizacao) return@TelaAjustes
-                    baixandoAtualizacao = true
-                    escopo.launch {
-                      runCatching {
-                        withContext(Dispatchers.IO) { Atualizacoes.baixar(contexto, disponivel) }
-                      }.onSuccess { arquivo ->
-                        Atualizacoes.abrirInstalador(contexto, arquivo)
-                      }.onFailure {
-                        Toast.makeText(contexto, "Não foi possível baixar a atualização", Toast.LENGTH_LONG).show()
-                      }
-                      baixandoAtualizacao = false
-                    }
-                  },
+                  onAtualizarApp = { instalarAtualizacao() },
                   onProcurarAtualizacao = {
                     escopo.launch {
                       val encontrada = withContext(Dispatchers.IO) {
@@ -325,21 +342,7 @@ fun ChaveiroCarApp() {
                   onIrParaAjustes = { aba = Aba.AJUSTES.name },
                   atualizacao = atualizacao,
                   baixandoAtualizacao = baixandoAtualizacao,
-                  onAtualizarApp = {
-                    val disponivel = atualizacao ?: return@TelaLista
-                    if (baixandoAtualizacao) return@TelaLista
-                    baixandoAtualizacao = true
-                    escopo.launch {
-                      runCatching {
-                        withContext(Dispatchers.IO) { Atualizacoes.baixar(contexto, disponivel) }
-                      }.onSuccess { arquivo ->
-                        Atualizacoes.abrirInstalador(contexto, arquivo)
-                      }.onFailure {
-                        Toast.makeText(contexto, "Não foi possível baixar a atualização", Toast.LENGTH_LONG).show()
-                      }
-                      baixandoAtualizacao = false
-                    }
-                  },
+                  onAtualizarApp = { instalarAtualizacao() },
                 )
             }
           }

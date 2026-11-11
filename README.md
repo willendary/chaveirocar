@@ -121,3 +121,6 @@ app/src/main/kotlin/com/willendary/chaveirocar/
 1.2 — fichário por carro, abertura, códigos de chave/configuração, fotos de
 procedimento, filtros, sugestões, compartilhamento em PDF, bloqueio por PIN e
 backup automático.
+
+1.2.1 — corrige o fluxo de atualização: pede a autorização de "instalar apps
+desconhecidos" antes de abrir o instalador e reaproveita o APK já baixado.
