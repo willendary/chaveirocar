@@ -84,15 +84,50 @@ fun TelaDetalhe(
     }
   }
 
+  val registro = atendimento
+
+  fun compartilhar() {
+    if (registro == null) return
+    Compartilhamento.compartilharTexto(
+      contexto,
+      Compartilhamento.textoDoAtendimento(registro),
+    )
+  }
+
+  fun gerarPdf() {
+    if (registro == null || gerandoPdf) return
+    gerandoPdf = true
+    escopo.launch {
+      runCatching {
+        val arquivo = withContext(Dispatchers.IO) {
+          Compartilhamento.gerarPdf(
+            contexto,
+            registro,
+            fotos.sortedBy { if (it.categoria == CategoriaFoto.CARRO) 0 else 1 },
+          )
+        }
+        Compartilhamento.compartilharPdf(contexto, arquivo)
+      }.onFailure {
+        Toast.makeText(contexto, "Não foi possível gerar o PDF", Toast.LENGTH_SHORT).show()
+      }
+      gerandoPdf = false
+    }
+  }
+
   Scaffold(
     topBar = {
       TopAppBar(
         title = { Text("Registro") },
         navigationIcon = { TextButton(onClick = onVoltar) { Text("Voltar") } },
+        actions = {
+          TextButton(onClick = { compartilhar() }, enabled = atendimento != null) { Text("Compartilhar") }
+          TextButton(onClick = { gerarPdf() }, enabled = atendimento != null && !gerandoPdf) {
+            Text(if (gerandoPdf) "Gerando..." else "PDF")
+          }
+        },
       )
     },
   ) { espacamento ->
-    val registro = atendimento
     if (registro == null) {
       Box(Modifier.fillMaxSize().padding(espacamento), contentAlignment = Alignment.Center) {
         CircularProgressIndicator()
@@ -135,18 +170,16 @@ fun TelaDetalhe(
         Text("Valor: ${formatarValor(registro.valorCentavos)}", style = MaterialTheme.typography.bodyMedium)
       }
 
-      if (registro.abertura.isNotBlank()) {
-        Card(
-          modifier = Modifier.fillMaxWidth(),
-          colors = androidx.compose.material3.CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.secondaryContainer,
-          ),
-        ) {
-          Column(Modifier.padding(14.dp)) {
-            Text("Abertura", style = MaterialTheme.typography.labelLarge)
-            Spacer(Modifier.height(4.dp))
-            Text(registro.abertura, style = MaterialTheme.typography.bodyLarge)
-          }
+      Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = androidx.compose.material3.CardDefaults.cardColors(
+          containerColor = MaterialTheme.colorScheme.secondaryContainer,
+        ),
+      ) {
+        Column(Modifier.padding(14.dp)) {
+          Text("Abertura", style = MaterialTheme.typography.labelLarge)
+          Spacer(Modifier.height(4.dp))
+          Text(registro.abertura, style = MaterialTheme.typography.bodyLarge)
         }
       }
 
@@ -176,28 +209,20 @@ fun TelaDetalhe(
         }
       }
 
-      if (registro.defeito.isNotBlank()) {
-        Card(modifier = Modifier.fillMaxWidth()) {
-          Column(Modifier.padding(14.dp)) {
+      Card(modifier = Modifier.fillMaxWidth()) {
+        Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+          if (registro.defeito.isNotBlank()) {
             Text("Defeito encontrado", style = MaterialTheme.typography.labelLarge)
-            Spacer(Modifier.height(4.dp))
-            Text(registro.defeito, style = MaterialTheme.typography.bodyLarge)
+            Text(registro.defeito, style = MaterialTheme.typography.bodyMedium)
           }
-        }
-      }
-
-      if (registro.solucao.isNotBlank()) {
-        Card(modifier = Modifier.fillMaxWidth()) {
-          Column(Modifier.padding(14.dp)) {
+          if (registro.solucao.isNotBlank()) {
             Text("Solução aplicada", style = MaterialTheme.typography.labelLarge)
-            Spacer(Modifier.height(4.dp))
-            Text(registro.solucao, style = MaterialTheme.typography.bodyLarge)
+            Text(registro.solucao, style = MaterialTheme.typography.bodyMedium)
+          }
+          if (registro.ferramenta.isNotBlank()) {
+            Text("Ferramenta: ${registro.ferramenta}", style = MaterialTheme.typography.bodyMedium)
           }
         }
-      }
-
-      if (registro.ferramenta.isNotBlank()) {
-        Text("Ferramenta: ${registro.ferramenta}", style = MaterialTheme.typography.bodyMedium)
       }
 
       val fotosDoCarro = fotos.filter { it.categoria == CategoriaFoto.CARRO }
@@ -213,50 +238,10 @@ fun TelaDetalhe(
         GradeDeFotos(fotosDeProcedimento, mostrarPasso = true) { fotoAberta = it }
       }
 
-      Card(modifier = Modifier.fillMaxWidth()) {
-        Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-          Text("Passar adiante", style = MaterialTheme.typography.titleSmall)
-          Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            OutlinedButton(
-              onClick = {
-                Compartilhamento.compartilharTexto(
-                  contexto,
-                  Compartilhamento.textoDoAtendimento(registro),
-                )
-              },
-              modifier = Modifier.weight(1f),
-            ) { Text("Compartilhar") }
-            OutlinedButton(
-              onClick = {
-                if (gerandoPdf) return@OutlinedButton
-                gerandoPdf = true
-                escopo.launch {
-                  runCatching {
-                    val arquivo = withContext(Dispatchers.IO) {
-                      Compartilhamento.gerarPdf(
-                        contexto,
-                        registro,
-                        fotos.sortedBy { if (it.categoria == CategoriaFoto.CARRO) 0 else 1 },
-                      )
-                    }
-                    Compartilhamento.compartilharPdf(contexto, arquivo)
-                  }.onFailure {
-                    Toast.makeText(contexto, "Não foi possível gerar o PDF", Toast.LENGTH_SHORT).show()
-                  }
-                  gerandoPdf = false
-                }
-              },
-              enabled = !gerandoPdf,
-              modifier = Modifier.weight(1f),
-            ) { Text(if (gerandoPdf) "Gerando..." else "Gerar PDF") }
-          }
-        }
-      }
-
       Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         Button(onClick = { onEditar(registro.id) }, modifier = Modifier.weight(1f)) { Text("Editar") }
         OutlinedButton(onClick = { onDuplicar(registro) }, modifier = Modifier.weight(1f)) {
-          Text("Novo p/ este carro")
+          Text("Novo atendimento (mesmo carro)")
         }
       }
       TextButton(onClick = { confirmandoExclusao = true }) {
