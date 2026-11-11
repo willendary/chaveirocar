@@ -273,7 +273,7 @@ fun TelaAjustes(
         withContext(Dispatchers.IO) { GoogleDrive.esquecerToken(contexto, token) }
       }
     }
-    Toast.makeText(contexto, "Conta desconectada. Para revogar o acesso, use https://myaccount.google.com/permissions", Toast.LENGTH_LONG).show()
+    Toast.makeText(contexto, "Conta desconectada. Na próxima abertura, será preciso conectar de novo.", Toast.LENGTH_LONG).show()
   }
 
   val versao = remember { Atualizacoes.versaoInstalada(contexto) }

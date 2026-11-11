@@ -157,3 +157,6 @@ Ajustes.
 1.3.0 — backup na nuvem opcional no Google Drive (pasta oculta do app):
 conectar conta Google, enviar e restaurar, inclusive com a cópia automática
 semanal.
+
+1.3.1 — o app passa a exigir a conta Google na abertura: sem conectar,
+a tela não abre.

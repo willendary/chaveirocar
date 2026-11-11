@@ -46,6 +46,7 @@ import com.willendary.chaveirocar.ui.TelaFichario
 import com.willendary.chaveirocar.ui.TelaFicharioModelo
 import com.willendary.chaveirocar.ui.TelaFormulario
 import com.willendary.chaveirocar.ui.TelaLista
+import com.willendary.chaveirocar.ui.TelaLoginNuvem
 import com.willendary.chaveirocar.util.Erros
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -84,6 +85,10 @@ fun ChaveiroCarApp() {
   var bloqueado by remember { mutableStateOf(preferencias.getBoolean(Preferencias.PIN_ATIVO, false)) }
   var biometriaAtiva by remember {
     mutableStateOf(preferencias.getBoolean(Preferencias.BIOMETRIA_ATIVA, false))
+  }
+
+  var loginNuvemObrigatorio by remember {
+    mutableStateOf(preferencias.getString(Preferencias.CONTA_NUVEM, null).isNullOrBlank())
   }
 
   var atualizacao by remember { mutableStateOf<AtualizacaoDisponivel?>(null) }
@@ -187,6 +192,7 @@ fun ChaveiroCarApp() {
     if (!voltarParaFichario) idSelecionado = 0L
   }
 
+  BackHandler(enabled = loginNuvemObrigatorio) {}
   BackHandler(enabled = bloqueado) {}
 
   BackHandler(
@@ -361,6 +367,17 @@ fun ChaveiroCarApp() {
         notas = notasNovidades,
         carregando = carregandoNovidades,
         onFechar = { fecharNovidades() },
+      )
+    }
+
+    if (loginNuvemObrigatorio) {
+      TelaLoginNuvem(
+        aoConectar = { email ->
+          preferencias.edit()
+            .putString(Preferencias.CONTA_NUVEM, email.orEmpty())
+            .apply()
+          loginNuvemObrigatorio = false
+        },
       )
     }
 
