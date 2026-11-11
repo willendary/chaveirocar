@@ -41,6 +41,9 @@ class BancoDeAtendimentos(contexto: Context) :
         codigo_configuracao TEXT NOT NULL DEFAULT '',
         ferramenta TEXT NOT NULL DEFAULT '',
         valor_centavos INTEGER NOT NULL DEFAULT 0,
+        cliente_nome TEXT NOT NULL DEFAULT '',
+        cliente_telefone TEXT NOT NULL DEFAULT '',
+        pago INTEGER NOT NULL DEFAULT 1,
         busca TEXT NOT NULL DEFAULT '',
         criado_em INTEGER NOT NULL,
         atualizado_em INTEGER NOT NULL
@@ -77,6 +80,11 @@ class BancoDeAtendimentos(contexto: Context) :
       banco.execSQL("ALTER TABLE fotos ADD COLUMN categoria TEXT NOT NULL DEFAULT 'CARRO'")
       banco.execSQL("ALTER TABLE fotos ADD COLUMN legenda TEXT NOT NULL DEFAULT ''")
       banco.execSQL("ALTER TABLE fotos ADD COLUMN ordem INTEGER NOT NULL DEFAULT 0")
+    }
+    if (versaoAntiga < 3) {
+      banco.execSQL("ALTER TABLE atendimentos ADD COLUMN cliente_nome TEXT NOT NULL DEFAULT ''")
+      banco.execSQL("ALTER TABLE atendimentos ADD COLUMN cliente_telefone TEXT NOT NULL DEFAULT ''")
+      banco.execSQL("ALTER TABLE atendimentos ADD COLUMN pago INTEGER NOT NULL DEFAULT 1")
     }
   }
 
@@ -258,6 +266,9 @@ class BancoDeAtendimentos(contexto: Context) :
       put("codigo_configuracao", atendimento.codigoConfiguracao.trim())
       put("ferramenta", atendimento.ferramenta.trim())
       put("valor_centavos", atendimento.valorCentavos)
+      put("cliente_nome", atendimento.clienteNome.trim())
+      put("cliente_telefone", atendimento.clienteTelefone.trim())
+      put("pago", if (atendimento.pago) 1 else 0)
       put("busca", montarBusca(atendimento))
       put("atualizado_em", agora)
     }
@@ -375,6 +386,9 @@ class BancoDeAtendimentos(contexto: Context) :
       codigoConfiguracao = getString(getColumnIndexOrThrow("codigo_configuracao")),
       ferramenta = getString(getColumnIndexOrThrow("ferramenta")),
       valorCentavos = getLong(getColumnIndexOrThrow("valor_centavos")),
+      clienteNome = getString(getColumnIndexOrThrow("cliente_nome")),
+      clienteTelefone = getString(getColumnIndexOrThrow("cliente_telefone")),
+      pago = getInt(getColumnIndexOrThrow("pago")) == 1,
       quantidadeFotos = getInt(getColumnIndexOrThrow("total_fotos")),
       atualizadoEm = getLong(getColumnIndexOrThrow("atualizado_em")),
     )
@@ -393,12 +407,14 @@ class BancoDeAtendimentos(contexto: Context) :
       atendimento.codigoChave,
       atendimento.codigoConfiguracao,
       atendimento.ferramenta,
+      atendimento.clienteNome,
+      atendimento.clienteTelefone,
     )
     return normalizar(partes.joinToString(" "))
   }
 
   companion object {
     const val NOME = "chaveirocar.db"
-    const val VERSAO = 2
+    const val VERSAO = 3
   }
 }

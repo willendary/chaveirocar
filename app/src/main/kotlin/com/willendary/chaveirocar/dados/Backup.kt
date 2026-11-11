@@ -44,6 +44,9 @@ object Backup {
         put("codigoConfiguracao", atendimento.codigoConfiguracao)
         put("ferramenta", atendimento.ferramenta)
         put("valorCentavos", atendimento.valorCentavos)
+        put("clienteNome", atendimento.clienteNome)
+        put("clienteTelefone", atendimento.clienteTelefone)
+        put("pago", atendimento.pago)
       }
       val fotos = JSONArray()
       for (foto in banco.listarFotos(atendimento.id)) {
@@ -128,6 +131,9 @@ object Backup {
         codigoConfiguracao = objeto.optString("codigoConfiguracao"),
         ferramenta = objeto.optString("ferramenta"),
         valorCentavos = objeto.optLong("valorCentavos"),
+        clienteNome = objeto.optString("clienteNome"),
+        clienteTelefone = objeto.optString("clienteTelefone"),
+        pago = objeto.optBoolean("pago", true),
       )
       val id = banco.salvar(atendimento)
       val fotos = objeto.optJSONArray("fotos") ?: JSONArray()

@@ -485,6 +485,37 @@ fun TelaFormulario(
         modificador = Modifier.fillMaxWidth(),
       )
 
+      CampoTexto(
+        rotulo = "Cliente",
+        valor = atendimento.clienteNome,
+        aoMudar = { atendimento = atendimento.copy(clienteNome = it) },
+        dica = "Nome do dono do carro",
+        modificador = Modifier.fillMaxWidth(),
+      )
+
+      CampoTexto(
+        rotulo = "Telefone do cliente (opcional)",
+        valor = atendimento.clienteTelefone,
+        aoMudar = { atendimento = atendimento.copy(clienteTelefone = it) },
+        dica = "(11) 99999-0000",
+        teclado = KeyboardOptions(keyboardType = KeyboardType.Phone),
+        modificador = Modifier.fillMaxWidth(),
+      )
+
+      Text("Pagamento", style = MaterialTheme.typography.titleSmall)
+      FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        FilterChip(
+          selected = atendimento.pago,
+          onClick = { atendimento = atendimento.copy(pago = true) },
+          label = { Text("Pago") },
+        )
+        FilterChip(
+          selected = !atendimento.pago,
+          onClick = { atendimento = atendimento.copy(pago = false) },
+          label = { Text("Pendente") },
+        )
+      }
+
       TituloSecao("Abertura")
       CampoTexto(
         rotulo = "Como se abre este carro",

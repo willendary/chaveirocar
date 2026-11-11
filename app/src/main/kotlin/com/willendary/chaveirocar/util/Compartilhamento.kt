@@ -28,7 +28,9 @@ object Compartilhamento {
     if (atendimento.codigoChave.isNotBlank()) appendLine("Código de chave: ${atendimento.codigoChave}")
     if (atendimento.codigoConfiguracao.isNotBlank()) appendLine("Código de configuração: ${atendimento.codigoConfiguracao}")
     if (atendimento.ferramenta.isNotBlank()) appendLine("Ferramenta: ${atendimento.ferramenta}")
+    if (atendimento.clienteNome.isNotBlank()) appendLine("Cliente: ${atendimento.clienteNome}")
     if (atendimento.valorCentavos > 0) appendLine("Valor: ${formatarValor(atendimento.valorCentavos)}")
+    if (!atendimento.pago) appendLine("Pagamento: Pendente")
     append("Enviado pelo ChaveiroCar")
   }
 

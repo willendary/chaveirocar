@@ -167,8 +167,26 @@ fun TelaDetalhe(
         style = MaterialTheme.typography.bodySmall,
         color = MaterialTheme.colorScheme.onSurfaceVariant,
       )
+      if (registro.pago) {
+        Text("Pago", style = MaterialTheme.typography.bodyMedium)
+      } else {
+        Text(
+          "Pendente de pagamento",
+          style = MaterialTheme.typography.bodyMedium,
+          color = MaterialTheme.colorScheme.error,
+        )
+      }
       if (registro.valorCentavos > 0) {
         Text("Valor: ${formatarValor(registro.valorCentavos)}", style = MaterialTheme.typography.bodyMedium)
+      }
+      if (registro.clienteNome.isNotBlank() || registro.clienteTelefone.isNotBlank()) {
+        Text(
+          text = listOfNotNull(
+            registro.clienteNome.takeIf { it.isNotBlank() },
+            registro.clienteTelefone.takeIf { it.isNotBlank() },
+          ).joinToString(" · "),
+          style = MaterialTheme.typography.bodyMedium,
+        )
       }
 
       Card(

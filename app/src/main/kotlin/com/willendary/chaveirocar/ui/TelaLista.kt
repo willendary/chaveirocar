@@ -389,6 +389,10 @@ private fun CartaoRegistro(registro: Atendimento, onAbrir: () -> Unit) {
       Spacer(Modifier.height(4.dp))
       Row(verticalAlignment = Alignment.CenterVertically) {
         Selo(registro.tipoServico.rotulo)
+        if (!registro.pago) {
+          Spacer(Modifier.width(8.dp))
+          Selo("Pendente")
+        }
         Spacer(Modifier.width(8.dp))
         Text(
           text = formatarData(registro.dataServico),

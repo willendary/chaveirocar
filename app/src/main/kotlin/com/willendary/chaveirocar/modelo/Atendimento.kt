@@ -38,6 +38,9 @@ data class Atendimento(
   val codigoConfiguracao: String = "",
   val ferramenta: String = "",
   val valorCentavos: Long = 0,
+  val clienteNome: String = "",
+  val clienteTelefone: String = "",
+  val pago: Boolean = true,
   val quantidadeFotos: Int = 0,
   val atualizadoEm: Long = 0,
 )
