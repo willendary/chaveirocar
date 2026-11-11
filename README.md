@@ -160,3 +160,6 @@ semanal.
 
 1.3.1 — o app passa a exigir a conta Google na abertura: sem conectar,
 a tela não abre.
+
+1.3.2 — aviso de versão nova vira popup "Nova versão disponível" na
+abertura, com botão "Atualizar agora".

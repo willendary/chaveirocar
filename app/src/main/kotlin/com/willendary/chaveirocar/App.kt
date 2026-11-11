@@ -3,6 +3,7 @@ package com.willendary.chaveirocar
 import android.widget.Toast
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
@@ -10,12 +11,14 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Build
 import androidx.compose.material.icons.automirrored.filled.List
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -92,6 +95,7 @@ fun ChaveiroCarApp() {
   }
 
   var atualizacao by remember { mutableStateOf<AtualizacaoDisponivel?>(null) }
+  var mostradorAtualizacao by remember { mutableStateOf(true) }
   var baixandoAtualizacao by remember { mutableStateOf(false) }
   var apkBaixado by remember { mutableStateOf<File?>(null) }
 
@@ -367,6 +371,46 @@ fun ChaveiroCarApp() {
         notas = notasNovidades,
         carregando = carregandoNovidades,
         onFechar = { fecharNovidades() },
+      )
+    }
+
+    val disponivel = atualizacao
+    if (!loginNuvemObrigatorio && !bloqueado && disponivel != null && mostradorAtualizacao) {
+      AlertDialog(
+        onDismissRequest = {
+          if (!baixandoAtualizacao && apkBaixado == null) mostradorAtualizacao = false
+        },
+        title = { Text("Nova versão disponível: ${disponivel.versao}") },
+        text = {
+          Column {
+            val notas = disponivel.notas.trim()
+            if (notas.isNotBlank()) {
+              Text(
+                text = notas.take(600),
+                style = MaterialTheme.typography.bodySmall,
+                maxLines = 8,
+              )
+            } else {
+              Text(
+                "Traga a versão ${disponivel.versao} para continuar com as correções.",
+                style = MaterialTheme.typography.bodySmall,
+              )
+            }
+          }
+        },
+        confirmButton = {
+          TextButton(onClick = { instalarAtualizacao() }, enabled = !baixandoAtualizacao) {
+            Text(if (baixandoAtualizacao) "Baixando..." else "Atualizar agora")
+          }
+        },
+        dismissButton = {
+          TextButton(
+            onClick = { mostradorAtualizacao = false },
+            enabled = !baixandoAtualizacao,
+          ) {
+            Text("Depois")
+          }
+        },
       )
     }
 
