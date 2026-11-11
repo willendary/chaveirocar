@@ -166,3 +166,7 @@ abertura, com botão "Atualizar agora".
 
 1.3.3 — remove os botões manuais de backup em arquivo de Ajustes; todo
 backup passa a ser automático na nuvem.
+
+1.3.4 — lista sem cards duplicados (popup de atualização basta), detalhe
+com Compartilhar/PDF no topo e cards de texto juntos, botão "Novo
+atendimento (mesmo carro)", e "Última correção" no detalhe.
