@@ -52,13 +52,9 @@ import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.willendary.chaveirocar.atualizacao.AtualizacaoDisponivel
 import com.willendary.chaveirocar.dados.BancoDeAtendimentos
-import com.willendary.chaveirocar.dados.BackupAutomatico
-import com.willendary.chaveirocar.dados.Preferencias
 import com.willendary.chaveirocar.modelo.Atendimento
 import com.willendary.chaveirocar.modelo.TipoServico
-import com.willendary.chaveirocar.util.diasDesde
 import com.willendary.chaveirocar.util.formatarData
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -147,14 +143,8 @@ fun TelaLista(
   aoMudarFiltro: (FiltroLista) -> Unit,
   onAbrir: (Long) -> Unit,
   onNovo: () -> Unit,
-  onIrParaAjustes: () -> Unit,
-  atualizacao: AtualizacaoDisponivel? = null,
-  baixandoAtualizacao: Boolean = false,
-  onAtualizarApp: () -> Unit = {},
 ) {
-  val contexto = LocalContext.current
   var registros by remember { mutableStateOf<List<Atendimento>>(emptyList()) }
-  var ultimoBackup by remember { mutableStateOf(0L) }
 
   LaunchedEffect(filtro) {
     registros = withContext(Dispatchers.IO) {
@@ -166,12 +156,6 @@ fun TelaLista(
         somenteComFotos = filtro.somenteComFotos,
       )
     }
-  }
-
-  LaunchedEffect(Unit) {
-    val manual = Preferencias.obter(contexto).getLong(Preferencias.ULTIMO_BACKUP, 0)
-    val automatico = BackupAutomatico.ultimoArquivo(contexto)?.lastModified() ?: 0L
-    ultimoBackup = maxOf(manual, automatico)
   }
 
   Scaffold(
@@ -289,42 +273,6 @@ fun TelaLista(
               set(Calendar.SECOND, 59)
             }.timeInMillis
             aoMudarFiltro(filtro.copy(atePersonalizado = fimDoDia))
-          }
-        }
-      }
-
-      if (atualizacao != null) {
-        Card(
-          modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp),
-          colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer),
-        ) {
-          Row(modifier = Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
-            Column(modifier = Modifier.weight(1f)) {
-              Text("Versão ${atualizacao.versao} disponível", style = MaterialTheme.typography.titleSmall)
-              Text(
-                text = if (baixandoAtualizacao) "Baixando o APK..." else "Toque em atualizar para baixar.",
-                style = MaterialTheme.typography.bodySmall,
-              )
-            }
-            TextButton(onClick = onAtualizarApp, enabled = !baixandoAtualizacao) { Text("Atualizar") }
-          }
-        }
-      }
-
-      val diasDoBackup = diasDesde(ultimoBackup)
-      if (registros.isNotEmpty() && diasDoBackup > 7) {
-        Card(
-          modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp),
-          colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
-        ) {
-          Row(modifier = Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
-            Text(
-              text = if (ultimoBackup == 0L) "Nenhum backup feito ainda. Se trocar de celular perde tudo."
-              else "Último backup há $diasDoBackup dias.",
-              modifier = Modifier.weight(1f),
-              style = MaterialTheme.typography.bodySmall,
-            )
-            TextButton(onClick = onIrParaAjustes) { Text("Resolver") }
           }
         }
       }

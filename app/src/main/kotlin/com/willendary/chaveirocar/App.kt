@@ -355,10 +355,6 @@ fun ChaveiroCarApp() {
                     idSelecionado = 0L
                     tela = TELA_FORMULARIO
                   },
-                  onIrParaAjustes = { aba = Aba.AJUSTES.name },
-                  atualizacao = atualizacao,
-                  baixandoAtualizacao = baixandoAtualizacao,
-                  onAtualizarApp = { instalarAtualizacao() },
                 )
             }
           }
