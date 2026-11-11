@@ -1,7 +1,6 @@
 package com.willendary.chaveirocar.ui
 
 import android.app.Activity
-import android.net.Uri
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.IntentSenderRequest
@@ -50,13 +49,11 @@ import com.willendary.chaveirocar.atualizacao.AtualizacaoDisponivel
 import com.willendary.chaveirocar.atualizacao.Atualizacoes
 import com.willendary.chaveirocar.dados.BancoDeAtendimentos
 import com.willendary.chaveirocar.dados.Backup
-import com.willendary.chaveirocar.dados.BackupAutomatico
 import com.willendary.chaveirocar.dados.Preferencias
 import com.willendary.chaveirocar.nuvem.BackupNaNuvem
 import com.willendary.chaveirocar.nuvem.CredencialGoogle
 import com.willendary.chaveirocar.nuvem.GoogleDrive
 import com.willendary.chaveirocar.util.Biometria
-import com.willendary.chaveirocar.util.Compartilhamento
 import com.willendary.chaveirocar.util.Erros
 import com.willendary.chaveirocar.util.Seguranca
 import com.willendary.chaveirocar.util.formatarData
@@ -88,20 +85,10 @@ fun TelaAjustes(
   var biometriaAtiva by remember {
     mutableStateOf(preferencias.getBoolean(Preferencias.BIOMETRIA_ATIVA, false))
   }
-  var ultimoBackup by remember { mutableStateOf(preferencias.getLong(Preferencias.ULTIMO_BACKUP, 0)) }
-  var ultimoAutomatico by remember { mutableStateOf(BackupAutomatico.ultimoArquivo(contexto)) }
-
   var definindoPin by remember { mutableStateOf(false) }
   var pedindoPinAtual by remember { mutableStateOf<AcaoComPin?>(null) }
-  var uriParaImportar by remember { mutableStateOf<Uri?>(null) }
-  var importando by remember { mutableStateOf(false) }
   var erroRegistrado by remember { mutableStateOf(Erros.ultimo(contexto)) }
   var mostrandoErro by remember { mutableStateOf(false) }
-
-  fun recarregarBackups() {
-    ultimoBackup = preferencias.getLong(Preferencias.ULTIMO_BACKUP, 0)
-    ultimoAutomatico = BackupAutomatico.ultimoArquivo(contexto)
-  }
 
   var contaNuvem by remember { mutableStateOf(preferencias.getString(Preferencias.CONTA_NUVEM, null)) }
   var ultimoEnvioNuvem by remember { mutableStateOf(preferencias.getLong(Preferencias.ULTIMO_ENVIO_NUVEM, 0)) }
@@ -256,7 +243,6 @@ fun TelaAjustes(
       resultado
         .onSuccess { total ->
           Toast.makeText(contexto, "$total registro(s) restaurados da nuvem", Toast.LENGTH_LONG).show()
-          recarregarBackups()
           onDadosRestaurados()
         }
         .onFailure { erro -> avisarErroNuvem("restaurar o backup", erro) }
@@ -278,59 +264,6 @@ fun TelaAjustes(
 
   val versao = remember { Atualizacoes.versaoInstalada(contexto) }
   val aparelhoTemBiometria = remember { Biometria.disponivel(contexto) }
-
-  val criarBackup = rememberLauncherForActivityResult(
-    ActivityResultContracts.CreateDocument("application/zip"),
-  ) { uri ->
-    if (uri != null) {
-      escopo.launch {
-        val ok = runCatching {
-          withContext(Dispatchers.IO) {
-            contexto.contentResolver.openOutputStream(uri)?.use { Backup.exportar(banco, contexto, it) }
-              ?: error("não foi possível abrir o arquivo")
-          }
-        }.isSuccess
-        if (ok) {
-          preferencias.edit().putLong(Preferencias.ULTIMO_BACKUP, System.currentTimeMillis()).apply()
-          recarregarBackups()
-          Toast.makeText(contexto, "Backup salvo", Toast.LENGTH_SHORT).show()
-        } else {
-          Toast.makeText(contexto, "Não foi possível salvar o backup", Toast.LENGTH_SHORT).show()
-        }
-      }
-    }
-  }
-
-  val abrirBackup = rememberLauncherForActivityResult(
-    ActivityResultContracts.OpenDocument(),
-  ) { uri ->
-    if (uri != null) uriParaImportar = uri
-  }
-
-  fun importar(uri: Uri, substituir: Boolean) {
-    if (importando) return
-    importando = true
-    escopo.launch {
-      val resultado = runCatching {
-        withContext(Dispatchers.IO) {
-          contexto.contentResolver.openInputStream(uri)?.use {
-            Backup.importar(banco, contexto, it, substituir)
-          } ?: 0
-        }
-      }
-      importando = false
-      uriParaImportar = null
-      resultado
-        .onSuccess { total ->
-          Toast.makeText(contexto, "$total registro(s) importados", Toast.LENGTH_LONG).show()
-          recarregarBackups()
-          onDadosRestaurados()
-        }
-        .onFailure {
-          Toast.makeText(contexto, "Arquivo de backup inválido", Toast.LENGTH_LONG).show()
-        }
-    }
-  }
 
   Scaffold(
     topBar = {
@@ -407,61 +340,6 @@ fun TelaAjustes(
         }
       }
 
-      TituloSecao("Backup")
-      Card(modifier = Modifier.fillMaxWidth()) {
-        Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-          Text(
-            text = if (ultimoBackup == 0L) "Nenhum backup manual ainda."
-            else "Último backup manual: ${formatarDataHora(ultimoBackup)}",
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-          )
-          Text(
-            text = ultimoAutomatico?.let { "Cópia automática: ${formatarDataHora(it.lastModified())}" }
-              ?: "Cópia automática ainda não gerada. Ela é feita sozinha a cada 7 dias.",
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-          )
-          Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            Button(
-              onClick = {
-                val nome = "chaveirocar-" + SimpleDateFormat("yyyyMMdd", Locale.ROOT).format(Date()) + ".zip"
-                criarBackup.launch(nome)
-              },
-              modifier = Modifier.weight(1f),
-            ) { Text("Fazer backup") }
-            OutlinedButton(
-              onClick = { abrirBackup.launch(arrayOf("application/zip", "application/octet-stream")) },
-              enabled = !importando,
-              modifier = Modifier.weight(1f),
-            ) { Text("Restaurar") }
-          }
-          Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            OutlinedButton(
-              onClick = {
-                val arquivo = ultimoAutomatico ?: return@OutlinedButton
-                uriParaImportar = Uri.fromFile(arquivo)
-              },
-              enabled = ultimoAutomatico != null,
-              modifier = Modifier.weight(1f),
-            ) { Text("Restaurar cópia") }
-            OutlinedButton(
-              onClick = {
-                val arquivo = ultimoAutomatico ?: return@OutlinedButton
-                Compartilhamento.compartilharArquivo(contexto, arquivo, "application/zip", "Compartilhar backup")
-              },
-              enabled = ultimoAutomatico != null,
-              modifier = Modifier.weight(1f),
-            ) { Text("Compartilhar cópia") }
-          }
-          Text(
-            text = "O backup é um arquivo ZIP com os dados e as fotos. Guarde no Drive ou mande para você mesmo.",
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-          )
-        }
-      }
-
       TituloSecao("Nuvem (Google Drive)")
       Card(modifier = Modifier.fillMaxWidth()) {
         Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -500,8 +378,7 @@ fun TelaAjustes(
             Text(
               "O backup fica na pasta oculta do app no Drive. Outro celular com a mesma conta pode restaurar. " +
                 "Enviar cria uma cópia nova; as 4 mais recentes ficam guardadas. Enquanto a conta estiver conectada, " +
-                "um backup sobe junto com a cópia automática semanal. Desconectar só limpa este aparelho; " +
-                "para revogar tudo, use https://myaccount.google.com/permissions",
+                "um backup sobe junto com a cópia automática semanal. Desconectar só limpa este aparelho.",
               style = MaterialTheme.typography.bodySmall,
               color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
@@ -632,24 +509,6 @@ fun TelaAjustes(
     )
   }
 
-  uriParaImportar?.let { uri ->
-    AlertDialog(
-      onDismissRequest = { uriParaImportar = null },
-      title = { Text("Restaurar backup") },
-      text = {
-        Text(
-          "Substituir o histórico atual pelos dados do arquivo, ou somar os registros aos que já existem?",
-        )
-      },
-      confirmButton = {
-        Row {
-          TextButton(onClick = { importar(uri, substituir = true) }) { Text("Substituir") }
-          TextButton(onClick = { importar(uri, substituir = false) }) { Text("Somar") }
-        }
-      },
-      dismissButton = { TextButton(onClick = { uriParaImportar = null }) { Text("Cancelar") } },
-    )
-  }
   if (backupsNuvem.isNotEmpty()) {
     AlertDialog(
       onDismissRequest = { backupsNuvem = emptyList() },

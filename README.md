@@ -163,3 +163,6 @@ a tela não abre.
 
 1.3.2 — aviso de versão nova vira popup "Nova versão disponível" na
 abertura, com botão "Atualizar agora".
+
+1.3.3 — remove os botões manuais de backup em arquivo de Ajustes; todo
+backup passa a ser automático na nuvem.
