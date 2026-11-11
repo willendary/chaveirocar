@@ -24,12 +24,14 @@ object Backup {
   fun exportar(banco: BancoDeAtendimentos, contexto: Context, saida: OutputStream) {
     val zip = ZipOutputStream(BufferedOutputStream(saida))
     val raiz = JSONObject()
-    raiz.put("versao", 2)
+    raiz.put("versao", 3)
     raiz.put("exportadoEm", System.currentTimeMillis())
     val lista = JSONArray()
 
     for (atendimento in banco.listar("")) {
       val objeto = JSONObject().apply {
+        put("id", atendimento.id)
+        put("atualizadoEm", atendimento.atualizadoEm)
         put("placa", atendimento.placa)
         put("marca", atendimento.marca)
         put("modelo", atendimento.modelo)
@@ -77,9 +79,10 @@ object Backup {
   }
 
   /**
-   * @param substituir true apaga o banco atual antes de importar (restauração);
-   *                   false apenas acrescenta os registros do arquivo.
-   * @return quantidade de registros importados.
+   * @param substituir true mescla com a base atual vence o mais recente
+   *                   (por id + atualizadoEm); false apenas acrescenta.
+   *                   Backups antigos sem id caem no fluxo de acrescentar.
+   * @return quantidade de registros aplicados.
    */
   fun importar(
     banco: BancoDeAtendimentos,
@@ -109,13 +112,13 @@ object Backup {
     val raiz = JSONObject(json)
     val lista = raiz.optJSONArray("atendimentos") ?: JSONArray()
 
-    if (substituir) {
-      banco.apagarTudo().forEach { Fotos.excluir(contexto, it) }
-    }
-
-    var importados = 0
+    var aplicados = 0
     for (indice in 0 until lista.length()) {
       val objeto = lista.optJSONObject(indice) ?: continue
+      val idNuvem = objeto.optLong("id", 0)
+      val atualizadoNuvem = objeto.optLong("atualizadoEm", 0)
+      val local = if (substituir && idNuvem > 0) banco.obter(idNuvem) else null
+      if (local != null && atualizadoNuvem < local.atualizadoEm) continue
       val atendimento = Atendimento(
         placa = objeto.optString("placa"),
         marca = objeto.optString("marca"),
@@ -135,7 +138,12 @@ object Backup {
         clienteTelefone = objeto.optString("clienteTelefone"),
         pago = objeto.optBoolean("pago", true),
       )
-      val id = banco.salvar(atendimento)
+      if (local != null) {
+        banco.listarFotos(local.id).forEach { foto ->
+          banco.excluirFoto(foto.id)?.let { Fotos.excluir(contexto, it) }
+        }
+      }
+      val id = banco.salvar(if (local != null) atendimento.copy(id = local.id) else atendimento)
       val fotos = objeto.optJSONArray("fotos") ?: JSONArray()
       for (indiceFoto in 0 until fotos.length()) {
         val item = fotos.opt(indiceFoto)
@@ -157,8 +165,8 @@ object Backup {
         val nomeNovo = Fotos.salvarDeBytes(contexto, bytes)
         banco.adicionarFoto(id, nomeNovo, categoria, legenda)
       }
-      importados++
+      aplicados++
     }
-    return importados
+    return aplicados
   }
 }

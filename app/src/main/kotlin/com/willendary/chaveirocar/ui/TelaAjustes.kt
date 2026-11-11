@@ -516,7 +516,7 @@ fun TelaAjustes(
       text = {
         Column(modifier = Modifier.height(280.dp).verticalScroll(rememberScrollState())) {
           Text(
-            "Escolha qual backup restaurar. Os dados deste aparelho serão substituídos.",
+            "Escolha qual backup restaurar. Os dados serão mesclados por registro (o mais recente vence).",
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
           )
