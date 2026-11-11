@@ -4,7 +4,8 @@ App Android para chaveiro automotivo registrar os carros que já atendeu: defeit
 encontrado, solução aplicada, ferramentas usadas e fotos. Serve como memória de
 bolso — busca por placa, modelo, defeito ou solução.
 
-100% offline. Nenhum dado sai do celular.
+Funciona offline. Nenhum dado sai do celular sem você mandar — o backup na
+nuvem é opcional e fica na sua conta Google.
 
 ## Funcionalidades
 
@@ -26,6 +27,9 @@ bolso — busca por placa, modelo, defeito ou solução.
 - **Bloqueio** com PIN de 4 a 6 números e digital (quando o aparelho tem).
 - **Backup** completo em ZIP (dados + fotos) para exportar/importar, mais uma
   cópia automática semanal (mantém as 4 últimas).
+- **Backup na nuvem** opcional no Google Drive, na pasta oculta do app
+  (`appDataFolder`): envia o ZIP, mantém as 4 últimas cópias e restaura em outro
+  celular com a mesma conta Google, sem servidor próprio.
 - **Novidades** ao atualizar: mostra o que mudou naquela versão uma única vez.
 - **Atualização** pelo próprio app: verifica a última release do GitHub e, se
   houver versão nova, baixa o APK e abre o instalador. Checa sozinho uma vez
@@ -37,6 +41,7 @@ bolso — busca por placa, modelo, defeito ou solução.
 |---|---|
 | Banco SQLite | `/data/data/com.willendary.chaveirocar/databases/chaveirocar.db` |
 | Fotos JPEG | `/data/data/com.willendary.chaveirocar/files/fotos/` |
+| Backup na nuvem | pasta oculta do app no Google Drive (`appDataFolder`) |
 
 A pasta é privada do app. Desinstalar apaga tudo — **exporte o backup antes**.
 
@@ -97,6 +102,26 @@ atualização).
 Segredos usados pelo workflow (já configurados no repositório): `CHAVEIRO_KEYSTORE_BASE64`,
 `CHAVEIRO_KEYSTORE_SENHA`, `CHAVEIRO_KEY_ALIAS`, `CHAVEIRO_KEY_SENHA`.
 
+## Como configurar o backup na nuvem
+
+O app usa a API de autorização do Google Play Services e a API REST do Drive,
+apenas com o escopo `drive.appdata`. Não existe backend nem client secret no APK.
+
+1. Em https://console.cloud.google.com crie um projeto (ex.: `ChaveiroCar`).
+2. Ative a **Google Drive API** em APIs e serviços → Biblioteca.
+3. Configure a tela de consentimento OAuth (External) com o escopo
+   `https://www.googleapis.com/auth/drive.appdata`. Se o app ficar em "Testing",
+   cadastre a conta Google usada como usuário de teste.
+4. Crie um **OAuth client ID** do tipo **Android**:
+   - Pacote: `com.willendary.chaveirocar`
+   - SHA-1 da keystore de release:
+     `8C:6E:38:4F:90:D0:4D:D6:7B:E6:6F:9F:14:16:80:6D:A2:31:D5:DB`
+   - Para testar build debug, crie outro cliente com o SHA-1 de debug:
+     `76:3F:B1:F9:87:DF:C8:74:0D:F3:26:15:CD:DF:65:CA:13:B6:2C:80`
+5. Espere alguns minutos e use o app assinado com essa keystore.
+
+O SHA-1 muda se a keystore mudar — nesse caso, atualize o cliente OAuth.
+
 ## Estrutura
 
 ```
@@ -128,3 +153,7 @@ desconhecidos" antes de abrir o instalador e reaproveita o APK já baixado.
 1.2.2 — corrige o fechamento do app ao tirar foto (erros da câmera e de
 gravação da imagem agora viram aviso) e adiciona "Ver último erro do app" em
 Ajustes.
+
+1.3.0 — backup na nuvem opcional no Google Drive (pasta oculta do app):
+conectar conta Google, enviar e restaurar, inclusive com a cópia automática
+semanal.

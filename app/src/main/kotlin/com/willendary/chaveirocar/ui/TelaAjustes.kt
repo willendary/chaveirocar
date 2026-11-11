@@ -1,8 +1,10 @@
 package com.willendary.chaveirocar.ui
 
+import android.app.Activity
 import android.net.Uri
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.IntentSenderRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -50,6 +52,9 @@ import com.willendary.chaveirocar.dados.BancoDeAtendimentos
 import com.willendary.chaveirocar.dados.Backup
 import com.willendary.chaveirocar.dados.BackupAutomatico
 import com.willendary.chaveirocar.dados.Preferencias
+import com.willendary.chaveirocar.nuvem.BackupNaNuvem
+import com.willendary.chaveirocar.nuvem.CredencialGoogle
+import com.willendary.chaveirocar.nuvem.GoogleDrive
 import com.willendary.chaveirocar.util.Biometria
 import com.willendary.chaveirocar.util.Compartilhamento
 import com.willendary.chaveirocar.util.Erros
@@ -58,6 +63,7 @@ import com.willendary.chaveirocar.util.formatarData
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import java.io.File
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -92,13 +98,186 @@ fun TelaAjustes(
   var erroRegistrado by remember { mutableStateOf(Erros.ultimo(contexto)) }
   var mostrandoErro by remember { mutableStateOf(false) }
 
-  val versao = remember { Atualizacoes.versaoInstalada(contexto) }
-  val aparelhoTemBiometria = remember { Biometria.disponivel(contexto) }
-
   fun recarregarBackups() {
     ultimoBackup = preferencias.getLong(Preferencias.ULTIMO_BACKUP, 0)
     ultimoAutomatico = BackupAutomatico.ultimoArquivo(contexto)
   }
+
+  var contaNuvem by remember { mutableStateOf(preferencias.getString(Preferencias.CONTA_NUVEM, null)) }
+  var ultimoEnvioNuvem by remember { mutableStateOf(preferencias.getLong(Preferencias.ULTIMO_ENVIO_NUVEM, 0)) }
+  var tokenNuvem by remember { mutableStateOf<String?>(null) }
+  var conectandoNuvem by remember { mutableStateOf(false) }
+  var enviandoNuvem by remember { mutableStateOf(false) }
+  var restaurandoNuvem by remember { mutableStateOf(false) }
+  var backupsNuvem by remember { mutableStateOf<List<BackupNaNuvem>>(emptyList()) }
+
+  fun avisarErroNuvem(acao: String, erro: Throwable) {
+    Erros.registrar(contexto, "Nuvem: $acao", erro)
+    Toast.makeText(contexto, "Não foi possível $acao. Tente de novo.", Toast.LENGTH_LONG).show()
+  }
+
+  fun guardarCredencial(credencial: CredencialGoogle?) {
+    if (credencial == null) {
+      Toast.makeText(contexto, "Não foi possível autorizar a conta Google", Toast.LENGTH_LONG).show()
+      return
+    }
+    tokenNuvem = credencial.token
+    val email = credencial.email
+    if (!email.isNullOrBlank()) {
+      contaNuvem = email
+      preferencias.edit().putString(Preferencias.CONTA_NUVEM, email).apply()
+    } else if (contaNuvem == null) {
+      contaNuvem = ""
+      preferencias.edit().putString(Preferencias.CONTA_NUVEM, "").apply()
+    }
+    Toast.makeText(contexto, "Conta Google conectada", Toast.LENGTH_SHORT).show()
+  }
+
+  val resolverAutorizacao = rememberLauncherForActivityResult(
+    ActivityResultContracts.StartIntentSenderForResult(),
+  ) { resultado ->
+    conectandoNuvem = false
+    val dados = resultado.data
+    if (resultado.resultCode == Activity.RESULT_OK && dados != null) {
+      runCatching { GoogleDrive.concluirAutorizacao(contexto, dados) }
+        .onSuccess { autorizacao -> guardarCredencial(autorizacao.credencial) }
+        .onFailure { erro -> avisarErroNuvem("conectar sua conta", erro) }
+    } else {
+      Toast.makeText(contexto, "Autorização cancelada", Toast.LENGTH_SHORT).show()
+    }
+  }
+
+  fun conectarContaGoogle() {
+    if (conectandoNuvem) return
+    conectandoNuvem = true
+    escopo.launch {
+      val autorizacao = runCatching {
+        withContext(Dispatchers.IO) { GoogleDrive.autorizar(contexto) }
+      }.getOrElse { erro ->
+        conectandoNuvem = false
+        avisarErroNuvem("conectar sua conta", erro)
+        return@launch
+      }
+      val pendente = autorizacao.pendente
+      if (pendente != null) {
+        resolverAutorizacao.launch(IntentSenderRequest.Builder(pendente.intentSender).build())
+      } else {
+        conectandoNuvem = false
+        guardarCredencial(autorizacao.credencial)
+      }
+    }
+  }
+
+  suspend fun tokenDaNuvem(): String? {
+    tokenNuvem?.let { return it }
+    val autorizacao = withContext(Dispatchers.IO) { GoogleDrive.autorizar(contexto) }
+    val token = autorizacao.credencial?.token
+    if (token != null) {
+      tokenNuvem = token
+    } else if (autorizacao.pendente != null) {
+      Toast.makeText(
+        contexto,
+        "Toque em \"Conectar conta Google\" para autorizar de novo.",
+        Toast.LENGTH_LONG,
+      ).show()
+    }
+    return token
+  }
+
+  fun enviarParaNuvem() {
+    if (enviandoNuvem) return
+    enviandoNuvem = true
+    escopo.launch {
+      val resultado = runCatching {
+        val token = tokenDaNuvem() ?: error("sem autorização da conta Google")
+        withContext(Dispatchers.IO) {
+          val arquivo = File(contexto.cacheDir, "nuvem.zip")
+          try {
+            arquivo.outputStream().use { Backup.exportar(banco, contexto, it) }
+            val nome = "chaveirocar-" + SimpleDateFormat("yyyyMMdd-HHmm", Locale.ROOT).format(Date()) + ".zip"
+            GoogleDrive.enviar(token, arquivo, nome)
+            GoogleDrive.limparAntigos(token, 4)
+          } finally {
+            arquivo.delete()
+          }
+        }
+        System.currentTimeMillis()
+      }
+      enviandoNuvem = false
+      resultado
+        .onSuccess { momento ->
+          ultimoEnvioNuvem = momento
+          preferencias.edit().putLong(Preferencias.ULTIMO_ENVIO_NUVEM, momento).apply()
+          Toast.makeText(contexto, "Backup enviado para o Google Drive", Toast.LENGTH_LONG).show()
+        }
+        .onFailure { erro -> avisarErroNuvem("enviar o backup", erro) }
+    }
+  }
+
+  fun procurarBackupNuvem() {
+    if (restaurandoNuvem) return
+    restaurandoNuvem = true
+    escopo.launch {
+      val resultado = runCatching {
+        val token = tokenDaNuvem() ?: error("sem autorização da conta Google")
+        withContext(Dispatchers.IO) { GoogleDrive.listar(token) }
+      }
+      restaurandoNuvem = false
+      resultado
+        .onSuccess { lista ->
+          if (lista.isEmpty()) {
+            Toast.makeText(contexto, "Nenhum backup na nuvem ainda", Toast.LENGTH_LONG).show()
+          } else {
+            backupsNuvem = lista
+          }
+        }
+        .onFailure { erro -> avisarErroNuvem("buscar o backup", erro) }
+    }
+  }
+
+  fun restaurarBackupNuvem(backup: BackupNaNuvem) {
+    backupsNuvem = emptyList()
+    if (restaurandoNuvem) return
+    restaurandoNuvem = true
+    escopo.launch {
+      val resultado = runCatching {
+        val token = tokenDaNuvem() ?: error("sem autorização da conta Google")
+        withContext(Dispatchers.IO) {
+          val arquivo = File(contexto.cacheDir, "restaurar-nuvem.zip")
+          try {
+            GoogleDrive.baixar(token, backup.id, arquivo)
+            arquivo.inputStream().use { Backup.importar(banco, contexto, it, substituir = true) }
+          } finally {
+            arquivo.delete()
+          }
+        }
+      }
+      restaurandoNuvem = false
+      resultado
+        .onSuccess { total ->
+          Toast.makeText(contexto, "$total registro(s) restaurados da nuvem", Toast.LENGTH_LONG).show()
+          recarregarBackups()
+          onDadosRestaurados()
+        }
+        .onFailure { erro -> avisarErroNuvem("restaurar o backup", erro) }
+    }
+  }
+
+  fun desconectarNuvem() {
+    val token = tokenNuvem
+    contaNuvem = null
+    tokenNuvem = null
+    preferencias.edit().remove(Preferencias.CONTA_NUVEM).apply()
+    if (!token.isNullOrBlank()) {
+      escopo.launch {
+        withContext(Dispatchers.IO) { GoogleDrive.esquecerToken(contexto, token) }
+      }
+    }
+    Toast.makeText(contexto, "Conta desconectada. Para revogar o acesso, use https://myaccount.google.com/permissions", Toast.LENGTH_LONG).show()
+  }
+
+  val versao = remember { Atualizacoes.versaoInstalada(contexto) }
+  val aparelhoTemBiometria = remember { Biometria.disponivel(contexto) }
 
   val criarBackup = rememberLauncherForActivityResult(
     ActivityResultContracts.CreateDocument("application/zip"),
@@ -283,6 +462,57 @@ fun TelaAjustes(
         }
       }
 
+      TituloSecao("Nuvem (Google Drive)")
+      Card(modifier = Modifier.fillMaxWidth()) {
+        Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+          if (contaNuvem == null) {
+            Text(
+              "Conecte sua conta Google para enviar o backup para a pasta oculta do app no Drive e restaurar em outro celular. Sem servidor e sem custo.",
+              style = MaterialTheme.typography.bodySmall,
+              color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            Button(onClick = { conectarContaGoogle() }, enabled = !conectandoNuvem) {
+              Text(if (conectandoNuvem) "Conectando..." else "Conectar conta Google")
+            }
+          } else {
+            Text(
+              text = if (contaNuvem.isNullOrBlank()) "Conta Google conectada" else "Conectado como $contaNuvem",
+              style = MaterialTheme.typography.bodyMedium,
+            )
+            Text(
+              text = if (ultimoEnvioNuvem == 0L) "Nenhum envio para a nuvem ainda."
+              else "Último envio: ${formatarDataHora(ultimoEnvioNuvem)}",
+              style = MaterialTheme.typography.bodySmall,
+              color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+              Button(
+                onClick = { enviarParaNuvem() },
+                enabled = !enviandoNuvem && !restaurandoNuvem,
+                modifier = Modifier.weight(1f),
+              ) { Text(if (enviandoNuvem) "Enviando..." else "Enviar backup") }
+              OutlinedButton(
+                onClick = { procurarBackupNuvem() },
+                enabled = !enviandoNuvem && !restaurandoNuvem,
+                modifier = Modifier.weight(1f),
+              ) { Text(if (restaurandoNuvem) "Buscando..." else "Restaurar") }
+            }
+            Text(
+              "O backup fica na pasta oculta do app no Drive. Outro celular com a mesma conta pode restaurar. " +
+                "Enviar cria uma cópia nova; as 4 mais recentes ficam guardadas. Enquanto a conta estiver conectada, " +
+                "um backup sobe junto com a cópia automática semanal. Desconectar só limpa este aparelho; " +
+                "para revogar tudo, use https://myaccount.google.com/permissions",
+              style = MaterialTheme.typography.bodySmall,
+              color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            TextButton(onClick = { desconectarNuvem() }) { Text("Desconectar conta") }
+            TextButton(onClick = { conectarContaGoogle() }, enabled = !conectandoNuvem) {
+              Text(if (conectandoNuvem) "Conectando..." else "Reconectar")
+            }
+          }
+        }
+      }
+
       TituloSecao("Atualizações")
       Card(modifier = Modifier.fillMaxWidth()) {
         Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -316,8 +546,8 @@ fun TelaAjustes(
           Text("ChaveiroCar $versao", style = MaterialTheme.typography.titleSmall)
           Spacer(Modifier.height(4.dp))
           Text(
-            text = "Tudo fica neste celular: histórico, códigos e fotos. Nada é enviado para a internet " +
-              "sem você mandar. Faça backup antes de trocar de aparelho.",
+            text = "Tudo fica neste celular: histórico, códigos e fotos. Com a conta Google conectada, o backup " +
+              "também vai para a pasta oculta do app no Drive. Faça backup antes de trocar de aparelho.",
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
           )
@@ -420,9 +650,42 @@ fun TelaAjustes(
       dismissButton = { TextButton(onClick = { uriParaImportar = null }) { Text("Cancelar") } },
     )
   }
+  if (backupsNuvem.isNotEmpty()) {
+    AlertDialog(
+      onDismissRequest = { backupsNuvem = emptyList() },
+      title = { Text("Backups na nuvem") },
+      text = {
+        Column(modifier = Modifier.height(280.dp).verticalScroll(rememberScrollState())) {
+          Text(
+            "Escolha qual backup restaurar. Os dados deste aparelho serão substituídos.",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+          )
+          backupsNuvem.forEach { backup ->
+            TextButton(
+              onClick = { restaurarBackupNuvem(backup) },
+              modifier = Modifier.fillMaxWidth(),
+            ) {
+              Text("${formatarDataHora(backup.criadoEm)} · ${tamanhoLegivel(backup.tamanho)}")
+            }
+          }
+        }
+      },
+      confirmButton = {
+        TextButton(onClick = { backupsNuvem = emptyList() }) { Text("Cancelar") }
+      },
+    )
+  }
 }
 
 private enum class AcaoComPin { ALTERAR, DESATIVAR }
+
+private fun tamanhoLegivel(bytes: Long): String =
+  if (bytes < 1_048_576) {
+    String.format(Locale.forLanguageTag("pt-BR"), "%.0f KB", bytes / 1024.0)
+  } else {
+    String.format(Locale.forLanguageTag("pt-BR"), "%.1f MB", bytes / 1_048_576.0)
+  }
 
 @Composable
 private fun LinhaInterruptor(

@@ -36,6 +36,7 @@ import com.willendary.chaveirocar.dados.BancoDeAtendimentos
 import com.willendary.chaveirocar.dados.BackupAutomatico
 import com.willendary.chaveirocar.dados.Preferencias
 import com.willendary.chaveirocar.modelo.Atendimento
+import com.willendary.chaveirocar.nuvem.GoogleDrive
 import com.willendary.chaveirocar.ui.DialogoNovidades
 import com.willendary.chaveirocar.ui.FiltroLista
 import com.willendary.chaveirocar.ui.TelaAjustes
@@ -45,6 +46,7 @@ import com.willendary.chaveirocar.ui.TelaFichario
 import com.willendary.chaveirocar.ui.TelaFicharioModelo
 import com.willendary.chaveirocar.ui.TelaFormulario
 import com.willendary.chaveirocar.ui.TelaLista
+import com.willendary.chaveirocar.util.Erros
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -152,7 +154,11 @@ fun ChaveiroCarApp() {
 
   LaunchedEffect(Unit) {
     withContext(Dispatchers.IO) {
-      runCatching { BackupAutomatico.executarSeNecessario(banco, contexto) }
+      val arquivo = runCatching { BackupAutomatico.executarSeNecessario(banco, contexto) }.getOrNull()
+      if (arquivo != null) {
+        runCatching { GoogleDrive.enviarAutomatico(contexto, arquivo) }
+          .onFailure { Erros.registrar(contexto, "Envio automático para o Google Drive", it) }
+      }
     }
   }
 

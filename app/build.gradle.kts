@@ -22,8 +22,8 @@ android {
     applicationId = "com.willendary.chaveirocar"
     minSdk = 24
     targetSdk = 36
-    versionCode = 5
-    versionName = "1.2.2"
+    versionCode = 6
+    versionName = "1.3.0"
   }
 
   signingConfigs {
@@ -76,6 +76,7 @@ dependencies {
   implementation(libs.androidx.lifecycle.runtime.ktx)
   implementation(libs.androidx.activity.compose)
   implementation(libs.androidx.biometric)
+  implementation(libs.play.services.auth)
 
   // Arch Components
   implementation(libs.androidx.lifecycle.runtime.compose)
