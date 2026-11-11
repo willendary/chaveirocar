@@ -376,6 +376,7 @@ class BancoDeAtendimentos(contexto: Context) :
       ferramenta = getString(getColumnIndexOrThrow("ferramenta")),
       valorCentavos = getLong(getColumnIndexOrThrow("valor_centavos")),
       quantidadeFotos = getInt(getColumnIndexOrThrow("total_fotos")),
+      atualizadoEm = getLong(getColumnIndexOrThrow("atualizado_em")),
     )
 
   private fun montarBusca(atendimento: Atendimento): String {

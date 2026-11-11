@@ -162,7 +162,8 @@ fun TelaDetalhe(
       )
       Text(
         text = formatarData(registro.dataServico) +
-          if (registro.chassi.isNotBlank()) " · Chassi ${registro.chassi}" else "",
+          if (registro.chassi.isNotBlank()) " · Chassi ${registro.chassi}" else "" +
+          if (registro.atualizadoEm > registro.dataServico) " · Última correção em ${formatarData(registro.atualizadoEm)}" else "",
         style = MaterialTheme.typography.bodySmall,
         color = MaterialTheme.colorScheme.onSurfaceVariant,
       )

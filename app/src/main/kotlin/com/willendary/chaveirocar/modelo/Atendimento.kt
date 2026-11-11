@@ -39,6 +39,7 @@ data class Atendimento(
   val ferramenta: String = "",
   val valorCentavos: Long = 0,
   val quantidadeFotos: Int = 0,
+  val atualizadoEm: Long = 0,
 )
 
 data class Foto(
