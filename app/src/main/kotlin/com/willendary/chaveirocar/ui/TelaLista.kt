@@ -292,6 +292,54 @@ fun TelaLista(
         }
       }
 
+      if (!filtro.ativo && registros.size > 1) {
+        Column(modifier = Modifier.fillMaxWidth()) {
+          Text(
+            "Últimos",
+            style = MaterialTheme.typography.titleSmall,
+            modifier = Modifier.padding(horizontal = 16.dp),
+          )
+          LazyRow(
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
+          ) {
+            items(registros.take(5)) { registro ->
+              Card(
+                modifier = Modifier.fillMaxWidth().width(200.dp).clickable { onAbrir(registro.id) },
+                shape = MaterialTheme.shapes.large,
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+              ) {
+                Column(modifier = Modifier.padding(12.dp)) {
+                  Text(
+                    text = registro.placa,
+                    fontFamily = FontFamily.Monospace,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 18.sp,
+                    color = MaterialTheme.colorScheme.primary,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                  )
+                  Spacer(Modifier.height(2.dp))
+                  Text(
+                    text = listOf(registro.marca, registro.modelo).filter { it.isNotBlank() }.joinToString(" "),
+                    style = MaterialTheme.typography.bodySmall,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                  )
+                  Spacer(Modifier.height(2.dp))
+                  Text(
+                    text = if (registro.pago) formatarData(registro.dataServico) else "Pendente",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = if (registro.pago) MaterialTheme.colorScheme.onSurfaceVariant
+                    else MaterialTheme.colorScheme.error,
+                  )
+                }
+              }
+            }
+          }
+        }
+      }
+
       if (registros.isEmpty()) {
         Box(modifier = Modifier.fillMaxSize().padding(32.dp), contentAlignment = Alignment.Center) {
           Column(horizontalAlignment = Alignment.CenterHorizontally) {

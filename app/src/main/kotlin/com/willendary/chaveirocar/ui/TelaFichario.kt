@@ -52,6 +52,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import com.willendary.chaveirocar.dados.BancoDeAtendimentos
+import com.willendary.chaveirocar.dados.Preferencias
 import com.willendary.chaveirocar.modelo.Atendimento
 import com.willendary.chaveirocar.modelo.CategoriaFoto
 import com.willendary.chaveirocar.modelo.Foto
@@ -69,21 +70,38 @@ fun TelaFichario(
   banco: BancoDeAtendimentos,
   onAbrirModelo: (ResumoModelo) -> Unit,
 ) {
+  val contexto = LocalContext.current
   var busca by remember { mutableStateOf("") }
   var modelos by remember { mutableStateOf<List<ResumoModelo>>(emptyList()) }
   var carregado by remember { mutableStateOf(false) }
+  val preferencias = remember { Preferencias.obter(contexto) }
+  var favoritos by remember {
+    mutableStateOf(preferencias.getStringSet(Preferencias.MODELOS_FAVORITOS, emptySet()) ?: emptySet())
+  }
+
+  fun chave(modelo: ResumoModelo): String =
+    "${modelo.marca.trim().lowercase()}|${modelo.modelo.trim().lowercase()}|${modelo.ano.trim()}"
+
+  fun alternarFavorito(modelo: ResumoModelo) {
+    val c = chave(modelo)
+    val novo = if (c in favoritos) favoritos - c else favoritos + c
+    favoritos = novo
+    preferencias.edit().putStringSet(Preferencias.MODELOS_FAVORITOS, novo).apply()
+  }
 
   LaunchedEffect(Unit) {
     modelos = withContext(Dispatchers.IO) { banco.resumoPorModelo() }
     carregado = true
   }
 
-  val visiveis = remember(busca, modelos) {
+  val visiveis = remember(busca, modelos, favoritos) {
     val termo = busca.trim()
-    if (termo.isBlank()) modelos
+    val filtrados = if (termo.isBlank()) modelos
     else modelos.filter { modelo ->
       "${modelo.marca} ${modelo.modelo} ${modelo.ano}".contains(termo, ignoreCase = true)
     }
+    if (termo.isNotBlank() || favoritos.isEmpty()) filtrados
+    else filtrados.sortedByDescending { chave(it) in favoritos }
   }
 
   Scaffold(
@@ -146,7 +164,12 @@ fun TelaFichario(
           contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 10.dp, bottom = 24.dp),
         ) {
           items(visiveis) { modelo ->
-            CartaoModelo(modelo = modelo, onAbrir = { onAbrirModelo(modelo) })
+            CartaoModelo(
+              modelo = modelo,
+              onAbrir = { onAbrirModelo(modelo) },
+              fixado = chave(modelo) in favoritos,
+              onFixar = { alternarFavorito(modelo) },
+            )
           }
         }
       }
@@ -155,7 +178,12 @@ fun TelaFichario(
 }
 
 @Composable
-private fun CartaoModelo(modelo: ResumoModelo, onAbrir: () -> Unit) {
+private fun CartaoModelo(
+  modelo: ResumoModelo,
+  onAbrir: () -> Unit,
+  fixado: Boolean = false,
+  onFixar: () -> Unit = {},
+) {
   Card(
     modifier = Modifier.fillMaxWidth().clickable(onClick = onAbrir),
     shape = MaterialTheme.shapes.large,
@@ -183,6 +211,9 @@ private fun CartaoModelo(modelo: ResumoModelo, onAbrir: () -> Unit) {
           style = MaterialTheme.typography.bodySmall,
           color = MaterialTheme.colorScheme.error,
         )
+      }
+      Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        TextButton(onClick = onFixar) { Text(if (fixado) "Fixado" else "Fixar") }
       }
     }
   }

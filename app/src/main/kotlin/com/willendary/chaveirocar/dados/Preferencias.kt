@@ -19,6 +19,7 @@ object Preferencias {
   const val BIOMETRIA_ATIVA = "biometria_ativa"
   const val CONTA_NUVEM = "conta_nuvem"
   const val ULTIMO_ENVIO_NUVEM = "ultimo_envio_nuvem"
+  const val MODELOS_FAVORITOS = "modelos_favoritos"
 
   fun obter(contexto: Context): SharedPreferences =
     contexto.getSharedPreferences(ARQUIVO, Context.MODE_PRIVATE)
