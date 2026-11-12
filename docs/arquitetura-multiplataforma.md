@@ -2,6 +2,8 @@
 
 Status: em desenvolvimento (branch `feat/multiplataforma-api`). Nenhuma versão publicada.
 
+Implementado nesta etapa: backend + Turso/auth + atendimentos, fichas técnicas e fotos com sync offline nos clientes Android/Windows (iOS em `ios/API.swift` aguardando Keychain na máquina Apple). Tokens criptografados: Android `EncryptedSharedPreferences`, Windows DPAPI (`tokens.bin`).
+
 ## Visão geral
 
 ```text

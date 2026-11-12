@@ -43,7 +43,9 @@ import com.willendary.chaveirocar.dados.BackupAutomatico
 import com.willendary.chaveirocar.dados.Preferencias
 import com.willendary.chaveirocar.modelo.Atendimento
 import com.willendary.chaveirocar.modelo.FichaTecnica
+import com.willendary.chaveirocar.nuvem.ApiChaveiroCar
 import com.willendary.chaveirocar.nuvem.GoogleDrive
+import com.willendary.chaveirocar.nuvem.MotorSinc
 import com.willendary.chaveirocar.ui.DialogoNovidades
 import com.willendary.chaveirocar.ui.EstadoConsulta
 import com.willendary.chaveirocar.ui.FiltroLista
@@ -187,6 +189,27 @@ fun ChaveiroCarApp() {
   LaunchedEffect(Unit) {
     atualizacao = withContext(Dispatchers.IO) {
       runCatching { Atualizacoes.verificar(versaoAtual) }.getOrNull()
+    }
+  }
+
+  LaunchedEffect(Unit) {
+    withContext(Dispatchers.IO) {
+      val acesso = Preferencias.obterApi(contexto).getString(Preferencias.API_ACESSO, "").orEmpty()
+      val empresaId = preferencias.getString(Preferencias.API_EMPRESA_ID, "").orEmpty()
+      val baseUrl = preferencias.getString(Preferencias.API_BASE_URL, "http://10.0.2.2:8787").orEmpty()
+      if (acesso.isBlank() || empresaId.isBlank()) return@withContext
+      runCatching {
+        val api = ApiChaveiroCar(baseUrl.ifBlank { "http://10.0.2.2:8787" })
+        api.tokenAcesso = acesso
+        api.tokenRefresh = Preferencias.obterApi(contexto).getString(Preferencias.API_REFRESH, null)?.ifBlank { null }
+        val cursor = preferencias.getLong(Preferencias.API_CURSOR, 0)
+        val resumo = MotorSinc.sincronizar(banco, api, empresaId, cursor, contexto)
+        preferencias.edit().putLong(Preferencias.API_CURSOR, resumo.cursor).apply()
+        Preferencias.obterApi(contexto).edit()
+          .putString(Preferencias.API_ACESSO, api.tokenAcesso ?: "")
+          .putString(Preferencias.API_REFRESH, api.tokenRefresh ?: "")
+          .apply()
+      }.onFailure { Erros.registrar(contexto, "Sincronização inicial", it) }
     }
   }
 

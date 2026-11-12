@@ -131,6 +131,85 @@ class BancoDeAtendimentos(contexto: Context) :
       criarTabelaFichas(banco)
       banco.execSQL("CREATE INDEX idx_fichas_veiculo ON fichas_tecnicas(marca, modelo)")
     }
+    if (versaoAntiga < 7) {
+      banco.execSQL("ALTER TABLE atendimentos ADD COLUMN uuid TEXT NOT NULL DEFAULT ''")
+      banco.execSQL("ALTER TABLE atendimentos ADD COLUMN revisao_remota INTEGER NOT NULL DEFAULT 0")
+      banco.execSQL("ALTER TABLE atendimentos ADD COLUMN sinc_pendente INTEGER NOT NULL DEFAULT 0")
+      banco.execSQL("ALTER TABLE fichas_tecnicas ADD COLUMN uuid TEXT NOT NULL DEFAULT ''")
+      banco.execSQL("ALTER TABLE fichas_tecnicas ADD COLUMN revisao_remota INTEGER NOT NULL DEFAULT 0")
+      banco.execSQL("ALTER TABLE fichas_tecnicas ADD COLUMN sinc_pendente INTEGER NOT NULL DEFAULT 0")
+      banco.execSQL("ALTER TABLE fotos ADD COLUMN uuid TEXT NOT NULL DEFAULT ''")
+      banco.execSQL("ALTER TABLE fotos ADD COLUMN revisao_remota INTEGER NOT NULL DEFAULT 0")
+      banco.execSQL("ALTER TABLE fotos ADD COLUMN sinc_pendente INTEGER NOT NULL DEFAULT 0")
+      banco.execSQL(
+        """CREATE TABLE sync_saidas (
+          op_id TEXT PRIMARY KEY,
+          entidade TEXT NOT NULL DEFAULT 'atendimento',
+          uuid TEXT NOT NULL,
+          tipo TEXT NOT NULL,
+          base_revisao INTEGER NOT NULL,
+          criado_em INTEGER NOT NULL
+        )""",
+      )
+      banco.execSQL(
+        """CREATE TABLE sync_conflitos (
+          local_id INTEGER PRIMARY KEY,
+          entidade TEXT NOT NULL DEFAULT 'atendimento',
+          uuid TEXT NOT NULL,
+          revisao_servidor INTEGER NOT NULL,
+          criado_em INTEGER NOT NULL
+        )""",
+      )
+      banco.execSQL(
+        """CREATE TABLE sync_excluidos (
+          uuid TEXT PRIMARY KEY,
+          criado_em INTEGER NOT NULL
+        )""",
+      )
+      // Registros antigos ganham UUID e entram na fila de envio uma vez.
+      banco.query("atendimentos", arrayOf("id", "uuid"), "uuid = ''", null, null, null, null).use { cursor ->
+        while (cursor.moveToNext()) {
+          val idLocal = cursor.getLong(0)
+          banco.update(
+            "atendimentos",
+            ContentValues().apply {
+              put("uuid", java.util.UUID.randomUUID().toString())
+              put("sinc_pendente", 1)
+            },
+            "id = ?",
+            arrayOf(idLocal.toString()),
+          )
+        }
+      }
+      banco.query("fichas_tecnicas", arrayOf("id", "uuid"), "uuid = ''", null, null, null, null).use { cursor ->
+        while (cursor.moveToNext()) {
+          val idLocal = cursor.getLong(0)
+          banco.update(
+            "fichas_tecnicas",
+            ContentValues().apply {
+              put("uuid", java.util.UUID.randomUUID().toString())
+              put("sinc_pendente", 1)
+            },
+            "id = ?",
+            arrayOf(idLocal.toString()),
+          )
+        }
+      }
+      banco.query("fotos", arrayOf("id", "uuid"), "uuid = ''", null, null, null, null).use { cursor ->
+        while (cursor.moveToNext()) {
+          val idLocal = cursor.getLong(0)
+          banco.update(
+            "fotos",
+            ContentValues().apply {
+              put("uuid", java.util.UUID.randomUUID().toString())
+              put("sinc_pendente", 1)
+            },
+            "id = ?",
+            arrayOf(idLocal.toString()),
+          )
+        }
+      }
+    }
   }
 
   fun listar(
@@ -319,10 +398,13 @@ class BancoDeAtendimentos(contexto: Context) :
       put("pago", if (atendimento.pago) 1 else 0)
       put("busca", montarBusca(atendimento))
       put("atualizado_em", agora)
+      put("sinc_pendente", 1)
     }
     val banco = writableDatabase
     if (atendimento.id == 0L) {
       valores.put("criado_em", agora)
+      valores.put("uuid", java.util.UUID.randomUUID().toString())
+      valores.put("revisao_remota", 0)
       return banco.insert("atendimentos", null, valores)
     }
     banco.update("atendimentos", valores, "id = ?", arrayOf(atendimento.id.toString()))
@@ -331,7 +413,26 @@ class BancoDeAtendimentos(contexto: Context) :
 
   fun excluir(id: Long): List<String> {
     val caminhos = listarFotos(id).map { it.caminho }
-    writableDatabase.delete("atendimentos", "id = ?", arrayOf(id.toString()))
+    // Saída de sync precisa sobreviver ao delete local.
+    val sqlite = writableDatabase
+    sqlite.query("atendimentos", arrayOf("uuid", "revisao_remota"), "id = ?", arrayOf(id.toString()),
+      null, null, null).use { cursor ->
+      if (cursor.moveToFirst()) {
+        val uuid = cursor.getString(0)
+        val revisao = cursor.getLong(1)
+        if (uuid.isNotBlank()) {
+          sqlite.insert("sync_saidas", null, ContentValues().apply {
+            put("op_id", java.util.UUID.randomUUID().toString())
+            put("entidade", "atendimento")
+            put("uuid", uuid)
+            put("tipo", "exclusao")
+            put("base_revisao", revisao)
+            put("criado_em", System.currentTimeMillis())
+          })
+        }
+      }
+    }
+    sqlite.delete("atendimentos", "id = ?", arrayOf(id.toString()))
     return caminhos
   }
 
@@ -384,6 +485,9 @@ class BancoDeAtendimentos(contexto: Context) :
       put("legenda", legenda)
       put("ordem", proximaOrdem)
       put("criado_em", System.currentTimeMillis())
+      put("uuid", java.util.UUID.randomUUID().toString())
+      put("revisao_remota", 0)
+      put("sinc_pendente", 1)
     }
     return writableDatabase.insert("fotos", null, valores)
   }
@@ -393,6 +497,7 @@ class BancoDeAtendimentos(contexto: Context) :
       put("categoria", foto.categoria.name)
       put("legenda", foto.legenda)
       put("ordem", foto.ordem)
+      put("sinc_pendente", 1)
     }
     writableDatabase.update("fotos", valores, "id = ?", arrayOf(foto.id.toString()))
   }
@@ -402,7 +507,24 @@ class BancoDeAtendimentos(contexto: Context) :
       "SELECT caminho FROM fotos WHERE id = ?",
       arrayOf(id.toString()),
     ).use { cursor -> if (cursor.moveToFirst()) cursor.getString(0) else null }
-    writableDatabase.delete("fotos", "id = ?", arrayOf(id.toString()))
+    val sqlite = writableDatabase
+    sqlite.query("fotos", arrayOf("uuid", "revisao_remota"), "id = ?", arrayOf(id.toString()),
+      null, null, null).use { cursor ->
+      if (cursor.moveToFirst()) {
+        val uuid = cursor.getString(0)
+        if (uuid.isNotBlank()) {
+          sqlite.insert("sync_saidas", null, ContentValues().apply {
+            put("op_id", java.util.UUID.randomUUID().toString())
+            put("entidade", "foto")
+            put("uuid", uuid)
+            put("tipo", "exclusao")
+            put("base_revisao", cursor.getLong(1))
+            put("criado_em", System.currentTimeMillis())
+          })
+        }
+      }
+    }
+    sqlite.delete("fotos", "id = ?", arrayOf(id.toString()))
     return caminho
   }
 
@@ -452,10 +574,13 @@ class BancoDeAtendimentos(contexto: Context) :
       put("origem", ficha.origem.trim())
       put("busca", normalizar(montarBuscaDaFicha(ficha)))
       put("atualizado_em", agora)
+      put("sinc_pendente", 1)
     }
     val banco = writableDatabase
     if (ficha.id == 0L) {
       valores.put("criado_em", agora)
+      valores.put("uuid", java.util.UUID.randomUUID().toString())
+      valores.put("revisao_remota", 0)
       return banco.insert("fichas_tecnicas", null, valores)
     }
     banco.update("fichas_tecnicas", valores, "id = ?", arrayOf(ficha.id.toString()))
@@ -467,7 +592,24 @@ class BancoDeAtendimentos(contexto: Context) :
       "SELECT foto FROM fichas_tecnicas WHERE id = ?",
       arrayOf(id.toString()),
     ).use { cursor -> if (cursor.moveToFirst()) cursor.getString(0) else null }
-    writableDatabase.delete("fichas_tecnicas", "id = ?", arrayOf(id.toString()))
+    val sqlite = writableDatabase
+    sqlite.query("fichas_tecnicas", arrayOf("uuid", "revisao_remota"), "id = ?", arrayOf(id.toString()),
+      null, null, null).use { cursor ->
+      if (cursor.moveToFirst()) {
+        val uuid = cursor.getString(0)
+        if (uuid.isNotBlank()) {
+          sqlite.insert("sync_saidas", null, ContentValues().apply {
+            put("op_id", java.util.UUID.randomUUID().toString())
+            put("entidade", "ficha")
+            put("uuid", uuid)
+            put("tipo", "exclusao")
+            put("base_revisao", cursor.getLong(1))
+            put("criado_em", System.currentTimeMillis())
+          })
+        }
+      }
+    }
+    sqlite.delete("fichas_tecnicas", "id = ?", arrayOf(id.toString()))
     return foto
   }
 
@@ -567,8 +709,299 @@ class BancoDeAtendimentos(contexto: Context) :
     return normalizar(partes.joinToString(" "))
   }
 
+  // ---- Sincronização (v7): UUID, revisão remota, saída e conflitos ----
+
+  fun uuidDe(id: Long): String =
+    readableDatabase.query("atendimentos", arrayOf("uuid"), "id = ?", arrayOf(id.toString()),
+      null, null, null).use { if (it.moveToFirst()) it.getString(0) else "" }
+
+  fun revisaoRemotaDe(id: Long): Long =
+    readableDatabase.query("atendimentos", arrayOf("revisao_remota"), "id = ?", arrayOf(id.toString()),
+      null, null, null).use { if (it.moveToFirst()) it.getLong(0) else 0L }
+
+  fun sincPendenteDe(id: Long): Boolean =
+    readableDatabase.query("atendimentos", arrayOf("sinc_pendente"), "id = ?", arrayOf(id.toString()),
+      null, null, null).use { if (it.moveToFirst()) it.getInt(0) == 1 else false }
+
+  fun obterPorUuid(uuid: String): Atendimento? =
+    readableDatabase.query("atendimentos", arrayOf("id"), "uuid = ?", arrayOf(uuid),
+      null, null, null).use { if (it.moveToFirst()) obter(it.getLong(0)) else null }
+
+  fun pendentesSync(): List<Atendimento> =
+    consultar(
+      "SELECT a.*, (SELECT COUNT(*) FROM fotos f WHERE f.atendimento_id = a.id) AS total_fotos " +
+        "FROM atendimentos a WHERE a.sinc_pendente = 1 ORDER BY a.id",
+      emptyArray(),
+    )
+
+  fun saidasExcluidos(): List<SaidaSync> =
+    readableDatabase.query("sync_saidas", arrayOf("op_id", "entidade", "uuid", "base_revisao"), null, null, null, null, "criado_em").use { cursor ->
+      buildList { while (cursor.moveToNext()) add(SaidaSync(cursor.getString(0), cursor.getString(1), cursor.getString(2), cursor.getLong(3))) }
+    }
+
+  fun confirmarSaida(opId: String, uuid: String) {
+    val db = writableDatabase
+    db.delete("sync_saidas", "op_id = ?", arrayOf(opId))
+    db.insertWithOnConflict("sync_excluidos", null, ContentValues().apply {
+      put("uuid", uuid); put("criado_em", System.currentTimeMillis())
+    }, android.database.sqlite.SQLiteDatabase.CONFLICT_IGNORE)
+  }
+
+  fun naoPublicar(opId: String) {
+    writableDatabase.delete("sync_saidas", "op_id = ?", arrayOf(opId))
+  }
+
+  fun jaExcluidoConhecido(uuid: String): Boolean =
+    readableDatabase.query("sync_excluidos", arrayOf("uuid"), "uuid = ?", arrayOf(uuid),
+      null, null, null).use { it.moveToFirst() }
+
+  /** Aplica registro remoto sem gerar nova saída; limpa pendência. */
+  fun aplicarRemoto(atendimento: Atendimento, uuid: String, revisao: Long): Long {
+    val local = obterPorUuid(uuid)
+    if (local == null) {
+      val valores = valoresDeSync(atendimento, uuid, revisao)
+      valores.put("criado_em", System.currentTimeMillis())
+      return writableDatabase.insert("atendimentos", null, valores)
+    }
+    writableDatabase.update(
+      "atendimentos", valoresDeSync(atendimento, uuid, revisao),
+      "id = ?", arrayOf(local.id.toString()),
+    )
+    return local.id
+  }
+
+  fun marcarEnviado(id: Long, revisao: Long) {
+    writableDatabase.update(
+      "atendimentos",
+      ContentValues().apply {
+        put("revisao_remota", revisao)
+        put("sinc_pendente", 0)
+      },
+      "id = ?", arrayOf(id.toString()),
+    )
+  }
+
+  fun excluirPorUuid(uuid: String) {
+    val local = obterPorUuid(uuid) ?: return
+    writableDatabase.delete("atendimentos", "id = ?", arrayOf(local.id.toString()))
+  }
+
+  fun conflitos(): List<ConflitoSync> =
+    readableDatabase.rawQuery(
+      "SELECT c.local_id, c.uuid, c.revisao_servidor, c.entidade, a.placa, f.equipamento FROM sync_conflitos c " +
+        "LEFT JOIN atendimentos a ON a.id = c.local_id " +
+        "LEFT JOIN fichas_tecnicas f ON f.id = c.local_id ORDER BY c.criado_em",
+      null,
+    ).use { cursor ->
+      buildList {
+        while (cursor.moveToNext()) {
+          val entidade = cursor.getString(3) ?: "atendimento"
+          val placa = cursor.getString(4) ?: cursor.getString(5) ?: ""
+          add(ConflitoSync(cursor.getLong(0), cursor.getString(1), cursor.getLong(2), placa, entidade))
+        }
+      }
+    }
+
+  fun registrarConflito(localId: Long, uuid: String, revisaoServidor: Long, entidade: String = "atendimento") {
+    writableDatabase.insertWithOnConflict("sync_conflitos", null, ContentValues().apply {
+      put("local_id", localId)
+      put("entidade", entidade)
+      put("uuid", uuid)
+      put("revisao_servidor", revisaoServidor)
+      put("criado_em", System.currentTimeMillis())
+    }, android.database.sqlite.SQLiteDatabase.CONFLICT_REPLACE)
+  }
+
+  fun limparConflito(localId: Long) {
+    writableDatabase.delete("sync_conflitos", "local_id = ?", arrayOf(localId.toString()))
+  }
+
+  private fun valoresDeSync(atendimento: Atendimento, uuid: String, revisao: Long): ContentValues =
+    ContentValues().apply {
+      put("placa", atendimento.placa.trim().uppercase())
+      put("marca", atendimento.marca.trim())
+      put("modelo", atendimento.modelo.trim())
+      put("ano", atendimento.ano.trim())
+      put("chassi", atendimento.chassi.trim().uppercase())
+      put("data_servico", atendimento.dataServico)
+      put("tipo_servico", atendimento.tiposOrdenados.first().name)
+      put("tipos_servico", atendimento.tiposOrdenados.joinToString(",") { it.name })
+      put("defeito", atendimento.defeito.trim())
+      put("solucao", atendimento.solucao.trim())
+      put("abertura", atendimento.abertura.trim())
+      put("codigo_chave", atendimento.codigoChave.trim().uppercase())
+      put("codigo_configuracao", atendimento.codigoConfiguracao.trim())
+      put("chip_transponder", atendimento.chipTransponder.trim())
+      put("ferramenta", atendimento.ferramenta.trim())
+      put("valor_centavos", atendimento.valorCentavos)
+      put("cliente_nome", atendimento.clienteNome.trim())
+      put("cliente_telefone", atendimento.clienteTelefone.trim())
+      put("pago", if (atendimento.pago) 1 else 0)
+      put("busca", montarBusca(atendimento))
+      put("atualizado_em", System.currentTimeMillis())
+      put("uuid", uuid)
+      put("revisao_remota", revisao)
+      put("sinc_pendente", 0)
+    }
+
   companion object {
     const val NOME = "chaveirocar.db"
-    const val VERSAO = 6
+    const val VERSAO = 7
   }
 }
+
+// ---- Fichas e fotos no sync (v7) ----
+
+fun BancoDeAtendimentos.uuidFicha(id: Long): String =
+  writableDatabase.query("fichas_tecnicas", arrayOf("uuid"), "id = ?", arrayOf(id.toString()),
+    null, null, null).use { if (it.moveToFirst()) it.getString(0) else "" }
+
+fun BancoDeAtendimentos.revisaoRemotaFicha(id: Long): Long =
+  writableDatabase.query("fichas_tecnicas", arrayOf("revisao_remota"), "id = ?", arrayOf(id.toString()),
+    null, null, null).use { if (it.moveToFirst()) it.getLong(0) else 0L }
+
+fun BancoDeAtendimentos.sincPendenteFicha(id: Long): Boolean =
+  writableDatabase.query("fichas_tecnicas", arrayOf("sinc_pendente"), "id = ?", arrayOf(id.toString()),
+    null, null, null).use { if (it.moveToFirst()) it.getInt(0) == 1 else false }
+
+fun BancoDeAtendimentos.obterFichaPorUuid(uuid: String): FichaTecnica? =
+  writableDatabase.query("fichas_tecnicas", arrayOf("id"), "uuid = ?", arrayOf(uuid),
+    null, null, null).use { if (it.moveToFirst()) obterFicha(it.getLong(0)) else null }
+
+fun BancoDeAtendimentos.pendentesFichas(): List<FichaTecnica> =
+  this.listarFichas().filter { sincPendenteFicha(it.id) }
+
+fun BancoDeAtendimentos.aplicarFichaRemota(ficha: FichaTecnica, uuid: String, revisao: Long): Long {
+  val valores = valoresFichaDeSync(ficha, uuid, revisao)
+  val local = obterFichaPorUuid(uuid)
+  if (local == null) {
+    valores.put("criado_em", System.currentTimeMillis())
+    return writableDatabase.insert("fichas_tecnicas", null, valores)
+  }
+  writableDatabase.update("fichas_tecnicas", valores, "id = ?", arrayOf(local.id.toString()))
+  return local.id
+}
+
+fun BancoDeAtendimentos.marcarFichaEnviada(id: Long, revisao: Long) {
+  writableDatabase.update(
+    "fichas_tecnicas",
+    ContentValues().apply { put("revisao_remota", revisao); put("sinc_pendente", 0) },
+    "id = ?", arrayOf(id.toString()),
+  )
+}
+
+fun BancoDeAtendimentos.excluirFichaPorUuid(uuid: String) {
+  val local = obterFichaPorUuid(uuid) ?: return
+  writableDatabase.delete("fichas_tecnicas", "id = ?", arrayOf(local.id.toString()))
+}
+
+fun BancoDeAtendimentos.uuidFoto(id: Long): String =
+  writableDatabase.query("fotos", arrayOf("uuid"), "id = ?", arrayOf(id.toString()),
+    null, null, null).use { if (it.moveToFirst()) it.getString(0) else "" }
+
+fun BancoDeAtendimentos.obterFoto(id: Long): com.willendary.chaveirocar.modelo.Foto? =
+  writableDatabase.query("fotos", arrayOf("id", "atendimento_id", "caminho", "categoria", "legenda", "ordem"),
+    "id = ?", arrayOf(id.toString()), null, null, null).use { cursor ->
+    if (!cursor.moveToFirst()) null
+    else com.willendary.chaveirocar.modelo.Foto(
+      id = cursor.getLong(0), atendimentoId = cursor.getLong(1),
+      caminho = cursor.getString(2), categoria = CategoriaFoto.de(cursor.getString(3)),
+      legenda = cursor.getString(4), ordem = cursor.getInt(5),
+    )
+  }
+
+fun BancoDeAtendimentos.obterFotoPorUuid(uuid: String): com.willendary.chaveirocar.modelo.Foto? =
+  writableDatabase.query("fotos", arrayOf("id"), "uuid = ?", arrayOf(uuid),
+    null, null, null).use { if (it.moveToFirst()) obterFoto(it.getLong(0)) else null }
+
+fun BancoDeAtendimentos.pendentesFotos(): List<com.willendary.chaveirocar.modelo.Foto> =
+  writableDatabase.query("fotos", arrayOf("id", "atendimento_id", "caminho", "categoria", "legenda", "ordem"),
+    "sinc_pendente = 1", null, null, null, "id").use { cursor ->
+    buildList {
+      while (cursor.moveToNext()) {
+        add(com.willendary.chaveirocar.modelo.Foto(
+          id = cursor.getLong(0), atendimentoId = cursor.getLong(1),
+          caminho = cursor.getString(2), categoria = CategoriaFoto.de(cursor.getString(3)),
+          legenda = cursor.getString(4), ordem = cursor.getInt(5),
+        ))
+      }
+    }
+  }
+
+fun BancoDeAtendimentos.revisaoRemotaFoto(id: Long): Long =
+  writableDatabase.query("fotos", arrayOf("revisao_remota"), "id = ?", arrayOf(id.toString()),
+    null, null, null).use { if (it.moveToFirst()) it.getLong(0) else 0L }
+
+fun BancoDeAtendimentos.marcarFotoEnviada(id: Long, revisao: Long) {
+  writableDatabase.update(
+    "fotos",
+    ContentValues().apply { put("revisao_remota", revisao); put("sinc_pendente", 0) },
+    "id = ?", arrayOf(id.toString()),
+  )
+}
+
+fun BancoDeAtendimentos.aplicarFotoRemota(
+  uuid: String, atendimentoId: Long, caminho: String, categoria: String,
+  legenda: String, ordem: Int, revisao: Long,
+): Long {
+  val local = obterFotoPorUuid(uuid)
+  val valores = ContentValues().apply {
+    put("atendimento_id", atendimentoId)
+    put("caminho", caminho)
+    put("categoria", categoria)
+    put("legenda", legenda)
+    put("ordem", ordem)
+    put("uuid", uuid)
+    put("revisao_remota", revisao)
+    put("sinc_pendente", 0)
+  }
+  if (local == null) {
+    valores.put("criado_em", System.currentTimeMillis())
+    return writableDatabase.insert("fotos", null, valores)
+  }
+  writableDatabase.update("fotos", valores, "id = ?", arrayOf(local.id.toString()))
+  return local.id
+}
+
+fun BancoDeAtendimentos.excluirFotoPorUuid(uuid: String) {
+  val local = obterFotoPorUuid(uuid) ?: return
+  writableDatabase.delete("fotos", "id = ?", arrayOf(local.id.toString()))
+}
+
+private fun valoresFichaDeSync(ficha: FichaTecnica, uuid: String, revisao: Long): ContentValues =
+  ContentValues().apply {
+    put("equipamento", ficha.equipamento.trim())
+    put("marca", ficha.marca.trim())
+    put("modelo", ficha.modelo.trim())
+    put("ano", ficha.ano.trim())
+    put("sistema", ficha.sistema.trim())
+    put("descricao", ficha.descricao.trim())
+    put("chip", ficha.chip.trim().uppercase())
+    put("chave", ficha.chave.trim())
+    put("telecomando", ficha.telecomando.trim())
+    put("frequencia", ficha.frequencia.trim())
+    put("avisos", ficha.avisos.trim())
+    put("funcoes", ficha.funcoes.trim())
+    put("manual", ficha.manual.trim())
+    put("foto", ficha.foto)
+    put("confirmado", if (ficha.confirmado) 1 else 0)
+    put("origem", ficha.origem.trim())
+    put("busca", com.willendary.chaveirocar.util.normalizar(
+      listOf(ficha.equipamento, ficha.marca, ficha.modelo, ficha.ano, ficha.sistema,
+        ficha.descricao, ficha.chip, ficha.chave, ficha.telecomando, ficha.frequencia,
+        ficha.avisos, ficha.funcoes, ficha.manual, ficha.origem).joinToString(" ")))
+    put("atualizado_em", System.currentTimeMillis())
+    put("uuid", uuid)
+    put("revisao_remota", revisao)
+    put("sinc_pendente", 0)
+  }
+
+data class SaidaSync(val opId: String, val entidade: String, val uuid: String, val baseRevisao: Long)
+
+data class ConflitoSync(
+  val localId: Long,
+  val uuid: String,
+  val revisaoServidor: Long,
+  val placa: String,
+  val entidade: String = "atendimento",
+)

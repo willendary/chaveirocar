@@ -1,20 +1,31 @@
 ﻿<Window x:Class="ChaveiroCar.Windows.MainWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="ChaveiroCar" Height="520" Width="820">
+        Title="ChaveiroCar" Height="600" Width="920"
+        WindowStartupLocation="CenterScreen">
     <Grid Margin="12">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
         </Grid.RowDefinitions>
 
         <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="0,0,0,8">
+            <ComboBox x:Name="Empresas" Width="200" Margin="0,0,8,0" SelectionChanged="Empresa_Mudou"/>
             <TextBox x:Name="Busca" Width="220" Margin="0,0,8,0" KeyDown="Busca_KeyDown"/>
             <Button Content="Pesquisar" Click="Pesquisar_Click"/>
             <Button Content="Sincronizar" Click="Sincronizar_Click" Margin="8,0,0,0"/>
+            <Button Content="Novo" Click="Novo_Click" Margin="8,0,0,0"/>
+            <Button Content="Editar" Click="Editar_Click" Margin="8,0,0,0"/>
+            <Button Content="Excluir" Click="Excluir_Click" Margin="8,0,0,0"/>
         </StackPanel>
 
         <DataGrid Grid.Row="1" x:Name="Grade" AutoGenerateColumns="True"
-                  IsReadOnly="True" CanUserAddRows="False"/>
+                  IsReadOnly="True" CanUserAddRows="False" SelectionMode="Single"/>
+
+        <DockPanel Grid.Row="2" Margin="0,8,0,0">
+            <TextBlock x:Name="Status" VerticalAlignment="Center"/>
+            <Button Content="Sair" Click="Sair_Click" HorizontalAlignment="Right"/>
+        </DockPanel>
     </Grid>
 </Window>
