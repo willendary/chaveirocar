@@ -2,6 +2,7 @@ package com.willendary.chaveirocar.ui
 
 import android.app.DatePickerDialog
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.ui.platform.testTag
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.KeyboardArrowUp
@@ -183,6 +184,7 @@ fun TelaLista(
     topBar = { CabecalhoTela("ChaveiroCar", "Seu parceiro de bancada") },
     floatingActionButton = {
       ExtendedFloatingActionButton(
+        modifier = Modifier.testTag("acao_novo_servico"),
         onClick = onNovo, containerColor = MaterialTheme.colorScheme.primary,
         contentColor = MaterialTheme.colorScheme.onPrimary,
         text = { Text("Novo serviço") }, icon = { Icon(Icons.Default.Add, contentDescription = null) },
