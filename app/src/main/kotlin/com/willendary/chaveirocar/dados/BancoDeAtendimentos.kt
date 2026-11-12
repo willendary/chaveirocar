@@ -34,11 +34,13 @@ class BancoDeAtendimentos(contexto: Context) :
         chassi TEXT NOT NULL DEFAULT '',
         data_servico INTEGER NOT NULL,
         tipo_servico TEXT NOT NULL,
+        tipos_servico TEXT NOT NULL DEFAULT '',
         defeito TEXT NOT NULL DEFAULT '',
         solucao TEXT NOT NULL DEFAULT '',
         abertura TEXT NOT NULL DEFAULT '',
         codigo_chave TEXT NOT NULL DEFAULT '',
         codigo_configuracao TEXT NOT NULL DEFAULT '',
+        chip_transponder TEXT NOT NULL DEFAULT '',
         ferramenta TEXT NOT NULL DEFAULT '',
         valor_centavos INTEGER NOT NULL DEFAULT 0,
         cliente_nome TEXT NOT NULL DEFAULT '',
@@ -86,6 +88,13 @@ class BancoDeAtendimentos(contexto: Context) :
       banco.execSQL("ALTER TABLE atendimentos ADD COLUMN cliente_telefone TEXT NOT NULL DEFAULT ''")
       banco.execSQL("ALTER TABLE atendimentos ADD COLUMN pago INTEGER NOT NULL DEFAULT 1")
     }
+    if (versaoAntiga < 4) {
+      banco.execSQL("ALTER TABLE atendimentos ADD COLUMN chip_transponder TEXT NOT NULL DEFAULT ''")
+    }
+    if (versaoAntiga < 5) {
+      banco.execSQL("ALTER TABLE atendimentos ADD COLUMN tipos_servico TEXT NOT NULL DEFAULT ''")
+      banco.execSQL("UPDATE atendimentos SET tipos_servico = tipo_servico WHERE tipos_servico = ''")
+    }
   }
 
   fun listar(
@@ -103,7 +112,8 @@ class BancoDeAtendimentos(contexto: Context) :
       argumentos.add("%$token%")
     }
     if (tipo != null) {
-      condicoes.add("a.tipo_servico = ?")
+      // A lista é delimitada por vírgulas; a busca mantém correspondência exata.
+      condicoes.add("instr(',' || a.tipos_servico || ',', ',' || ? || ',') > 0")
       argumentos.add(tipo.name)
     }
     if (desde != null) {
@@ -207,7 +217,7 @@ class BancoDeAtendimentos(contexto: Context) :
   fun resumoPorModelo(): List<ResumoModelo> =
     readableDatabase.rawQuery(
       "SELECT marca, modelo, ano, COUNT(*) AS quantidade, MAX(data_servico) AS ultima, " +
-        "MAX(CASE WHEN abertura <> '' OR codigo_chave <> '' OR codigo_configuracao <> '' THEN 1 " +
+        "MAX(CASE WHEN abertura <> '' OR codigo_chave <> '' OR codigo_configuracao <> '' OR chip_transponder <> '' THEN 1 " +
         "WHEN EXISTS (SELECT 1 FROM fotos f WHERE f.atendimento_id = atendimentos.id " +
         "AND f.categoria = 'PROCEDIMENTO') THEN 1 ELSE 0 END) AS tem_procedimento " +
         "FROM atendimentos WHERE marca <> '' OR modelo <> '' " +
@@ -258,12 +268,14 @@ class BancoDeAtendimentos(contexto: Context) :
       put("ano", atendimento.ano.trim())
       put("chassi", atendimento.chassi.trim().uppercase())
       put("data_servico", atendimento.dataServico)
-      put("tipo_servico", atendimento.tipoServico.name)
+      put("tipo_servico", atendimento.tiposOrdenados.first().name)
+      put("tipos_servico", atendimento.tiposOrdenados.joinToString(",") { it.name })
       put("defeito", atendimento.defeito.trim())
       put("solucao", atendimento.solucao.trim())
       put("abertura", atendimento.abertura.trim())
       put("codigo_chave", atendimento.codigoChave.trim().uppercase())
       put("codigo_configuracao", atendimento.codigoConfiguracao.trim())
+      put("chip_transponder", atendimento.chipTransponder.trim())
       put("ferramenta", atendimento.ferramenta.trim())
       put("valor_centavos", atendimento.valorCentavos)
       put("cliente_nome", atendimento.clienteNome.trim())
@@ -379,11 +391,16 @@ class BancoDeAtendimentos(contexto: Context) :
       chassi = getString(getColumnIndexOrThrow("chassi")),
       dataServico = getLong(getColumnIndexOrThrow("data_servico")),
       tipoServico = TipoServico.de(getString(getColumnIndexOrThrow("tipo_servico"))),
+      tiposServico = TipoServico.deNomes(
+        getString(getColumnIndexOrThrow("tipos_servico")).split(","),
+        TipoServico.de(getString(getColumnIndexOrThrow("tipo_servico"))),
+      ),
       defeito = getString(getColumnIndexOrThrow("defeito")),
       solucao = getString(getColumnIndexOrThrow("solucao")),
       abertura = getString(getColumnIndexOrThrow("abertura")),
       codigoChave = getString(getColumnIndexOrThrow("codigo_chave")),
       codigoConfiguracao = getString(getColumnIndexOrThrow("codigo_configuracao")),
+      chipTransponder = getString(getColumnIndexOrThrow("chip_transponder")),
       ferramenta = getString(getColumnIndexOrThrow("ferramenta")),
       valorCentavos = getLong(getColumnIndexOrThrow("valor_centavos")),
       clienteNome = getString(getColumnIndexOrThrow("cliente_nome")),
@@ -400,12 +417,13 @@ class BancoDeAtendimentos(contexto: Context) :
       atendimento.modelo,
       atendimento.ano,
       atendimento.chassi,
-      atendimento.tipoServico.rotulo,
+      atendimento.tiposEmTexto,
       atendimento.defeito,
       atendimento.solucao,
       atendimento.abertura,
       atendimento.codigoChave,
       atendimento.codigoConfiguracao,
+      atendimento.chipTransponder,
       atendimento.ferramenta,
       atendimento.clienteNome,
       atendimento.clienteTelefone,
@@ -415,6 +433,6 @@ class BancoDeAtendimentos(contexto: Context) :
 
   companion object {
     const val NOME = "chaveirocar.db"
-    const val VERSAO = 3
+    const val VERSAO = 5
   }
 }

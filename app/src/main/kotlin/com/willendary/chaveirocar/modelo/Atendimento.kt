@@ -6,10 +6,17 @@ enum class TipoServico(val rotulo: String) {
   TELECOMANDO("Telecomando"),
   ABERTURA("Abertura"),
   IGNICAO("Ignição"),
+  CONSERTO("Conserto"),
+  PROGRAMACAO_CHAVE("Programação de chave"),
   OUTRO("Outro");
 
   companion object {
     fun de(valor: String?): TipoServico = entries.firstOrNull { it.name == valor } ?: OUTRO
+
+    /** Desconsidera identificadores desconhecidos; usa o tipo anterior ao importar registros antigos. */
+    fun deNomes(nomes: Iterable<String>, padrao: TipoServico): Set<TipoServico> =
+      nomes.mapNotNull { nome -> entries.firstOrNull { it.name == nome.trim() } }.toSet()
+        .ifEmpty { setOf(padrao) }
   }
 }
 
@@ -36,6 +43,7 @@ data class Atendimento(
   val abertura: String = "",
   val codigoChave: String = "",
   val codigoConfiguracao: String = "",
+  val chipTransponder: String = "",
   val ferramenta: String = "",
   val valorCentavos: Long = 0,
   val clienteNome: String = "",
@@ -43,7 +51,15 @@ data class Atendimento(
   val pago: Boolean = true,
   val quantidadeFotos: Int = 0,
   val atualizadoEm: Long = 0,
-)
+  // Campo singular permanece para os registros e backups antigos.
+  val tiposServico: Set<TipoServico> = setOf(tipoServico),
+) {
+  val tiposOrdenados: List<TipoServico>
+    get() = TipoServico.entries.filter { it in tiposServico }.ifEmpty { listOf(tipoServico) }
+
+  val tiposEmTexto: String
+    get() = tiposOrdenados.joinToString(" · ") { it.rotulo }
+}
 
 data class Foto(
   val id: Long,

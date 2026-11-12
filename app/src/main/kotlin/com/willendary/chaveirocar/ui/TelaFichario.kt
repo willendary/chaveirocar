@@ -366,9 +366,13 @@ fun TelaFicharioModelo(
           modifier = Modifier.fillMaxWidth().clickable { onAbrirServico(servico.id) },
         ) {
           Column(Modifier.padding(14.dp)) {
+            FlowRow(
+              horizontalArrangement = Arrangement.spacedBy(6.dp),
+              verticalArrangement = Arrangement.spacedBy(6.dp),
+            ) {
+              servico.tiposOrdenados.forEach { Selo(it.rotulo) }
+            }
             Row(verticalAlignment = Alignment.CenterVertically) {
-              Selo(servico.tipoServico.rotulo)
-              Spacer(Modifier.width(8.dp))
               Text(
                 text = formatarData(servico.dataServico),
                 style = MaterialTheme.typography.bodySmall,
