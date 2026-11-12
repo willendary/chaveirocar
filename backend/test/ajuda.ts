@@ -126,3 +126,47 @@ export function corpoMultipart(
 export function imagemJpeg(conteudo = "foto"): Buffer {
   return Buffer.concat([Buffer.from([0xff, 0xd8, 0xff, 0xe0]), Buffer.from(conteudo.padEnd(16, "x"), "utf8")]);
 }
+
+/** ZIP sem compressão (stored) — suficiente para o importador (yauzl). */
+export function zipArmazenado(entradas: Array<{ nome: string; bytes: Buffer }>): Buffer {
+  const central: Buffer[] = [];
+  const partes: Buffer[] = [];
+  let deslocamento = 0;
+  for (const entrada of entradas) {
+    const nome = Buffer.from(entrada.nome, "utf8");
+    const cabecalho = Buffer.alloc(30);
+    cabecalho.writeUInt32LE(0x04034b50, 0);
+    cabecalho.writeUInt16LE(20, 4); // versão
+    cabecalho.writeUInt16LE(0, 6); // flags
+    cabecalho.writeUInt16LE(0, 8); // método stored
+    cabecalho.writeUInt16LE(0, 10); // tempo
+    cabecalho.writeUInt16LE(0x21, 12); // data
+    cabecalho.writeUInt32LE(0, 14); // CRC (yauzl não exige para stored)
+    cabecalho.writeUInt32LE(entrada.bytes.length, 18);
+    cabecalho.writeUInt32LE(entrada.bytes.length, 22);
+    cabecalho.writeUInt16LE(nome.length, 26);
+    cabecalho.writeUInt16LE(0, 28);
+    partes.push(cabecalho, nome, entrada.bytes);
+    const registro = Buffer.alloc(46);
+    registro.writeUInt32LE(0x02014b50, 0);
+    registro.writeUInt16LE(20, 4); // versão feita por
+    registro.writeUInt16LE(20, 6); // versão necessária
+    registro.writeUInt16LE(0, 8); // flags
+    registro.writeUInt16LE(0, 10); // stored
+    registro.writeUInt16LE(0x21, 14); // data
+    registro.writeUInt32LE(entrada.bytes.length, 20);
+    registro.writeUInt32LE(entrada.bytes.length, 24);
+    registro.writeUInt16LE(nome.length, 28);
+    registro.writeUInt32LE(deslocamento, 42);
+    central.push(registro, nome);
+    deslocamento += cabecalho.length + nome.length + entrada.bytes.length;
+  }
+  const tamanhoCentral = central.reduce((acc, b) => acc + b.length, 0);
+  const fim = Buffer.alloc(22);
+  fim.writeUInt32LE(0x06054b50, 0);
+  fim.writeUInt16LE(entradas.length, 8);
+  fim.writeUInt16LE(entradas.length, 10);
+  fim.writeUInt32LE(tamanhoCentral, 12);
+  fim.writeUInt32LE(deslocamento, 16);
+  return Buffer.concat([...partes, ...central, fim]);
+}

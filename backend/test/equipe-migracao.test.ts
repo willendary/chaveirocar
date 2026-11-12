@@ -1,30 +1,22 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { cadastrar, criarAmbiente, corpoMultipart, imagemJpeg, type Ambiente } from "./ajuda.js";
+import { cadastrar, criarAmbiente, corpoMultipart, imagemJpeg, zipArmazenado, type Ambiente } from "./ajuda.js";
 
 let ambiente: Ambiente;
 beforeEach(async () => { ambiente = await criarAmbiente(); });
 afterEach(async () => { await ambiente.fechar(); });
 
 async function backupZip(): Promise<Buffer> {
-  const { execSync } = await import("node:child_process");
-  const { randomUUID } = await import("node:crypto");
-  const dir = (await import("node:fs/promises")).default;
-  const tmp = `${(await import("node:os")).tmpdir()}/bk-${randomUUID()}`;
   const img = imagemJpeg("img1");
-  await dir.mkdir(`${tmp}/fotos`, { recursive: true });
-  await dir.writeFile(`${tmp}/fotos/f1.jpg`, img);
   const dados = {
     versao: 6, exportadoEm: Date.now(),
     atendimentos: [{ id: 7, atualizadoEm: 1, placa: "BKP1K23", marca: "VW", tiposServico: ["TRANSPONDER"], dataServico: Date.now(),
       fotos: [{ arquivo: "f1.jpg", categoria: "CARRO", legenda: "frente", ordem: 0 }] }],
     fichas: [{ id: 3, equipamento: "XTOL", marca: "VW", descricao: "x", foto: "" }],
   };
-  await dir.writeFile(`${tmp}/dados.json`, JSON.stringify(dados));
-  execSync(`powershell -Command "Compress-Archive -Path '${tmp}/*' -DestinationPath '${tmp}.zip' -Force"`, { stdio: "ignore" });
-  const bytes = await dir.readFile(`${tmp}.zip`);
-  await dir.rm(tmp, { recursive: true, force: true });
-  await dir.rm(`${tmp}.zip`, { force: true }).catch(() => {});
-  return bytes as Buffer;
+  return zipArmazenado([
+    { nome: "dados.json", bytes: Buffer.from(JSON.stringify(dados), "utf8") },
+    { nome: "fotos/f1.jpg", bytes: img },
+  ]);
 }
 
 describe("equipe e convites", () => {
