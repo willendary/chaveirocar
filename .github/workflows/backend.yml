@@ -35,3 +35,6 @@ jobs:
       - name: OpenAPI atualizado
         run: git diff --exit-code -- contracts/openapi.json
         working-directory: ${{ github.workspace }}
+      - name: Docker build
+        run: docker build -f backend/Dockerfile -t chaveirocar-api backend
+        working-directory: ${{ github.workspace }}

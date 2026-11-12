@@ -71,7 +71,8 @@ export interface Config {
   raiz: string;
 }
 
-const RAIZ = path.resolve(import.meta.dirname, "..");
+const DIR_COMPILADO = import.meta.dirname.endsWith(`${path.sep}dist${path.sep}src`);
+const RAIZ = path.resolve(import.meta.dirname, DIR_COMPILADO ? "../.." : "..");
 
 export function criarConfig(
   env: NodeJS.ProcessEnv = process.env,
@@ -82,7 +83,8 @@ export function criarConfig(
     process.loadEnvFile(arquivoEnv);
   }
 
-  const dados = esquema.parse(env);
+  // Render (e a maioria dos PaaS) injeta PORT; aceitamos os dois nomes.
+  const dados = esquema.parse({ ...env, PORTA: env.PORTA ?? env.PORT });
   const producao = dados.AMBIENTE === "producao";
 
   if (producao && dados.TURSO_URL.startsWith("file:")) {
@@ -90,6 +92,9 @@ export function criarConfig(
   }
   if (producao && dados.TURSO_TOKEN.trim().length === 0) {
     throw new Error("TURSO_TOKEN é obrigatório em produção.");
+  }
+  if (producao && dados.SMTP_URL.trim().length === 0) {
+    throw new Error("SMTP_URL é obrigatório em produção para envio seguro de links de conta.");
   }
   if (producao && dados.EXPOR_TOKEN_DEV) {
     throw new Error("EXPOR_TOKEN_DEV não pode ser true em produção.");

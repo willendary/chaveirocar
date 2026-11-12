@@ -9,7 +9,9 @@ export async function abrirBanco(config: Config): Promise<Banco> {
     authToken: config.tursoToken || undefined,
   });
   await banco.execute("PRAGMA foreign_keys = ON");
-  await banco.execute("PRAGMA busy_timeout = 5000");
+  if (config.tursoUrl.startsWith("file:")) {
+    await banco.execute("PRAGMA busy_timeout = 5000");
+  }
   return banco;
 }
 

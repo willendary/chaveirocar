@@ -8,6 +8,27 @@
 4. Subir container `backend/Dockerfile` com `.env` de produção (`AMBIENTE=producao`).
 5. Conferir `/saude`, `/pronto` e `npm run openapi` sem diff em `contracts/`.
 
+### Render
+
+Blueprint `render.yaml` (raiz): serviço Docker com contexto `backend/`, health check `/pronto`.
+Migrações rodam na subida (`servidor.ts`), então o primeiro boot já cria o esquema no Turso.
+
+Obrigatório no painel (Environment):
+
+| Variável | Valor |
+|---|---|
+| `TURSO_URL` | `libsql://<base>.turso.io` |
+| `TURSO_TOKEN` | token de leitura/escrita |
+| `URL_PUBLICA` | `https://<serviço>.onrender.com` (sem barra final) |
+| `STORAGE_TIPO` | `s3` — disco do Render é efêmero |
+| `S3_ENDPOINT`, `S3_BUCKET`, `S3_ACCESS_KEY_ID`, `S3_SECRET_ACCESS_KEY` | Backblaze B2 / S3 |
+| `SMTP_URL`, `EMAIL_REMETENTE` | SMTP obrigatório em produção para enviar confirmação, convites e recuperação de senha |
+| `ORIGENS_PERMITIDAS` | origens web, se houver; apps nativos não enviam Origin |
+
+`PORT` é injetada pelo Render e lida automaticamente. Plano free dorme após inatividade (cold start de ~30 s) e não tem disco persistente: por isso storage S3 é obrigatório.
+
+Para Backblaze B2: endpoint `https://s3.us-east-005.backblazeb2.com`, região `us-east-005`, bucket `chaveirocarfotos`. Gere Application Key limitada a esse bucket, com leitura e escrita de arquivos.
+
 ## Backup e recuperação
 
 - Banco: criar dump Turso diário (`turso db shell <base> .dump > backup.sql`). Restaurar com `.restore` em base nova e comparar `SELECT COUNT(*) FROM atendimentos` + `mudancas`.
