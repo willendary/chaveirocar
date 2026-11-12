@@ -156,7 +156,9 @@ class VisualSmokeTest {
     tela { ChaveiroCarApp() }
     esperar("Acesso rápido"); foto("00-inicio-com-navegacao")
     compose.onNodeWithText("Fichário").performClick()
-    esperar("Polo")
+    // Em celulares compactos os cards do LazyColumn podem ficar fora da area visivel.
+    // O cabecalho da aba confirma a navegacao sem depender da virtualizacao da lista.
+    esperar("Conhecimento que fica.")
     compose.onNode(hasText("Ajustes") and hasClickAction()).performClick()
     esperar("Conta e backup")
     compose.onNode(hasText("Serviços") and hasClickAction()).performClick()
