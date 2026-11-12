@@ -10,7 +10,13 @@ import java.net.URL
  * entra na fila de sincronização incremental.
  * Refresh transparente: em 401, tenta /renovar uma vez.
  */
-class ApiChaveiroCar(private val baseUrl: String = "http://10.0.2.2:8787") {
+class ApiChaveiroCar(baseUrl: String = URL_PADRAO) {
+
+  private val baseUrl = baseUrl.trim().trimEnd('/')
+
+  companion object {
+    const val URL_PADRAO = "https://chaveirocar-api.onrender.com"
+  }
 
   @Volatile var tokenAcesso: String? = null
   @Volatile var tokenRefresh: String? = null
@@ -22,6 +28,23 @@ class ApiChaveiroCar(private val baseUrl: String = "http://10.0.2.2:8787") {
     guardarTokens(resposta)
     return resposta
   }
+
+  fun cadastrar(nome: String, email: String, senha: String, empresa: String): JSONObject {
+    val resposta = post("/api/v1/auth/cadastro", JSONObject().apply {
+      put("nome", nome); put("email", email); put("senha", senha); put("empresa", empresa)
+    })
+    guardarTokens(resposta)
+    return resposta
+  }
+
+  fun solicitarRedefinicao(email: String): JSONObject =
+    post("/api/v1/auth/esqueci-senha", JSONObject().put("email", email))
+
+  fun redefinirSenha(token: String, novaSenha: String) =
+    post("/api/v1/auth/redefinir-senha", JSONObject().put("token", token).put("senha", novaSenha))
+
+  fun reenviarVerificacao(): JSONObject =
+    post("/api/v1/auth/reenviar-verificacao", JSONObject())
 
   fun renovar(): Boolean {
     val atual = tokenRefresh ?: return false
@@ -54,6 +77,36 @@ class ApiChaveiroCar(private val baseUrl: String = "http://10.0.2.2:8787") {
   fun listarEmpresas(): org.json.JSONArray =
     get("/api/v1/empresas").getJSONArray("itens")
 
+  fun previsualizarConvite(token: String): JSONObject =
+    get("/api/v1/convites/${java.net.URLEncoder.encode(token, "UTF-8")}")
+
+  fun aceitarConvite(token: String, nome: String = "", senha: String = ""): JSONObject {
+    val corpo = JSONObject()
+    if (nome.isNotBlank()) corpo.put("nome", nome)
+    if (senha.isNotBlank()) corpo.put("senha", senha)
+    val resposta = post("/api/v1/convites/${java.net.URLEncoder.encode(token, "UTF-8")}/aceitar", corpo)
+    guardarTokens(resposta)
+    return resposta
+  }
+
+  fun listarMembros(empresaId: String): org.json.JSONArray =
+    get("/api/v1/empresas/$empresaId/membros").getJSONArray("itens")
+
+  fun listarConvites(empresaId: String): org.json.JSONArray =
+    get("/api/v1/empresas/$empresaId/convites").getJSONArray("itens")
+
+  fun convidar(empresaId: String, email: String, papel: String): JSONObject =
+    post("/api/v1/empresas/$empresaId/convites", JSONObject().put("email", email).put("papel", papel))
+
+  fun cancelarConvite(empresaId: String, conviteId: String): JSONObject =
+    request("DELETE", "/api/v1/empresas/$empresaId/convites/$conviteId", null)
+
+  fun alterarPapel(empresaId: String, usuarioId: String, papel: String): JSONObject =
+    request("PATCH", "/api/v1/empresas/$empresaId/membros/$usuarioId", JSONObject().put("papel", papel))
+
+  fun removerMembro(empresaId: String, usuarioId: String): JSONObject =
+    request("DELETE", "/api/v1/empresas/$empresaId/membros/$usuarioId", null)
+
   fun obterAtendimento(empresaId: String, atendimentoId: String): JSONObject =
     get("/api/v1/empresas/$empresaId/atendimentos/$atendimentoId")
 
@@ -69,6 +122,19 @@ class ApiChaveiroCar(private val baseUrl: String = "http://10.0.2.2:8787") {
     legenda: String,
     ordem: Long,
     bytes: ByteArray,
+  ): JSONObject = enviarFotoTentativa(
+    empresaId, atendimentoUuid, fotoUuid, categoria, legenda, ordem, bytes, tentouRenovar = false,
+  )
+
+  private fun enviarFotoTentativa(
+    empresaId: String,
+    atendimentoUuid: String,
+    fotoUuid: String,
+    categoria: String,
+    legenda: String,
+    ordem: Long,
+    bytes: ByteArray,
+    tentouRenovar: Boolean,
   ): JSONObject {
     val fronteira = "----chaveirocar${java.util.UUID.randomUUID()}"
     val saida = java.io.ByteArrayOutputStream()
@@ -97,15 +163,25 @@ class ApiChaveiroCar(private val baseUrl: String = "http://10.0.2.2:8787") {
     conexao.outputStream.use { it.write(corpo) }
     val fluxo = if (conexao.responseCode in 200..299) conexao.inputStream else conexao.errorStream
     val texto = fluxo.bufferedReader().use { it.readText() }
+    if (conexao.responseCode == 401 && !tentouRenovar && renovar()) {
+      return enviarFotoTentativa(
+        empresaId, atendimentoUuid, fotoUuid, categoria, legenda, ordem, bytes, tentouRenovar = true,
+      )
+    }
     if (conexao.responseCode !in 200..299) error("API ${conexao.responseCode}: $texto")
     return JSONObject(texto)
   }
 
   /** Baixa bytes de foto remota (`url` relativo da API). */
-  fun baixarFoto(urlRelativa: String): ByteArray {
+  fun baixarFoto(urlRelativa: String): ByteArray = baixarFotoTentativa(urlRelativa, tentouRenovar = false)
+
+  private fun baixarFotoTentativa(urlRelativa: String, tentouRenovar: Boolean): ByteArray {
     val conexao = (URL(baseUrl + urlRelativa).openConnection() as HttpURLConnection).apply {
       requestMethod = "GET"
       tokenAcesso?.let { setRequestProperty("Authorization", "Bearer $it") }
+    }
+    if (conexao.responseCode == 401 && !tentouRenovar && renovar()) {
+      return baixarFotoTentativa(urlRelativa, tentouRenovar = true)
     }
     if (conexao.responseCode !in 200..299) {
       val erro = conexao.errorStream?.bufferedReader()?.use { it.readText() } ?: ""

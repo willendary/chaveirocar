@@ -14,6 +14,7 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -40,14 +41,29 @@ fun SecaoContaApi(banco: BancoDeAtendimentos) {
   val preferencias = remember { Preferencias.obter(contexto) }
   val preferenciasApi = remember { Preferencias.obterApi(contexto) }
   val escopo = rememberCoroutineScope()
+  val baseSalva = preferencias.getString(Preferencias.API_BASE_URL, null).orEmpty()
+  val baseInicial = if (baseSalva.isBlank() || baseSalva.contains("10.0.2.2") || baseSalva.contains("localhost")) {
+    ApiChaveiroCar.URL_PADRAO
+  } else baseSalva
 
   var baseUrl by remember {
-    mutableStateOf(preferencias.getString(Preferencias.API_BASE_URL, "http://10.0.2.2:8787") ?: "")
+    mutableStateOf(baseInicial)
   }
   var email by remember {
     mutableStateOf(preferencias.getString(Preferencias.API_EMAIL, "") ?: "")
   }
+  var emailVerificado by remember { mutableStateOf(false) }
+  var nome by remember { mutableStateOf("") }
+  var empresaNova by remember { mutableStateOf("") }
   var senha by remember { mutableStateOf("") }
+  var tokenRedefinicao by remember { mutableStateOf("") }
+  var tokenConvite by remember { mutableStateOf("") }
+  var tokenConviteLogado by remember { mutableStateOf("") }
+  var modoCadastro by remember { mutableStateOf(false) }
+  var modoEsqueciSenha by remember { mutableStateOf(false) }
+  var modoRedefinicao by remember { mutableStateOf(false) }
+  var modoConvite by remember { mutableStateOf(false) }
+  var mostrarAceitarConvite by remember { mutableStateOf(false) }
   var logado by remember {
     mutableStateOf(!preferenciasApi.getString(Preferencias.API_ACESSO, "").isNullOrBlank())
   }
@@ -55,13 +71,14 @@ fun SecaoContaApi(banco: BancoDeAtendimentos) {
     mutableStateOf(preferencias.getString(Preferencias.API_EMPRESA_ID, "") ?: "")
   }
   var empresas by remember { mutableStateOf<List<Pair<String, String>>>(emptyList()) }
+  var papeisPorEmpresa by remember { mutableStateOf<Map<String, String>>(emptyMap()) }
   var pendentes by remember { mutableStateOf(banco.pendentesSync().size) }
   var conflitos by remember { mutableStateOf(banco.conflitos()) }
   var sincronizando by remember { mutableStateOf(false) }
   var entrando by remember { mutableStateOf(false) }
 
   fun api(): ApiChaveiroCar {
-    val api = ApiChaveiroCar(baseUrl.trim().ifBlank { "http://10.0.2.2:8787" })
+    val api = ApiChaveiroCar(baseUrl.trim().ifBlank { ApiChaveiroCar.URL_PADRAO })
     api.tokenAcesso = preferenciasApi.getString(Preferencias.API_ACESSO, null)?.ifBlank { null }
     api.tokenRefresh = preferenciasApi.getString(Preferencias.API_REFRESH, null)?.ifBlank { null }
     return api
@@ -83,17 +100,26 @@ fun SecaoContaApi(banco: BancoDeAtendimentos) {
     escopo.launch {
       runCatching {
         withContext(Dispatchers.IO) {
-          val lista = api().listarEmpresas()
-          buildList {
+          val cliente = api()
+          val usuario = cliente.eu().optJSONObject("usuario")
+          val lista = cliente.listarEmpresas()
+          guardarTokens(cliente)
+          val papeis = mutableMapOf<String, String>()
+          val itens = buildList {
             for (i in 0 until lista.length()) {
               val e = lista.optJSONObject(i) ?: continue
-              add(e.optString("id") to e.optString("nome"))
+              val id = e.optString("id")
+              add(id to e.optString("nome"))
+              papeis[id] = e.optString("papel")
             }
           }
+          Triple(usuario?.optBoolean("emailVerificado") ?: false, itens, papeis)
         }
-      }.onSuccess { lista ->
+      }.onSuccess { (verificado, lista, papeis) ->
+        emailVerificado = verificado
         empresas = lista
-        if (lista.isNotEmpty() && empresaId.isBlank()) {
+        papeisPorEmpresa = papeis
+        if (lista.isNotEmpty() && lista.none { it.first == empresaId }) {
           empresaId = lista.first().first
           preferencias.edit().putString(Preferencias.API_EMPRESA_ID, empresaId).apply()
         }
@@ -105,19 +131,20 @@ fun SecaoContaApi(banco: BancoDeAtendimentos) {
     if (entrando) return
     entrando = true
     escopo.launch {
+      val cliente = api()
       val resultado = runCatching {
-        withContext(Dispatchers.IO) { api().entrar(email.trim(), senha) }
+        withContext(Dispatchers.IO) { cliente.entrar(email.trim(), senha) }
       }
       entrando = false
       resultado
-        .onSuccess {
-          guardarTokens(api())
+        .onSuccess { resposta ->
+          guardarTokens(cliente)
           logado = true
+          emailVerificado = resposta.optJSONObject("usuario")?.optBoolean("emailVerificado") ?: false
           preferencias.edit()
             .putString(Preferencias.API_BASE_URL, baseUrl.trim())
             .putString(Preferencias.API_EMAIL, email.trim())
             .apply()
-          carregarEmpresas()
           recarregar()
           Toast.makeText(contexto, "Conectado à conta ChaveiroCar", Toast.LENGTH_SHORT).show()
         }
@@ -125,6 +152,157 @@ fun SecaoContaApi(banco: BancoDeAtendimentos) {
           Erros.registrar(contexto, "Conta API: login", it)
           Toast.makeText(contexto, "Não foi possível entrar. Confira e-mail, senha e endereço.", Toast.LENGTH_LONG).show()
         }
+    }
+  }
+
+  fun cadastrar() {
+    if (entrando) return
+    entrando = true
+    escopo.launch {
+      val cliente = api()
+      val resultado = runCatching {
+        withContext(Dispatchers.IO) {
+          cliente.cadastrar(nome.trim(), email.trim(), senha, empresaNova.trim().ifBlank { "Minha empresa" })
+        }
+      }
+      entrando = false
+      resultado
+        .onSuccess { resposta ->
+          guardarTokens(cliente)
+          logado = true
+          emailVerificado = resposta.optJSONObject("usuario")?.optBoolean("emailVerificado") ?: false
+          empresaId = resposta.optJSONArray("empresas")?.optJSONObject(0)?.optString("id").orEmpty()
+          preferencias.edit()
+            .putString(Preferencias.API_BASE_URL, baseUrl.trim())
+            .putString(Preferencias.API_EMAIL, email.trim())
+            .putString(Preferencias.API_EMPRESA_ID, empresaId)
+            .apply()
+          recarregar()
+          val mensagem = if (resposta.optBoolean("emailEnviado")) {
+            "Conta criada. Verifique seu e-mail."
+          } else {
+            "Conta criada, mas não foi possível enviar o e-mail de confirmação."
+          }
+          Toast.makeText(contexto, mensagem, Toast.LENGTH_LONG).show()
+        }
+        .onFailure {
+          Erros.registrar(contexto, "Conta API: cadastro", it)
+          Toast.makeText(contexto, "Não foi possível criar a conta. Confira os dados e tente novamente.", Toast.LENGTH_LONG).show()
+        }
+    }
+  }
+
+  fun solicitarRedefinicao() {
+    if (entrando) return
+    entrando = true
+    escopo.launch {
+      val resultado = runCatching {
+        withContext(Dispatchers.IO) { api().solicitarRedefinicao(email.trim()) }
+      }
+      entrando = false
+      resultado
+        .onSuccess {
+          modoEsqueciSenha = false
+          modoRedefinicao = true
+          Toast.makeText(contexto, "Se o e-mail estiver cadastrado, enviaremos um código.", Toast.LENGTH_LONG).show()
+        }
+        .onFailure {
+          Erros.registrar(contexto, "Conta API: recuperação", it)
+          Toast.makeText(contexto, "Não foi possível solicitar a recuperação.", Toast.LENGTH_LONG).show()
+        }
+    }
+  }
+
+  fun redefinirSenha() {
+    if (entrando) return
+    entrando = true
+    escopo.launch {
+      val resultado = runCatching {
+        withContext(Dispatchers.IO) { api().redefinirSenha(tokenRedefinicao.trim(), senha) }
+      }
+      entrando = false
+      resultado
+        .onSuccess {
+          modoRedefinicao = false
+          modoCadastro = false
+          senha = ""
+          Toast.makeText(contexto, "Senha alterada. Entre com a nova senha.", Toast.LENGTH_LONG).show()
+        }
+        .onFailure {
+          Erros.registrar(contexto, "Conta API: redefinir senha", it)
+          Toast.makeText(contexto, "Código inválido ou expirado.", Toast.LENGTH_LONG).show()
+        }
+    }
+  }
+
+  fun reenviarVerificacao() {
+    if (entrando) return
+    entrando = true
+    escopo.launch {
+      val resultado = runCatching {
+        withContext(Dispatchers.IO) { api().reenviarVerificacao() }
+      }
+      entrando = false
+      resultado.onSuccess { resposta ->
+        Toast.makeText(contexto, resposta.optString("mensagem"), Toast.LENGTH_LONG).show()
+      }.onFailure {
+        Erros.registrar(contexto, "Conta API: reenviar verificação", it)
+        Toast.makeText(contexto, "Não foi possível reenviar a confirmação.", Toast.LENGTH_LONG).show()
+      }
+    }
+  }
+
+  fun aceitarConviteNovo() {
+    if (entrando) return
+    entrando = true
+    escopo.launch {
+      val cliente = api()
+      val resultado = runCatching {
+        withContext(Dispatchers.IO) {
+          cliente.aceitarConvite(tokenConvite.trim(), nome.trim(), senha)
+        }
+      }
+      entrando = false
+      resultado.onSuccess { resposta ->
+        guardarTokens(cliente)
+        email = resposta.optJSONObject("usuario")?.optString("email").orEmpty()
+        emailVerificado = resposta.optJSONObject("usuario")?.optBoolean("emailVerificado") ?: true
+        empresaId = resposta.optString("empresaId")
+        preferencias.edit()
+          .putString(Preferencias.API_BASE_URL, baseUrl.trim())
+          .putString(Preferencias.API_EMAIL, email)
+          .putString(Preferencias.API_EMPRESA_ID, empresaId)
+          .apply()
+        logado = true
+        modoConvite = false
+        Toast.makeText(contexto, "Convite aceito. A empresa foi adicionada à sua conta.", Toast.LENGTH_LONG).show()
+      }.onFailure {
+        Erros.registrar(contexto, "Conta API: aceitar convite", it)
+        Toast.makeText(contexto, "Convite inválido ou conta já existente. Entre primeiro se já tiver conta.", Toast.LENGTH_LONG).show()
+      }
+    }
+  }
+
+  fun aceitarConviteLogado() {
+    if (entrando) return
+    entrando = true
+    escopo.launch {
+      val cliente = api()
+      val resultado = runCatching {
+        withContext(Dispatchers.IO) { cliente.aceitarConvite(tokenConviteLogado.trim()) }
+      }
+      entrando = false
+      resultado.onSuccess { resposta ->
+        guardarTokens(cliente)
+        empresaId = resposta.optString("empresaId")
+        preferencias.edit().putString(Preferencias.API_EMPRESA_ID, empresaId).apply()
+        mostrarAceitarConvite = false
+        carregarEmpresas()
+        Toast.makeText(contexto, "Convite aceito. A empresa foi adicionada à sua conta.", Toast.LENGTH_LONG).show()
+      }.onFailure {
+        Erros.registrar(contexto, "Conta API: aceitar convite", it)
+        Toast.makeText(contexto, "Não foi possível aceitar. Confira o código e o e-mail da conta.", Toast.LENGTH_LONG).show()
+      }
     }
   }
 
@@ -140,9 +318,9 @@ fun SecaoContaApi(banco: BancoDeAtendimentos) {
       val resultado = runCatching {
         withContext(Dispatchers.IO) {
           val api = api()
-          val cursor = preferencias.getLong(Preferencias.API_CURSOR, 0)
+          val cursor = Preferencias.obterCursorApi(preferencias, empresa)
           val resumo = MotorSinc.sincronizar(banco, api, empresa, cursor, contexto)
-          preferencias.edit().putLong(Preferencias.API_CURSOR, resumo.cursor).apply()
+          Preferencias.guardarCursorApi(preferencias, empresa, resumo.cursor)
           guardarTokens(api)
           resumo
         }
@@ -162,6 +340,10 @@ fun SecaoContaApi(banco: BancoDeAtendimentos) {
     }
   }
 
+  LaunchedEffect(logado) {
+    if (logado) carregarEmpresas()
+  }
+
   Card(modifier = Modifier.fillMaxWidth()) {
     Column(modifier = Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
       Text("Conta ChaveiroCar (API)", style = MaterialTheme.typography.titleSmall)
@@ -178,26 +360,124 @@ fun SecaoContaApi(banco: BancoDeAtendimentos) {
           label = { Text("Endereço da API") }, singleLine = true,
           modifier = Modifier.fillMaxWidth(),
         )
-        OutlinedTextField(
-          value = email, onValueChange = { email = it },
-          label = { Text("E-mail") }, singleLine = true,
-          keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
-          modifier = Modifier.fillMaxWidth(),
-        )
-        OutlinedTextField(
-          value = senha, onValueChange = { senha = it },
-          label = { Text("Senha") }, singleLine = true,
-          visualTransformation = PasswordVisualTransformation(),
-          modifier = Modifier.fillMaxWidth(),
-        )
-        Button(onClick = { entrar() }, enabled = !entrando) {
-          Text(if (entrando) "Entrando..." else "Entrar")
+        if (modoCadastro || modoConvite) {
+          OutlinedTextField(
+            value = nome, onValueChange = { nome = it },
+            label = { Text("Seu nome") }, singleLine = true,
+            modifier = Modifier.fillMaxWidth(),
+          )
+        }
+        if (modoCadastro) {
+          OutlinedTextField(
+            value = empresaNova, onValueChange = { empresaNova = it },
+            label = { Text("Nome da empresa") }, singleLine = true,
+            modifier = Modifier.fillMaxWidth(),
+          )
+        }
+        if (!modoRedefinicao && !modoConvite) {
+          OutlinedTextField(
+            value = email, onValueChange = { email = it },
+            label = { Text("E-mail") }, singleLine = true,
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
+            modifier = Modifier.fillMaxWidth(),
+          )
+        }
+        if (modoRedefinicao) {
+          OutlinedTextField(
+            value = tokenRedefinicao, onValueChange = { tokenRedefinicao = it },
+            label = { Text("Código recebido no e-mail") },
+            modifier = Modifier.fillMaxWidth(),
+          )
+        }
+        if (modoConvite) {
+          OutlinedTextField(
+            value = tokenConvite, onValueChange = { tokenConvite = it },
+            label = { Text("Código do convite") },
+            modifier = Modifier.fillMaxWidth(),
+          )
+        }
+        if (modoCadastro || modoConvite || modoRedefinicao || (!modoEsqueciSenha && !modoRedefinicao && !modoConvite)) {
+          OutlinedTextField(
+            value = senha, onValueChange = { senha = it },
+            label = { Text(if (modoRedefinicao) "Nova senha" else "Senha") }, singleLine = true,
+            visualTransformation = PasswordVisualTransformation(),
+            modifier = Modifier.fillMaxWidth(),
+          )
+        }
+        when {
+          modoConvite -> Button(onClick = { aceitarConviteNovo() }, enabled = !entrando && tokenConvite.isNotBlank()) {
+            Text(if (entrando) "Aceitando..." else "Aceitar convite")
+          }
+          modoCadastro -> Button(onClick = { cadastrar() }, enabled = !entrando) {
+            Text(if (entrando) "Criando conta..." else "Criar conta")
+          }
+          modoEsqueciSenha -> Button(onClick = { solicitarRedefinicao() }, enabled = !entrando) {
+            Text(if (entrando) "Enviando..." else "Enviar instruções")
+          }
+          modoRedefinicao -> Button(onClick = { redefinirSenha() }, enabled = !entrando) {
+            Text(if (entrando) "Alterando..." else "Alterar senha")
+          }
+          else -> Button(onClick = { entrar() }, enabled = !entrando) {
+            Text(if (entrando) "Entrando..." else "Entrar")
+          }
+        }
+        androidx.compose.material3.TextButton(onClick = {
+          modoCadastro = false
+          modoEsqueciSenha = false
+          modoRedefinicao = false
+          modoConvite = false
+        }) { Text("Voltar ao login") }
+        if (!modoCadastro && !modoEsqueciSenha && !modoRedefinicao && !modoConvite) {
+          Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            androidx.compose.material3.TextButton(onClick = { modoCadastro = true }) {
+              Text("Criar conta")
+            }
+          androidx.compose.material3.TextButton(onClick = { modoEsqueciSenha = true }) {
+            Text("Esqueci a senha")
+          }
+          androidx.compose.material3.TextButton(onClick = { modoConvite = true }) {
+            Text("Aceitar convite")
+          }
+          }
+        }
+        if (modoEsqueciSenha) {
+          androidx.compose.material3.TextButton(onClick = { modoRedefinicao = true; modoEsqueciSenha = false }) {
+            Text("Já tenho o código de redefinição")
+          }
         }
       } else {
+        if (!emailVerificado) {
+          Text(
+            "E-mail ainda não confirmado. Confirme para proteger o acesso à conta.",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.error,
+          )
+          OutlinedButton(onClick = { reenviarVerificacao() }, enabled = !entrando) {
+            Text(if (entrando) "Enviando..." else "Reenviar confirmação")
+          }
+        }
         Text(
           text = "Fila local: $pendentes registro(s) aguardando envio. Conflitos: ${conflitos.size}.",
           style = MaterialTheme.typography.bodySmall,
         )
+        if (mostrarAceitarConvite) {
+          OutlinedTextField(
+            value = tokenConviteLogado,
+            onValueChange = { tokenConviteLogado = it },
+            label = { Text("Código do convite") },
+            modifier = Modifier.fillMaxWidth(),
+          )
+          Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Button(onClick = { aceitarConviteLogado() }, enabled = !entrando && tokenConviteLogado.isNotBlank()) {
+              Text(if (entrando) "Aceitando..." else "Aceitar convite")
+            }
+            OutlinedButton(onClick = { mostrarAceitarConvite = false }) { Text("Cancelar") }
+          }
+        } else {
+          androidx.compose.material3.TextButton(onClick = { mostrarAceitarConvite = true }) {
+            Text("Tenho um código de convite")
+          }
+        }
         if (empresas.size > 1) {
           empresas.forEach { (id, nome) ->
             OutlinedButton(
@@ -274,12 +554,21 @@ fun SecaoContaApi(banco: BancoDeAtendimentos) {
           style = MaterialTheme.typography.bodySmall,
           color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
+        if (empresaId.isNotBlank() && papeisPorEmpresa.containsKey(empresaId)) {
+          SecaoEquipeApi(
+            empresaId = empresaId,
+            papelEmpresa = papeisPorEmpresa[empresaId].orEmpty(),
+            criarApi = { api() },
+            guardarTokens = { guardarTokens(it) },
+          )
+        }
         androidx.compose.material3.TextButton(onClick = {
           escopo.launch {
             withContext(Dispatchers.IO) { api().sair() }
             preferenciasApi.edit().remove(Preferencias.API_ACESSO).remove(Preferencias.API_REFRESH).apply()
             logado = false
             empresas = emptyList()
+            papeisPorEmpresa = emptyMap()
           }
           Toast.makeText(contexto, "Sessão encerrada neste aparelho.", Toast.LENGTH_SHORT).show()
         }) { Text("Sair da conta") }

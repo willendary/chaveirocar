@@ -1,26 +1,19 @@
-name: Android APK
+name: Releases Android + Windows
 
 on:
   push:
     tags: ["v*"]
   workflow_dispatch:
-  workflow_run:
-    workflows: ["Visual e navegacao"]
-    types: [completed]
-    branches: [main]
 
 permissions:
   contents: write
 
 jobs:
   build:
-    if: github.event_name != 'workflow_run' || (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push' && github.event.workflow_run.head_branch == 'main')
     runs-on: ubuntu-latest
     steps:
       - name: Baixar codigo
         uses: actions/checkout@v4
-        with:
-          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
 
       - name: Java 17
         uses: actions/setup-java@v4
@@ -74,18 +67,37 @@ jobs:
           files: dist/*.apk
           generate_release_notes: true
 
-      - name: Publicar versao validada na main
-        if: github.event_name == 'workflow_run'
-        env:
-          GH_TOKEN: ${{ github.token }}
+  windows:
+    if: startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch'
+    needs: build
+    runs-on: windows-latest
+    steps:
+      - name: Baixar codigo
+        uses: actions/checkout@v4
+
+      - name: Configurar .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "10.0.x"
+
+      - name: Publicar Windows x64 autocontido
+        run: dotnet publish windows/ChaveiroCar.Windows/ChaveiroCar.Windows.csproj -c Release -r win-x64 --self-contained true -o publish
+
+      - name: Compactar pacote portátil
+        shell: pwsh
         run: |
-          notas="release/v${APP_VERSION}.md"
-          if [ ! -f "$notas" ]; then
-            echo "Sem notas de publicacao para esta versao."
-            exit 0
-          fi
-          if gh release view "v${APP_VERSION}" >/dev/null 2>&1; then
-            echo "Versao ja publicada."
-            exit 0
-          fi
-          gh release create "v${APP_VERSION}" dist/*.apk --target "$(git rev-parse HEAD)" --title "ChaveiroCar ${APP_VERSION}" --notes-file "$notas"
+          New-Item -ItemType Directory -Force -Path dist | Out-Null
+          Compress-Archive -Path publish/* -DestinationPath dist/chaveirocar-windows-x64.zip -Force
+
+      - name: Guardar pacote Windows
+        uses: actions/upload-artifact@v4
+        with:
+          name: chaveirocar-windows-x64
+          path: dist/chaveirocar-windows-x64.zip
+
+      - name: Anexar Windows à release
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          files: dist/chaveirocar-windows-x64.zip

@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { cadastrar, criarAmbiente, corpoMultipart, imagemJpeg, type Ambiente } from "./ajuda.js";
 
@@ -53,5 +54,43 @@ describe("fotos", () => {
       headers: { ...conta.cabecalho, "content-type": up.contentType }, payload: up.payload,
     });
     expect(r.statusCode).toBe(400);
+  });
+
+  it("repete upload com o mesmo UUID e checksum sem duplicar foto", async () => {
+    const conta = await cadastrar(ambiente.app);
+    const empresaId = conta.empresas[0]!.id;
+    const atendimento = (await ambiente.app.inject({
+      method: "POST",
+      url: `/api/v1/empresas/${empresaId}/atendimentos`,
+      headers: conta.cabecalho,
+      payload: { placa: "IDEM1D23" },
+    })).json();
+    const id = randomUUID();
+    const bytes = imagemJpeg("mesma foto");
+
+    async function enviar() {
+      const multipart = corpoMultipart(
+        { id, categoria: "CARRO", legenda: "frente", ordem: "0" },
+        { nome: "foto.jpg", mime: "image/jpeg", bytes },
+      );
+      return ambiente.app.inject({
+        method: "POST",
+        url: `/api/v1/empresas/${empresaId}/atendimentos/${atendimento.id}/fotos`,
+        headers: { ...conta.cabecalho, "content-type": multipart.contentType },
+        payload: multipart.payload,
+      });
+    }
+
+    const primeira = await enviar();
+    const segunda = await enviar();
+    expect(primeira.statusCode).toBe(201);
+    expect(segunda.statusCode).toBe(201);
+    expect(segunda.json().id).toBe(id);
+    const lista = await ambiente.app.inject({
+      method: "GET",
+      url: `/api/v1/empresas/${empresaId}/atendimentos/${atendimento.id}/fotos`,
+      headers: conta.cabecalho,
+    });
+    expect(lista.json().itens).toHaveLength(1);
   });
 });

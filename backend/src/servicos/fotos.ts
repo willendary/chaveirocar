@@ -133,18 +133,6 @@ export async function adicionarFoto(
 ): Promise<Foto> {
   const atendimentoId = entrada.atendimentoId?.trim() || null;
   const fichaId = entrada.fichaId?.trim() || null;
-  await garantirAlvo(banco, contexto.empresaId, atendimentoId, fichaId);
-
-  const total = await banco.execute({
-    sql: `SELECT COUNT(*) AS total FROM fotos
-          WHERE empresa_id = ? AND excluido_em IS NULL
-            AND ((atendimento_id IS NOT NULL AND atendimento_id = ?) OR (ficha_id IS NOT NULL AND ficha_id = ?))`,
-    args: [contexto.empresaId, atendimentoId, fichaId],
-  });
-  if (Number(total.rows[0]?.total ?? 0) >= limitePorRegistro) {
-    throw erros.limite(`Cada registro aceita no máximo ${limitePorRegistro} fotos.`);
-  }
-
   const imagem = detectarImagem(entrada.bytes);
   if (!imagem) {
     throw erros.validacao("Envie uma imagem JPEG, PNG, WebP ou HEIC.");
@@ -155,10 +143,44 @@ export async function adicionarFoto(
 
   const id = entrada.id?.trim() || novoId();
   const checksum = sha256Bytes(entrada.bytes);
-  const objeto = atendimentoId ? `atendimentos/${atendimentoId}` : `fichas/${fichaId}`;
-  const chave = `${contexto.empresaId}/${objeto}/${id}.${imagem.extensao}`;
-  const instante = agora();
+  const legenda = texto(entrada.legenda, 500);
+  const ordem = inteiro(entrada.ordem, 0);
   const categoria: CategoriaFoto = entrada.categoria === "PROCEDIMENTO" ? "PROCEDIMENTO" : "CARRO";
+
+  const existente = await banco.execute({
+    sql: "SELECT empresa_id, atendimento_id, ficha_id, categoria, legenda, ordem, checksum FROM fotos WHERE id = ?",
+    args: [id],
+  });
+  const linhaExistente = existente.rows[0];
+  if (linhaExistente) {
+    const mesmoAlvo =
+      String(linhaExistente.empresa_id) === contexto.empresaId &&
+      (linhaExistente.atendimento_id == null ? null : String(linhaExistente.atendimento_id)) === atendimentoId &&
+      (linhaExistente.ficha_id == null ? null : String(linhaExistente.ficha_id)) === fichaId;
+    const mesmaFoto =
+      mesmoAlvo &&
+      String(linhaExistente.categoria) === categoria &&
+      String(linhaExistente.legenda) === legenda &&
+      Number(linhaExistente.ordem) === ordem &&
+      String(linhaExistente.checksum) === checksum;
+    if (mesmaFoto) return obterFoto(banco, contexto.empresaId, id, true);
+    throw erros.conflito("Já existe uma foto com este identificador.");
+  }
+
+  await garantirAlvo(banco, contexto.empresaId, atendimentoId, fichaId);
+  const total = await banco.execute({
+    sql: `SELECT COUNT(*) AS total FROM fotos
+          WHERE empresa_id = ? AND excluido_em IS NULL
+            AND ((atendimento_id IS NOT NULL AND atendimento_id = ?) OR (ficha_id IS NOT NULL AND ficha_id = ?))`,
+    args: [contexto.empresaId, atendimentoId, fichaId],
+  });
+  if (Number(total.rows[0]?.total ?? 0) >= limitePorRegistro) {
+    throw erros.limite(`Cada registro aceita no máximo ${limitePorRegistro} fotos.`);
+  }
+
+  const objeto = atendimentoId ? `atendimentos/${atendimentoId}` : `fichas/${fichaId}`;
+  const chave = `${contexto.empresaId}/${objeto}/${id}-${checksum}.${imagem.extensao}`;
+  const instante = agora();
 
   await storage.salvar(chave, entrada.bytes, imagem.mime);
   const transacao = await banco.transaction("write");
@@ -179,8 +201,8 @@ export async function adicionarFoto(
         atendimentoId,
         fichaId,
         categoria,
-        texto(entrada.legenda, 500),
-        inteiro(entrada.ordem, 0),
+        legenda,
+        ordem,
         chave,
         imagem.mime,
         entrada.bytes.length,
@@ -194,6 +216,23 @@ export async function adicionarFoto(
     await transacao.commit();
   } catch (erro) {
     await transacao.rollback().catch(() => undefined);
+    const concorrente = await banco.execute({
+      sql: "SELECT empresa_id, atendimento_id, ficha_id, categoria, legenda, ordem, checksum FROM fotos WHERE id = ?",
+      args: [id],
+    });
+    const linhaConcorrente = concorrente.rows[0];
+    if (
+      linhaConcorrente &&
+      String(linhaConcorrente.empresa_id) === contexto.empresaId &&
+      (linhaConcorrente.atendimento_id == null ? null : String(linhaConcorrente.atendimento_id)) === atendimentoId &&
+      (linhaConcorrente.ficha_id == null ? null : String(linhaConcorrente.ficha_id)) === fichaId &&
+      String(linhaConcorrente.categoria) === categoria &&
+      String(linhaConcorrente.legenda) === legenda &&
+      Number(linhaConcorrente.ordem) === ordem &&
+      String(linhaConcorrente.checksum) === checksum
+    ) {
+      return obterFoto(banco, contexto.empresaId, id, true);
+    }
     await storage.remover(chave).catch(() => undefined);
     throw erro;
   }

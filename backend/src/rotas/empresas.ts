@@ -69,6 +69,16 @@ const ConviteAceito = Type.Object({
   usuario: UsuarioSchema,
 });
 
+function escaparHtml(valor: string): string {
+  return valor.replace(/[&<>"']/g, (caractere) => ({
+    "&": "&amp;",
+    "<": "&lt;",
+    ">": "&gt;",
+    '"': "&quot;",
+    "'": "&#39;",
+  })[caractere]!);
+}
+
 export const rotasEmpresas: FastifyPluginAsync<ContextoRotas> = async (app, opcoes) => {
   const { banco, config, email, autenticacao } = opcoes;
 
@@ -358,6 +368,36 @@ export const rotasEmpresas: FastifyPluginAsync<ContextoRotas> = async (app, opco
     async (request) => {
       const { token } = request.params as { token: string };
       return visualizarConvite(banco, token);
+    },
+  );
+
+  app.get(
+    "/convites/:token/pagina",
+    {
+      schema: {
+        tags: ["Equipe"],
+        summary: "Página para orientar a aceitação do convite no aplicativo",
+        params: TokenConviteParams,
+        response: { 200: Type.String(), ...respostasErro },
+      },
+      config: { rateLimit: { max: 30, timeWindow: "1 minute" } },
+    },
+    async (request, reply) => {
+      const { token } = request.params as { token: string };
+      const convite = await visualizarConvite(banco, token);
+      const empresa = escaparHtml(convite.empresaNome);
+      const email = escaparHtml(convite.email);
+      const papel = escaparHtml(convite.papel);
+      const codigo = escaparHtml(token);
+      return reply.type("text/html; charset=utf-8").send(
+        "<!doctype html><html lang=\"pt-BR\"><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\">" +
+          "<title>Convite ChaveiroCar</title><main style=\"font:16px system-ui;max-width:620px;margin:40px auto;padding:24px\">" +
+          "<h1>Você foi convidado para o ChaveiroCar</h1>" +
+          `<p><strong>Empresa:</strong> ${empresa}</p><p><strong>E-mail:</strong> ${email}</p><p><strong>Acesso:</strong> ${papel}</p>` +
+          "<p>Abra o aplicativo ChaveiroCar, escolha <strong>Aceitar convite</strong> e informe este código:</p>" +
+          `<pre style=\"white-space:pre-wrap;overflow-wrap:anywhere;background:#f2f2f2;padding:16px\">${codigo}</pre>` +
+          "<p>O convite é pessoal e pode ser usado uma vez antes de expirar.</p></main></html>",
+      );
     },
   );
 

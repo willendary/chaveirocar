@@ -25,14 +25,16 @@ Obrigatório no painel (Environment):
 | `SMTP_URL`, `EMAIL_REMETENTE` | SMTP obrigatório em produção para enviar confirmação, convites e recuperação de senha |
 | `ORIGENS_PERMITIDAS` | origens web, se houver; apps nativos não enviam Origin |
 
-`PORT` é injetada pelo Render e lida automaticamente. Plano free dorme após inatividade (cold start de ~30 s) e não tem disco persistente: por isso storage S3 é obrigatório.
+`PORT` é injetada pelo Render e lida automaticamente. Plano Free serve apenas para homologação: dorme após 15 minutos sem tráfego, o cold start pode levar cerca de um minuto, não tem disco persistente e o Render bloqueia saída SMTP nas portas 25, 465 e 587. Gmail SMTP nessas portas não entrega e-mail. Não usar Free como hospedagem oficial.
 
-Para Backblaze B2: endpoint `https://s3.us-east-005.backblazeb2.com`, região `us-east-005`, bucket `chaveirocarfotos`. Gere Application Key limitada a esse bucket, com leitura e escrita de arquivos.
+Para Backblaze B2: endpoint `https://s3.us-east-005.backblazeb2.com`, região `us-east-005`, bucket `chaveirocarfotos`. Gere Application Key limitada a esse bucket, com leitura, escrita e exclusão de arquivos.
+
+Render Free não pode usar Gmail SMTP (465/587). Para produção, use provedor transacional com domínio remetente verificado; Resend também oferece SMTPS na porta 2465, não bloqueada pela lista publicada do Render. Testar entrega antes de liberar cadastro e convites.
 
 ## Backup e recuperação
 
 - Banco: criar dump Turso diário (`turso db shell <base> .dump > backup.sql`). Restaurar com `.restore` em base nova e comparar `SELECT COUNT(*) FROM atendimentos` + `mudancas`.
-- Storage: versionamento do bucket quando disponível + replicação entre regiões. A chave `empresa/register/fotoId.ext` + `checksum` no banco permite conferir cada arquivo.
+- Storage: versionamento do bucket quando disponível + replicação entre regiões. A chave inclui o identificador e checksum da foto para permitir reenvio idempotente e conferência do arquivo.
 - Banco e storage são consistentes para leitura ordenada. Se um arquivo sumir, o registro continua com `checksum` e `storage_key` para reimportar do backup Android.
 - Retenção: `RETENCAO_MUDANCAS_DIAS` (padrão 180). Clientes offline por mais tempo fazem resync completo.
 - Restauração testada antes de remover o Google Drive (#40): importar ZIP Android em ambiente isolado e comparar contagens.
@@ -50,7 +52,7 @@ Para Backblaze B2: endpoint `https://s3.us-east-005.backblazeb2.com`, região `u
 | Item | Franquia anunciada* | Uso do ChaveiroCar |
 |---|---|---|
 | Turso Free | 5 GB banco, 500 mi leituras/mês, 10 mi escritas/mês | Banco só de metadados; fotos fora |
-| Cloudflare R2 | 10 GB storage, egress gratuito | Fotos `empresa/.../fotoId` |
+| Backblaze B2 | Conferir franquia vigente | Fotos privadas `empresa/.../fotoId-checksum` |
 | SMTP (Brevo/Resend) | ~300 e-mails/dia | Convites + recuperação |
 | Hospedagem container | Faixa gratuita curta por região | 1 processo Fastify |
 

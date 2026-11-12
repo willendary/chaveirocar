@@ -37,6 +37,7 @@ const SessaoResposta = Type.Object({
   usuario: UsuarioSchema,
   tokens: TokensSchema,
   empresas: Type.Array(EmpresaSchema),
+  emailEnviado: Type.Optional(Type.Boolean()),
   verificacaoToken: Type.Optional(Type.String()),
 });
 
@@ -47,6 +48,7 @@ const EuResposta = Type.Object({
 
 const MensagemResposta = Type.Object({
   mensagem: Type.String(),
+  emailEnviado: Type.Optional(Type.Boolean()),
   redefinicaoToken: Type.Optional(Type.String()),
 });
 
@@ -83,8 +85,12 @@ export const rotasAuth: FastifyPluginAsync<ContextoRotas> = async (app, opcoes) 
     };
   }
 
-  async function enviarVerificacao(usuarioId: string, destino: string): Promise<string> {
+  async function enviarVerificacao(
+    usuarioId: string,
+    destino: string,
+  ): Promise<{ token: string; emailEnviado: boolean }> {
     const token = await criarTokenConta(banco, usuarioId, "verificacao_email");
+    let emailEnviado = email.disponivel;
     try {
       await email.enviar({
         para: destino,
@@ -98,9 +104,10 @@ export const rotasAuth: FastifyPluginAsync<ContextoRotas> = async (app, opcoes) 
         ].join("\n"),
       });
     } catch (erro) {
+      emailEnviado = false;
       app.log.warn(`Falha ao enviar verificação para ${destino}: ${(erro as Error).message}`);
     }
-    return token;
+    return { token, emailEnviado };
   }
 
   app.post(
@@ -133,7 +140,7 @@ export const rotasAuth: FastifyPluginAsync<ContextoRotas> = async (app, opcoes) 
         obterIp(request),
         obterUserAgent(request),
       );
-      const tokenVerificacao = await enviarVerificacao(usuario.id, usuario.email);
+      const verificacao = await enviarVerificacao(usuario.id, usuario.email);
       await registrarAuditoria(banco, {
         empresaId: empresa.id,
         usuarioId: usuario.id,
@@ -146,7 +153,8 @@ export const rotasAuth: FastifyPluginAsync<ContextoRotas> = async (app, opcoes) 
         usuario: usuarioResposta(usuario),
         tokens,
         empresas: [empresa],
-        verificacaoToken: config.exporTokenDev ? tokenVerificacao : undefined,
+        emailEnviado: verificacao.emailEnviado,
+        verificacaoToken: config.exporTokenDev ? verificacao.token : undefined,
       });
     },
   );
@@ -404,8 +412,13 @@ export const rotasAuth: FastifyPluginAsync<ContextoRotas> = async (app, opcoes) 
       if (dados.email_verificado_em !== null) {
         throw erros.validacao("Seu e-mail já está confirmado.");
       }
-      await enviarVerificacao(sessao.usuarioId, String(dados.email));
-      return { mensagem: "E-mail de confirmação enviado." };
+      const verificacao = await enviarVerificacao(sessao.usuarioId, String(dados.email));
+      return {
+        mensagem: verificacao.emailEnviado
+          ? "E-mail de confirmação enviado."
+          : "Não foi possível enviar o e-mail de confirmação.",
+        emailEnviado: verificacao.emailEnviado,
+      };
     },
   );
 

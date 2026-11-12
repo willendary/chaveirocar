@@ -40,7 +40,14 @@ public sealed class ArmazenamentoLocal
             if (!File.Exists(_arquivo)) return;
             var texto = File.ReadAllText(_arquivo);
             var estado = JsonSerializer.Deserialize<EstadoLocal>(texto, Opcoes);
-            if (estado is not null) Estado = estado;
+            if (estado is not null)
+            {
+                Estado = estado;
+                Estado.CursoresPorEmpresa ??= [];
+                if (!string.IsNullOrWhiteSpace(Estado.EmpresaId) && Estado.Cursor > 0 &&
+                    !Estado.CursoresPorEmpresa.ContainsKey(Estado.EmpresaId))
+                    Estado.CursoresPorEmpresa[Estado.EmpresaId] = Estado.Cursor;
+            }
         }
         catch
         {
@@ -86,13 +93,14 @@ public sealed class ArmazenamentoLocal
 
     public sealed class EstadoLocal
     {
-        public string BaseUrl { get; set; } = "http://localhost:8787";
+        public string BaseUrl { get; set; } = "https://chaveirocar-api.onrender.com";
         // tokens protegido por DPAPI (CurrentUser); fica em tokens.bin, fora do cache.json.
         public string? Acesso { get; set; }
         public string? Refresh { get; set; }
         public string Email { get; set; } = "";
         public string EmpresaId { get; set; } = "";
         public long Cursor { get; set; }
+        public Dictionary<string, long> CursoresPorEmpresa { get; set; } = [];
         public List<Atendimento> Atendimentos { get; set; } = [];
         public List<Ficha> Fichas { get; set; } = [];
         public List<FotoLocal> Fotos { get; set; } = [];
@@ -147,10 +155,12 @@ public sealed class ArmazenamentoLocal
     {
         public string Uuid { get; set; } = "";
         public string AtendimentoUuid { get; set; } = "";
+        public string FichaUuid { get; set; } = "";
         public string Categoria { get; set; } = "CARRO";
         public string Legenda { get; set; } = "";
         public int Ordem { get; set; }
         public long Revisao { get; set; }
-        [JsonIgnore] public bool Pendente { get; set; }
+        public string CaminhoLocal { get; set; } = "";
+        public bool Pendente { get; set; }
     }
 }

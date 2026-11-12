@@ -81,12 +81,30 @@ public static class MotorSincronia
             local.Salvar();
         }
 
+        // Uploads de foto começam só depois que o atendimento já foi enviado.
+        foreach (var foto in local.Estado.Fotos.Where(f => f.Pendente).ToList())
+        {
+            if (!File.Exists(foto.CaminhoLocal))
+                throw new FileNotFoundException("A foto pendente não está mais no aparelho.", foto.CaminhoLocal);
+            if (string.IsNullOrWhiteSpace(foto.AtendimentoUuid) == string.IsNullOrWhiteSpace(foto.FichaUuid))
+                throw new InvalidDataException("A foto precisa pertencer a um atendimento ou a uma ficha.");
+            var resposta = await api.EnviarFotoAsync(empresaId, foto);
+            foto.Revisao = resposta.GetProperty("revisao").GetInt64();
+            foto.Pendente = false;
+            local.Salvar();
+            enviadas++;
+        }
+
         // PULL
+        var cursor = local.Estado.CursoresPorEmpresa.GetValueOrDefault(empresaId,
+            local.Estado.EmpresaId == empresaId ? local.Estado.Cursor : 0);
         var temMais = true;
         while (temMais)
         {
-            var lote = await api.PuxarAsync(empresaId, local.Estado.Cursor);
-            local.Estado.Cursor = lote.Cursor;
+            var lote = await api.PuxarAsync(empresaId, cursor);
+            cursor = lote.Cursor;
+            local.Estado.CursoresPorEmpresa[empresaId] = cursor;
+            if (local.Estado.EmpresaId == empresaId) local.Estado.Cursor = cursor;
             temMais = lote.TemMais;
             foreach (var remoto in lote.Atendimentos)
             {
@@ -256,12 +274,22 @@ public static class MotorSincronia
         ArmazenamentoLocal local, ClienteApi api, ClienteApi.FotoRemota remota)
     {
         if (remota.Excluido) {
+            foreach (var foto in local.Estado.Fotos.Where(f => f.Uuid == remota.Uuid).ToList())
+            {
+                if (!string.IsNullOrWhiteSpace(foto.CaminhoLocal)) File.Delete(foto.CaminhoLocal);
+            }
             local.Estado.Fotos.RemoveAll(f => f.Uuid == remota.Uuid);
             return 1;
         }
         var existente = local.Estado.Fotos.FirstOrDefault(f => f.Uuid == remota.Uuid);
-        if (existente is not null && !existente.Pendente) return 0;
-        var caminho = Path.Combine(PastaFotos(), $"{remota.Uuid}.jpg");
+        if (existente is not null && !existente.Pendente && File.Exists(existente.CaminhoLocal)) return 0;
+        var extensao = remota.MimeType switch
+        {
+            "image/png" => ".png",
+            "image/webp" => ".webp",
+            _ => ".jpg",
+        };
+        var caminho = Path.Combine(PastaFotos(), $"{remota.Uuid}{extensao}");
         try
         {
             var bytes = await api.BaixarFotoAsync(remota.Url);
@@ -276,10 +304,12 @@ public static class MotorSincronia
         {
             Uuid = remota.Uuid,
             AtendimentoUuid = remota.AtendimentoUuid,
+            FichaUuid = remota.FichaUuid,
             Categoria = remota.Categoria,
             Legenda = remota.Legenda,
             Ordem = remota.Ordem,
             Revisao = remota.Revisao,
+            CaminhoLocal = caminho,
             Pendente = false,
         };
         if (existente is null) local.Estado.Fotos.Add(meta);

@@ -1,0 +1,48 @@
+<Window x:Class="ChaveiroCar.Windows.EquipeWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Equipe e acessos" Height="600" Width="820" MinHeight="480" MinWidth="680"
+        WindowStartupLocation="CenterOwner" Loaded="Window_Loaded">
+    <Grid Margin="16">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+        <DockPanel Grid.Row="0" x:Name="PainelConvite" Margin="0,0,0,10">
+            <Button DockPanel.Dock="Right" x:Name="Convidar" Content="Enviar convite" Click="Convidar_Click"/>
+            <ComboBox DockPanel.Dock="Right" x:Name="PapelNovo" Width="150" Margin="8,0,8,0" SelectedIndex="0">
+                <ComboBoxItem Content="Colaborador" Tag="colaborador"/>
+                <ComboBoxItem Content="Administrador" Tag="administrador"/>
+                <ComboBoxItem Content="Somente leitura" Tag="leitor"/>
+            </ComboBox>
+            <TextBox x:Name="EmailConvite" MinWidth="220" VerticalContentAlignment="Center"/>
+        </DockPanel>
+        <TabControl Grid.Row="1">
+            <TabItem Header="Membros">
+                <DockPanel>
+                    <StackPanel DockPanel.Dock="Top" x:Name="AcoesMembro" Orientation="Horizontal" Margin="0,0,0,8">
+                        <ComboBox x:Name="PapelMembro" Width="170" SelectedIndex="0">
+                            <ComboBoxItem Content="Colaborador" Tag="colaborador"/>
+                            <ComboBoxItem Content="Administrador" Tag="administrador"/>
+                            <ComboBoxItem Content="Somente leitura" Tag="leitor"/>
+                        </ComboBox>
+                        <Button Content="Alterar permissão" Click="AlterarPapel_Click" Margin="8,0,0,0"/>
+                        <Button Content="Remover acesso" Click="RemoverMembro_Click" Margin="8,0,0,0"/>
+                    </StackPanel>
+                    <DataGrid x:Name="Membros" AutoGenerateColumns="True" IsReadOnly="True"
+                              CanUserAddRows="False" SelectionMode="Single"/>
+                </DockPanel>
+            </TabItem>
+            <TabItem x:Name="AbaConvites" Header="Convites">
+                <DockPanel>
+                    <Button DockPanel.Dock="Top" Content="Cancelar convite selecionado"
+                            Click="CancelarConvite_Click" HorizontalAlignment="Left" Margin="0,0,0,8"/>
+                    <DataGrid x:Name="Convites" AutoGenerateColumns="True" IsReadOnly="True"
+                              CanUserAddRows="False" SelectionMode="Single"/>
+                </DockPanel>
+            </TabItem>
+        </TabControl>
+        <TextBlock Grid.Row="2" x:Name="Status" TextWrapping="Wrap" Margin="0,8,0,0"/>
+    </Grid>
+</Window>

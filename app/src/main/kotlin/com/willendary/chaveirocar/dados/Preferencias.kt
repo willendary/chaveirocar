@@ -32,6 +32,13 @@ object Preferencias {
   const val API_ACESSO = "api_acesso"
   const val API_REFRESH = "api_refresh"
 
+  fun obterCursorApi(preferencias: SharedPreferences, empresaId: String): Long =
+    preferencias.getLong("${API_CURSOR}_$empresaId", 0)
+
+  fun guardarCursorApi(preferencias: SharedPreferences, empresaId: String, cursor: Long) {
+    preferencias.edit().putLong("${API_CURSOR}_$empresaId", cursor).apply()
+  }
+
   fun obter(contexto: Context): SharedPreferences =
     contexto.getSharedPreferences(ARQUIVO, Context.MODE_PRIVATE)
 

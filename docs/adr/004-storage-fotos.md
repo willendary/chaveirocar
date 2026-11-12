@@ -8,7 +8,7 @@ Fotos de veículos e procedimentos são o maior volume do produto. O plano do Tu
 
 ## Decisão
 
-- Bytes em storage S3-compatível (Cloudflare R2 em produção; filesystem local em desenvolvimento/teste).
+- Bytes em storage S3-compatível (Backblaze B2 no ambiente ChaveiroCar; filesystem local em desenvolvimento/teste).
 - Turso guarda metadados: empresa, vínculo, categoria, ordem, legenda, MIME, tamanho, checksum e `storage_key`.
 - Upload e download passam pela API autenticada. Isso evita bucket público e URL permanente.
 - Validação por assinatura do arquivo, limite de 15 MB e 20 fotos por registro.
@@ -19,7 +19,7 @@ Fotos de veículos e procedimentos são o maior volume do produto. O plano do Tu
 
 - **Base64 no banco**: simples, mas multiplica tamanho e custo.
 - **Bucket público**: inseguro e incompatível com isolamento por empresa.
-- **Supabase Storage**: viável, mas adiciona outro fornecedor; R2 tem egress gratuito e API S3 padrão.
+- **Cloudflare R2 / Supabase Storage**: alternativas compatíveis; Backblaze B2 foi escolhido para o bucket de homologação já criado.
 
 ## Consequências
 

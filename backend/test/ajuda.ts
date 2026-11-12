@@ -56,6 +56,7 @@ export interface Conta {
   usuario: { id: string; nome: string; email: string; emailVerificado: boolean };
   tokens: { acesso: string; refresh: string; expiraEm: number; refreshExpiraEm: number };
   empresas: Array<{ id: string; nome: string; papel: string }>;
+  emailEnviado?: boolean;
   verificacaoToken?: string;
   cabecalho: { authorization: string };
 }

@@ -49,4 +49,29 @@ public partial class LoginWindow : Window
             botao.IsEnabled = true;
         }
     }
+
+    private void CriarConta_Click(object sender, RoutedEventArgs e)
+    {
+        var cadastro = new CadastroWindow(_local) { Owner = this };
+        if (cadastro.ShowDialog() == true)
+        {
+            DialogResult = true;
+            Close();
+        }
+    }
+
+    private void RecuperarSenha_Click(object sender, RoutedEventArgs e)
+    {
+        new RecuperacaoSenhaWindow(BaseUrl.Text.Trim(), Email.Text.Trim()) { Owner = this }.ShowDialog();
+    }
+
+    private void AceitarConvite_Click(object sender, RoutedEventArgs e)
+    {
+        var convite = new ConviteWindow(_local) { Owner = this };
+        if (convite.ShowDialog() == true)
+        {
+            DialogResult = true;
+            Close();
+        }
+    }
 }

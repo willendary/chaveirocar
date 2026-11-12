@@ -2,7 +2,7 @@
 
 Status: em desenvolvimento (branch `feat/multiplataforma-api`). Nenhuma versão publicada.
 
-Implementado nesta etapa: backend + Turso/auth + atendimentos, fichas técnicas e fotos com sync offline nos clientes Android/Windows (iOS em `ios/API.swift` aguardando Keychain na máquina Apple). Tokens criptografados: Android `EncryptedSharedPreferences`, Windows DPAPI (`tokens.bin`).
+Implementado nesta etapa: backend + Turso/auth + atendimentos, fichas técnicas e fotos com sync offline nos clientes Android/Windows. iOS tem apenas o cliente inicial com tokens no Keychain e está adiado. Tokens criptografados: Android `EncryptedSharedPreferences`, Windows DPAPI (`tokens.bin`).
 
 ## Visão geral
 
@@ -26,7 +26,7 @@ Windows (WPF/.NET)       ─┘                        │
 | Backend | Node.js 24 + TypeScript + Fastify 5 | Tipagem, validação por schema, baixo consumo, ecossistema maduro, OpenAPI nativo |
 | Banco | Turso (libSQL/SQLite) | SQL familiar, réplica embarcada, plano gratuito adequado ao volume inicial |
 | Contratos | OpenAPI 3.1 gerado das rotas | Fonte única para Android, iOS, Windows e testes |
-| Fotos | S3-compatível (Cloudflare R2) | Não inflar o banco; egress gratuito no R2; interface local para desenvolvimento |
+| Fotos | S3-compatível (Backblaze B2) | Não inflar o banco; API S3; interface local para desenvolvimento |
 | E-mail | SMTP transacional (Brevo/Resend/SES) | Convites e recuperação de senha sem acoplar provedor |
 | Android | Kotlin + Jetpack Compose (app atual) | Preservar identidade, telas e dados já publicados |
 | Windows | .NET 10 + WPF | Nativo no Windows, build reproduzível, sem runtime web adicional |

@@ -19,6 +19,7 @@ describe("autenticação", () => {
     expect(conta.empresas).toHaveLength(1);
     expect(conta.empresas[0]!.papel).toBe("proprietario");
     expect(conta.usuario.emailVerificado).toBe(false);
+    expect(conta.emailEnviado).toBe(false);
     expect(conta.verificacaoToken).toBeTruthy();
 
     const verificacao = await ambiente.app.inject({

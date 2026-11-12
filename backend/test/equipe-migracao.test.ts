@@ -21,7 +21,7 @@ async function backupZip(): Promise<Buffer> {
 
 describe("equipe e convites", () => {
   it("convida, aceita, troca papel e remove", async () => {
-    const dono = await cadastrar(ambiente.app, { email: "dono@exemplo.com" });
+    const dono = await cadastrar(ambiente.app, { email: "dono@exemplo.com", empresa: "Oficina <Teste>" });
     const id = dono.empresas[0]!.id;
     const conv = await ambiente.app.inject({
       method: "POST", url: `/api/v1/empresas/${id}/convites`, headers: dono.cabecalho,
@@ -33,12 +33,17 @@ describe("equipe e convites", () => {
 
     const vis = await ambiente.app.inject({ method: "GET", url: `/api/v1/convites/${token}` });
     expect(vis.statusCode).toBe(200);
-    expect(vis.json().empresaNome).toBeTruthy();
+    expect(vis.json().empresaNome).toBe("Oficina <Teste>");
+    const pagina = await ambiente.app.inject({ method: "GET", url: `/api/v1/convites/${token}/pagina` });
+    expect(pagina.statusCode).toBe(200);
+    expect(pagina.headers["content-type"]).toContain("text/html");
+    expect(pagina.body).toContain("Oficina &lt;Teste&gt;");
 
     const aceitou = await ambiente.app.inject({
       method: "POST", url: `/api/v1/convites/${token}/aceitar`, payload: { nome: "Func", senha: "Senha1234" },
     });
     expect(aceitou.statusCode).toBe(200);
+    expect(aceitou.json().usuario.emailVerificado).toBe(true);
     const funcId = aceitou.json().usuarioId;
 
     const membros = await ambiente.app.inject({ method: "GET", url: `/api/v1/empresas/${id}/membros`, headers: dono.cabecalho });

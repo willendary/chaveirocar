@@ -33,6 +33,7 @@ Migrações em `migrations/`, aplicadas por `npm run migrar` e na subida do serv
 2. Preencher no painel: `TURSO_URL`, `TURSO_TOKEN`, `URL_PUBLICA`, `S3_*` (R2/B2), `SMTP_URL` e `EMAIL_REMETENTE`.
 3. Storage `local` não serve no Render (disco efêmero); use `STORAGE_TIPO=s3`.
 4. Health check em `/pronto`. Migrações rodam no boot.
+5. Render Free é somente para homologação e bloqueia SMTP nas portas 25, 465 e 587; Gmail SMTP não envia por essas portas. Não liberar produção neste plano.
 
 Detalhes e custos em `../docs/operacao.md`.
 

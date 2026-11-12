@@ -1,5 +1,7 @@
 ﻿using System.Windows;
+using System.Windows.Documents;
 using System.Windows.Input;
+using System.Windows.Controls;
 using ChaveiroCar.Windows.Services;
 
 namespace ChaveiroCar.Windows;
@@ -34,6 +36,20 @@ public partial class MainWindow : Window
         else
         {
             await Inicializar();
+        }
+        await VerificarAtualizacao();
+    }
+
+    private static async Task VerificarAtualizacao()
+    {
+        var atualizacao = await VerificadorAtualizacao.VerificarAsync();
+        if (atualizacao is null) return;
+        if (MessageBox.Show(
+                $"ChaveiroCar {atualizacao.Versao} está disponível. Baixar atualização?",
+                "Atualização disponível", MessageBoxButton.YesNo, MessageBoxImage.Information)
+            == MessageBoxResult.Yes)
+        {
+            VerificadorAtualizacao.AbrirDownload(atualizacao);
         }
     }
 
@@ -80,6 +96,12 @@ public partial class MainWindow : Window
             .OrderByDescending(a => a.DataServico)
             .ToList();
         Grade.ItemsSource = itens;
+        GradeFichas.ItemsSource = _local.Estado.Fichas
+            .Where(f => termo.Length == 0 ||
+                normalizar($"{f.Equipamento} {f.Marca} {f.Modelo} {f.Ano} {f.Chip}").Contains(termo))
+            .OrderBy(f => f.Marca)
+            .ThenBy(f => f.Modelo)
+            .ToList();
     }
 
     private static string normalizar(string texto) => texto.ToLowerInvariant().Trim();
@@ -88,8 +110,10 @@ public partial class MainWindow : Window
     {
         var pendentes = _local.Estado.Outbox.Count;
         var conflitos = _local.Estado.Conflitos.Count;
+        var cursor = _local.Estado.CursoresPorEmpresa.GetValueOrDefault(
+            _local.Estado.EmpresaId, _local.Estado.Cursor);
         Status.Text =
-            $"Cursor {_local.Estado.Cursor} · {pendentes} na fila · {conflitos} conflito(s)" +
+            $"Cursor {cursor} · {pendentes} na fila · {conflitos} conflito(s)" +
             (string.IsNullOrWhiteSpace(_local.Estado.Email) ? "" : $" · {_local.Estado.Email}");
     }
 
@@ -139,16 +163,20 @@ public partial class MainWindow : Window
     }
 
     private Atendimento? Selecionado() => Grade.SelectedItem as Atendimento;
+    private ArmazenamentoLocal.Ficha? FichaSelecionada() => GradeFichas.SelectedItem as ArmazenamentoLocal.Ficha;
 
     private void Novo_Click(object sender, RoutedEventArgs e)
     {
         var item = new Atendimento
         {
             Uuid = Guid.NewGuid().ToString(),
-            Placa = "NOVA123",
             DataServico = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(),
+            TiposServico = ["OUTRO"],
         };
-        MotorSincronia.EnfileirarUpsert(_local, item);
+        var editor = new AtendimentoEditorWindow(item, []) { Owner = this };
+        if (editor.ShowDialog() != true || editor.Resultado is null) return;
+        MotorSincronia.EnfileirarUpsert(_local, editor.Resultado);
+        AdicionarFotos(editor.ResultadoFotos);
         RecarregarGrade();
         AtualizarStatus();
         _ = Sincronizar();
@@ -162,11 +190,24 @@ public partial class MainWindow : Window
             Status.Text = "Selecione um registro.";
             return;
         }
-        item.Solucao = $"Editado {DateTime.Now:dd/MM HH:mm}";
-        MotorSincronia.EnfileirarUpsert(_local, item);
+        var fotos = _local.Estado.Fotos.Where(f => f.AtendimentoUuid == item.Uuid).ToList();
+        var editor = new AtendimentoEditorWindow(item, fotos) { Owner = this };
+        if (editor.ShowDialog() != true || editor.Resultado is null) return;
+        MotorSincronia.EnfileirarUpsert(_local, editor.Resultado);
+        AdicionarFotos(editor.ResultadoFotos);
         RecarregarGrade();
         AtualizarStatus();
         _ = Sincronizar();
+    }
+
+    private void AdicionarFotos(IEnumerable<ArmazenamentoLocal.FotoLocal> fotos)
+    {
+        foreach (var foto in fotos)
+        {
+            if (_local.Estado.Fotos.All(atual => atual.Uuid != foto.Uuid))
+                _local.Estado.Fotos.Add(foto);
+        }
+        _local.Salvar();
     }
 
     private void Excluir_Click(object sender, RoutedEventArgs e)
@@ -179,6 +220,119 @@ public partial class MainWindow : Window
         RecarregarGrade();
         AtualizarStatus();
         _ = Sincronizar();
+    }
+
+    private void ExportarPdf_Click(object sender, RoutedEventArgs e)
+    {
+        var atendimento = Selecionado();
+        if (atendimento is null)
+        {
+            Status.Text = "Selecione um atendimento para gerar o relatório.";
+            return;
+        }
+        var documento = new FlowDocument
+        {
+            PagePadding = new Thickness(48),
+            ColumnWidth = double.PositiveInfinity,
+        };
+        documento.Blocks.Add(new Paragraph(new Run("ChaveiroCar — Relatório de atendimento"))
+        {
+            FontSize = 20,
+            FontWeight = FontWeights.Bold,
+            Margin = new Thickness(0, 0, 0, 18),
+        });
+        var data = DateTimeOffset.FromUnixTimeMilliseconds(atendimento.DataServico).ToLocalTime();
+        AdicionarLinha(documento, "Data", data.ToString("dd/MM/yyyy"));
+        AdicionarLinha(documento, "Placa", atendimento.Placa);
+        AdicionarLinha(documento, "Veículo", $"{atendimento.Marca} {atendimento.Modelo} {atendimento.Ano}".Trim());
+        AdicionarLinha(documento, "Chassi", atendimento.Chassi);
+        AdicionarLinha(documento, "Cliente", atendimento.ClienteNome);
+        AdicionarLinha(documento, "Telefone", atendimento.ClienteTelefone);
+        AdicionarLinha(documento, "Serviço", string.Join(", ", atendimento.TiposServico));
+        AdicionarLinha(documento, "Defeito", atendimento.Defeito);
+        AdicionarLinha(documento, "Solução", atendimento.Solucao);
+        AdicionarLinha(documento, "Observações", atendimento.Abertura);
+        AdicionarLinha(documento, "Código da chave", atendimento.CodigoChave);
+        AdicionarLinha(documento, "Código de configuração", atendimento.CodigoConfiguracao);
+        AdicionarLinha(documento, "Chip / transponder", atendimento.ChipTransponder);
+        AdicionarLinha(documento, "Ferramenta", atendimento.Ferramenta);
+        AdicionarLinha(documento, "Valor", (atendimento.ValorCentavos / 100m).ToString("C"));
+        AdicionarLinha(documento, "Pagamento", atendimento.Pago ? "Pago" : "Pendente");
+
+        var impressora = new PrintDialog();
+        if (impressora.ShowDialog() == true)
+        {
+            impressora.PrintDocument(
+                ((IDocumentPaginatorSource)documento).DocumentPaginator,
+                $"ChaveiroCar - {atendimento.Placa}");
+        }
+    }
+
+    private static void AdicionarLinha(FlowDocument documento, string rotulo, string valor)
+    {
+        if (string.IsNullOrWhiteSpace(valor)) return;
+        var paragrafo = new Paragraph
+        {
+            Margin = new Thickness(0, 0, 0, 8),
+            KeepTogether = true,
+        };
+        paragrafo.Inlines.Add(new Run(rotulo + ": ") { FontWeight = FontWeights.SemiBold });
+        paragrafo.Inlines.Add(new Run(valor));
+        documento.Blocks.Add(paragrafo);
+    }
+
+    private void NovaFicha_Click(object sender, RoutedEventArgs e)
+    {
+        var ficha = new ArmazenamentoLocal.Ficha { Uuid = Guid.NewGuid().ToString() };
+        var editor = new FichaEditorWindow(ficha, []) { Owner = this };
+        if (editor.ShowDialog() != true || editor.Resultado is null) return;
+        MotorSincronia.EnfileirarFicha(_local, editor.Resultado);
+        AdicionarFotos(editor.ResultadoFotos);
+        RecarregarGrade();
+        AtualizarStatus();
+        _ = Sincronizar();
+    }
+
+    private void EditarFicha_Click(object sender, RoutedEventArgs e)
+    {
+        var ficha = FichaSelecionada();
+        if (ficha is null)
+        {
+            Status.Text = "Selecione uma ficha técnica.";
+            return;
+        }
+        var fotos = _local.Estado.Fotos.Where(f => f.FichaUuid == ficha.Uuid).ToList();
+        var editor = new FichaEditorWindow(ficha, fotos) { Owner = this };
+        if (editor.ShowDialog() != true || editor.Resultado is null) return;
+        MotorSincronia.EnfileirarFicha(_local, editor.Resultado);
+        AdicionarFotos(editor.ResultadoFotos);
+        RecarregarGrade();
+        AtualizarStatus();
+        _ = Sincronizar();
+    }
+
+    private void ExcluirFicha_Click(object sender, RoutedEventArgs e)
+    {
+        var ficha = FichaSelecionada();
+        if (ficha is null) return;
+        if (MessageBox.Show($"Excluir ficha {ficha.Marca} {ficha.Modelo}?", "ChaveiroCar",
+                MessageBoxButton.YesNo) != MessageBoxResult.Yes) return;
+        MotorSincronia.EnfileirarExclusao(_local, ficha.Uuid, "ficha");
+        RecarregarGrade();
+        AtualizarStatus();
+        _ = Sincronizar();
+    }
+
+    private void Equipe_Click(object sender, RoutedEventArgs e)
+    {
+        if (_api is null || Empresas.SelectedItem is not ClienteApi.Empresa empresa)
+        {
+            Status.Text = "Entre e selecione uma empresa para gerenciar a equipe.";
+            return;
+        }
+        var podeGerenciar = empresa.Papel is "proprietario" or "administrador";
+        new EquipeWindow(_api, empresa.Id, podeGerenciar) { Owner = this }.ShowDialog();
+        _ = SalvarTokens();
     }
 
     private async void Sair_Click(object sender, RoutedEventArgs e)

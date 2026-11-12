@@ -18,10 +18,27 @@
             <Button Content="Novo" Click="Novo_Click" Margin="8,0,0,0"/>
             <Button Content="Editar" Click="Editar_Click" Margin="8,0,0,0"/>
             <Button Content="Excluir" Click="Excluir_Click" Margin="8,0,0,0"/>
+            <Button Content="PDF" Click="ExportarPdf_Click" Margin="8,0,0,0"/>
+            <Button Content="Equipe" Click="Equipe_Click" Margin="8,0,0,0"/>
         </StackPanel>
 
-        <DataGrid Grid.Row="1" x:Name="Grade" AutoGenerateColumns="True"
-                  IsReadOnly="True" CanUserAddRows="False" SelectionMode="Single"/>
+        <TabControl Grid.Row="1">
+            <TabItem Header="Atendimentos">
+                <DataGrid x:Name="Grade" AutoGenerateColumns="True"
+                          IsReadOnly="True" CanUserAddRows="False" SelectionMode="Single"/>
+            </TabItem>
+            <TabItem Header="Fichas técnicas">
+                <DockPanel>
+                    <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Margin="0,0,0,8">
+                        <Button Content="Nova ficha" Click="NovaFicha_Click"/>
+                        <Button Content="Editar ficha" Click="EditarFicha_Click" Margin="8,0,0,0"/>
+                        <Button Content="Excluir ficha" Click="ExcluirFicha_Click" Margin="8,0,0,0"/>
+                    </StackPanel>
+                    <DataGrid x:Name="GradeFichas" AutoGenerateColumns="True"
+                              IsReadOnly="True" CanUserAddRows="False" SelectionMode="Single"/>
+                </DockPanel>
+            </TabItem>
+        </TabControl>
 
         <DockPanel Grid.Row="2" Margin="0,8,0,0">
             <TextBlock x:Name="Status" VerticalAlignment="Center"/>

@@ -20,7 +20,20 @@ export interface ServicoEmail {
 export function criarEmail(config: Config, log: (mensagem: string) => void): ServicoEmail {
   let transporte: Transporter | null = null;
   if (config.email.smtpUrl) {
-    transporte = nodemailer.createTransport(config.email.smtpUrl);
+    const endereco = new URL(config.email.smtpUrl);
+    const seguro = endereco.protocol === "smtps:";
+    transporte = nodemailer.createTransport({
+      host: endereco.hostname,
+      port: Number(endereco.port || (seguro ? 465 : 587)),
+      secure: seguro,
+      auth: {
+        user: decodeURIComponent(endereco.username),
+        pass: decodeURIComponent(endereco.password),
+      },
+      connectionTimeout: 8_000,
+      greetingTimeout: 8_000,
+      socketTimeout: 10_000,
+    });
   }
 
   return {
@@ -42,7 +55,7 @@ export function criarEmail(config: Config, log: (mensagem: string) => void): Ser
 }
 
 export function linkConvite(config: Config, token: string): string {
-  return `${config.urlPublica}/api/v1/convites/${encodeURIComponent(token)}`;
+  return `${config.urlPublica}/api/v1/convites/${encodeURIComponent(token)}/pagina`;
 }
 
 export function linkRedefinicao(config: Config, token: string): string {

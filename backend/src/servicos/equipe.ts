@@ -285,6 +285,11 @@ export async function aceitarConvite(
       sql: "UPDATE convites SET aceito_em = ?, aceito_por = ? WHERE id = ?",
       args: [instante, usuarioId, convite.id],
     });
+    await transacao.execute({
+      sql: `UPDATE usuarios SET email_verificado_em = COALESCE(email_verificado_em, ?), atualizado_em = ?
+            WHERE id = ?`,
+      args: [instante, instante, usuarioId],
+    });
     await transacao.commit();
   } catch (erro) {
     await transacao.rollback().catch(() => undefined);
