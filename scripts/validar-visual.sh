@@ -13,7 +13,7 @@ for perfil in celular tablet; do
   ./gradlew --no-daemon connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.perfil="$perfil"
   codigo=$?
   if [ "$codigo" != 0 ]; then resultado=$codigo; fi
-  adb pull /sdcard/Android/data/com.willendary.chaveirocar/files/screenshots/ capturas/ || resultado=1
+  adb pull /sdcard/Pictures/ChaveiroCarVisual/. capturas/ || resultado=1
   mkdir -p "capturas/relatorios-$perfil"
   cp -R app/build/reports/androidTests/. "capturas/relatorios-$perfil/"
 done
