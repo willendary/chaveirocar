@@ -126,6 +126,7 @@ public sealed class ArmazenamentoLocal
         public string Entidade { get; set; } = "atendimento";
         public long RevisaoServidor { get; set; }
         public string Placa { get; set; } = "";
+        public bool ServidorExcluido { get; set; }
     }
 
     public sealed class Ficha

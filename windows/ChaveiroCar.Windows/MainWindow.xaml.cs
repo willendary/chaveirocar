@@ -102,6 +102,7 @@ public partial class MainWindow : Window
             .OrderBy(f => f.Marca)
             .ThenBy(f => f.Modelo)
             .ToList();
+        GradeConflitos.ItemsSource = _local.Estado.Conflitos.ToList();
     }
 
     private static string normalizar(string texto) => texto.ToLowerInvariant().Trim();
@@ -126,13 +127,14 @@ public partial class MainWindow : Window
             await SalvarTokens();
             Status.Text =
                 $"Sincronizado: {resumo.Enviadas} enviadas, {resumo.Recebidas} recebidas" +
-                (resumo.Conflitos > 0 ? $", {resumo.Conflitos} conflito(s) — resolva no celular" : "");
+                (resumo.Conflitos > 0 ? $", {resumo.Conflitos} conflito(s) — resolva na aba Conflitos" : "");
             if (resumo.Conflitos > 0)
             {
                 var detalhe = string.Join(", ", _local.Estado.Conflitos.Select(c =>
                     c.Placa.Length > 0 ? c.Placa : c.Uuid));
-                MessageBox.Show($"Conflitos: {detalhe}. Nada foi perdido.",
+                MessageBox.Show($"Conflitos: {detalhe}. Nada foi descartado.",
                     "ChaveiroCar", MessageBoxButton.OK);
+                AbasPrincipal.SelectedIndex = 2;
             }
         }
         catch
@@ -333,6 +335,38 @@ public partial class MainWindow : Window
         var podeGerenciar = empresa.Papel is "proprietario" or "administrador";
         new EquipeWindow(_api, empresa.Id, podeGerenciar) { Owner = this }.ShowDialog();
         _ = SalvarTokens();
+    }
+
+    private void ManterConflito_Click(object sender, RoutedEventArgs e)
+    {
+        if (GradeConflitos.SelectedItem is not ArmazenamentoLocal.Conflito conflito) return;
+        try
+        {
+            MotorSincronia.ManterLocal(_local, conflito);
+            RecarregarGrade();
+            AtualizarStatus();
+            _ = Sincronizar();
+        }
+        catch (Exception ex)
+        {
+            Status.Text = $"Não foi possível manter a versão deste PC: {ex.Message}";
+        }
+    }
+
+    private async void AceitarConflito_Click(object sender, RoutedEventArgs e)
+    {
+        if (GradeConflitos.SelectedItem is not ArmazenamentoLocal.Conflito conflito || _api is null) return;
+        try
+        {
+            await MotorSincronia.AceitarServidor(_local, _api, _local.Estado.EmpresaId, conflito);
+            await SalvarTokens();
+            RecarregarGrade();
+            AtualizarStatus();
+        }
+        catch (Exception ex)
+        {
+            Status.Text = $"Não foi possível aceitar a versão do servidor: {ex.Message}";
+        }
     }
 
     private async void Sair_Click(object sender, RoutedEventArgs e)

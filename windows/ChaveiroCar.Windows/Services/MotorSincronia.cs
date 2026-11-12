@@ -73,7 +73,8 @@ public static class MotorSincronia
                         break;
                     case "conflito":
                         conflitos++;
-                        RegistrarConflito(local, op.Entidade, op.Uuid, resultado.Revisao);
+                        RegistrarConflito(local, op.Entidade, op.Uuid, resultado.Revisao,
+                            RegistroExcluido(resultado.Registro));
                         local.Estado.Outbox.Remove(op);
                         break;
                 }
@@ -178,7 +179,99 @@ public static class MotorSincronia
         local.Salvar();
     }
 
-    private static void RegistrarConflito(ArmazenamentoLocal local, string entidade, string uuid, long revisao)
+    public static void ManterLocal(ArmazenamentoLocal local, ArmazenamentoLocal.Conflito conflito)
+    {
+        local.Estado.Conflitos.RemoveAll(c => c.Uuid == conflito.Uuid);
+        if (conflito.Entidade == "ficha")
+        {
+            var ficha = local.Estado.Fichas.FirstOrDefault(f => f.Uuid == conflito.Uuid)
+                ?? throw new InvalidOperationException("Ficha local não encontrada.");
+            if (conflito.ServidorExcluido)
+            {
+                var anterior = ficha.Uuid;
+                local.Estado.Outbox.RemoveAll(o => o.Uuid == anterior);
+                ficha.Uuid = Guid.NewGuid().ToString();
+                ficha.Revisao = 0;
+                foreach (var foto in local.Estado.Fotos.Where(f => f.FichaUuid == anterior))
+                {
+                    foto.Uuid = Guid.NewGuid().ToString();
+                    foto.FichaUuid = ficha.Uuid;
+                    foto.Revisao = 0;
+                    foto.Pendente = true;
+                }
+            }
+            else ficha.Revisao = conflito.RevisaoServidor;
+            EnfileirarFicha(local, ficha);
+            return;
+        }
+
+        var atendimento = local.Estado.Atendimentos.FirstOrDefault(a => a.Uuid == conflito.Uuid)
+            ?? throw new InvalidOperationException("Atendimento local não encontrado.");
+        if (conflito.ServidorExcluido)
+        {
+            var anterior = atendimento.Uuid;
+            local.Estado.Outbox.RemoveAll(o => o.Uuid == anterior);
+            atendimento.Uuid = Guid.NewGuid().ToString();
+            atendimento.Revisao = 0;
+            foreach (var foto in local.Estado.Fotos.Where(f => f.AtendimentoUuid == anterior))
+            {
+                foto.Uuid = Guid.NewGuid().ToString();
+                foto.AtendimentoUuid = atendimento.Uuid;
+                foto.Revisao = 0;
+                foto.Pendente = true;
+            }
+        }
+        else atendimento.Revisao = conflito.RevisaoServidor;
+        EnfileirarUpsert(local, atendimento);
+    }
+
+    public static async Task AceitarServidor(
+        ArmazenamentoLocal local,
+        ClienteApi api,
+        string empresaId,
+        ArmazenamentoLocal.Conflito conflito)
+    {
+        local.Estado.Outbox.RemoveAll(o => o.Uuid == conflito.Uuid);
+        if (conflito.ServidorExcluido)
+        {
+            RemoverLocal(local, conflito.Entidade, conflito.Uuid);
+        }
+        else if (conflito.Entidade == "ficha")
+        {
+            var remota = await api.ObterFichaAsync(empresaId, conflito.Uuid);
+            var indice = local.Estado.Fichas.FindIndex(f => f.Uuid == conflito.Uuid);
+            if (indice < 0) local.Estado.Fichas.Add(remota);
+            else local.Estado.Fichas[indice] = remota;
+        }
+        else
+        {
+            var remota = await api.ObterAtendimentoAsync(empresaId, conflito.Uuid);
+            var indice = local.Estado.Atendimentos.FindIndex(a => a.Uuid == conflito.Uuid);
+            if (indice < 0) local.Estado.Atendimentos.Add(remota);
+            else local.Estado.Atendimentos[indice] = remota;
+        }
+        local.Estado.Conflitos.RemoveAll(c => c.Uuid == conflito.Uuid);
+        local.Salvar();
+    }
+
+    private static void RemoverLocal(ArmazenamentoLocal local, string entidade, string uuid)
+    {
+        if (entidade == "ficha") local.Estado.Fichas.RemoveAll(f => f.Uuid == uuid);
+        else local.Estado.Atendimentos.RemoveAll(a => a.Uuid == uuid);
+        foreach (var foto in local.Estado.Fotos.Where(f =>
+                     entidade == "ficha" ? f.FichaUuid == uuid : f.AtendimentoUuid == uuid).ToList())
+        {
+            if (!string.IsNullOrWhiteSpace(foto.CaminhoLocal)) File.Delete(foto.CaminhoLocal);
+            local.Estado.Fotos.Remove(foto);
+        }
+    }
+
+    private static void RegistrarConflito(
+        ArmazenamentoLocal local,
+        string entidade,
+        string uuid,
+        long revisao,
+        bool servidorExcluido = false)
     {
         var placa = local.Estado.Atendimentos.FirstOrDefault(a => a.Uuid == uuid)?.Placa
             ?? local.Estado.Fichas.FirstOrDefault(f => f.Uuid == uuid)?.Equipamento
@@ -190,7 +283,23 @@ public static class MotorSincronia
             Entidade = entidade,
             RevisaoServidor = revisao,
             Placa = placa,
+            ServidorExcluido = servidorExcluido,
         });
+    }
+
+    private static bool RegistroExcluido(string? registro)
+    {
+        if (string.IsNullOrWhiteSpace(registro)) return false;
+        try
+        {
+            using var json = JsonDocument.Parse(registro);
+            return json.RootElement.TryGetProperty("excluidoEm", out var excluido) &&
+                excluido.ValueKind != JsonValueKind.Null;
+        }
+        catch
+        {
+            return false;
+        }
     }
 
     private static void ReceberAtendimento(
@@ -204,7 +313,7 @@ public static class MotorSincronia
             if (existente is null) return;
             if (pendente)
             {
-                RegistrarConflito(local, "atendimento", remoto.Uuid, remoto.Revisao);
+                RegistrarConflito(local, "atendimento", remoto.Uuid, remoto.Revisao, servidorExcluido: true);
                 conflitos++;
                 return;
             }
@@ -244,7 +353,7 @@ public static class MotorSincronia
             if (existente is null) return;
             if (pendente)
             {
-                RegistrarConflito(local, "ficha", remota.Uuid, remota.Revisao);
+                RegistrarConflito(local, "ficha", remota.Uuid, remota.Revisao, servidorExcluido: true);
                 conflitos++;
                 return;
             }
