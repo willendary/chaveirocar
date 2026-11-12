@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Build
 import androidx.compose.material.icons.automirrored.filled.List
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Icon
@@ -41,14 +42,19 @@ import com.willendary.chaveirocar.dados.BancoDeAtendimentos
 import com.willendary.chaveirocar.dados.BackupAutomatico
 import com.willendary.chaveirocar.dados.Preferencias
 import com.willendary.chaveirocar.modelo.Atendimento
+import com.willendary.chaveirocar.modelo.FichaTecnica
 import com.willendary.chaveirocar.nuvem.GoogleDrive
 import com.willendary.chaveirocar.ui.DialogoNovidades
+import com.willendary.chaveirocar.ui.EstadoConsulta
 import com.willendary.chaveirocar.ui.FiltroLista
 import com.willendary.chaveirocar.ui.TelaAjustes
+import com.willendary.chaveirocar.ui.TelaConsultaTecnica
 import com.willendary.chaveirocar.ui.TelaBloqueio
 import com.willendary.chaveirocar.ui.TelaDetalhe
 import com.willendary.chaveirocar.ui.TelaFichario
 import com.willendary.chaveirocar.ui.TelaFicharioModelo
+import com.willendary.chaveirocar.ui.TelaFichaFormulario
+import com.willendary.chaveirocar.ui.TelaFichaTecnica
 import com.willendary.chaveirocar.ui.TelaFormulario
 import com.willendary.chaveirocar.ui.TelaLista
 import com.willendary.chaveirocar.ui.TelaLoginNuvem
@@ -58,12 +64,14 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
 
-private enum class Aba { HISTORICO, FICHARIO, AJUSTES }
+private enum class Aba { HISTORICO, FICHARIO, CONSULTA, AJUSTES }
 
 private const val TELA_PRINCIPAL = ""
 private const val TELA_FORMULARIO = "formulario"
 private const val TELA_DETALHE = "detalhe"
 private const val TELA_FICHARIO_MODELO = "fichario_modelo"
+private const val TELA_FICHA = "ficha"
+private const val TELA_FICHA_FORMULARIO = "ficha_formulario"
 
 private const val AVISO_INSTALACAO =
   "Autorize \"Instalar apps desconhecidos\" para o ChaveiroCar e toque em Atualizar de novo."
@@ -86,6 +94,9 @@ fun ChaveiroCarApp() {
   var modeloNome by rememberSaveable { mutableStateOf("") }
   var modeloAno by rememberSaveable { mutableStateOf("") }
   var voltarParaFichario by rememberSaveable { mutableStateOf(false) }
+  var idFicha by rememberSaveable { mutableStateOf(0L) }
+  var baseFicha by remember { mutableStateOf<FichaTecnica?>(null) }
+  var estadoConsulta by remember { mutableStateOf(EstadoConsulta()) }
 
   var bloqueado by remember { mutableStateOf(preferencias.getBoolean(Preferencias.PIN_ATIVO, false)) }
   var biometriaAtiva by remember {
@@ -213,6 +224,8 @@ fun ChaveiroCarApp() {
     if (tela == TELA_DETALHE) voltarDoDetalhe() else tela = TELA_PRINCIPAL
   }
 
+  BackHandler(enabled = !bloqueado && tela == TELA_FICHA) { tela = TELA_PRINCIPAL }
+
   BackHandler(
     enabled = !bloqueado && tela == TELA_PRINCIPAL && aba != Aba.HISTORICO.name,
   ) {
@@ -263,6 +276,32 @@ fun ChaveiroCarApp() {
           onVoltar = { voltarDoDetalhe() },
         )
 
+      TELA_FICHA ->
+        TelaFichaTecnica(
+          banco = banco,
+          id = idFicha,
+          onEditar = { tela = TELA_FICHA_FORMULARIO },
+          onExcluido = {
+            idFicha = 0L
+            baseFicha = null
+            tela = TELA_PRINCIPAL
+          },
+          onVoltar = { tela = TELA_PRINCIPAL },
+        )
+
+      TELA_FICHA_FORMULARIO ->
+        TelaFichaFormulario(
+          banco = banco,
+          id = idFicha,
+          base = if (idFicha == 0L) baseFicha else null,
+          onSalvo = { novoId ->
+            idFicha = novoId
+            baseFicha = null
+            tela = TELA_FICHA
+          },
+          onVoltar = { tela = if (idFicha > 0L) TELA_FICHA else TELA_PRINCIPAL },
+        )
+
       TELA_FICHARIO_MODELO ->
         TelaFicharioModelo(
           banco = banco,
@@ -294,6 +333,12 @@ fun ChaveiroCarApp() {
                 label = { Text("Fichário") },
               )
               NavigationBarItem(
+                selected = aba == Aba.CONSULTA.name,
+                onClick = { aba = Aba.CONSULTA.name },
+                icon = { Icon(Icons.Default.Search, contentDescription = null) },
+                label = { Text("Consulta") },
+              )
+              NavigationBarItem(
                 selected = aba == Aba.AJUSTES.name,
                 onClick = { aba = Aba.AJUSTES.name },
                 icon = { Icon(Icons.Default.Settings, contentDescription = null) },
@@ -314,6 +359,22 @@ fun ChaveiroCarApp() {
                     modeloNome = modelo.modelo
                     modeloAno = modelo.ano
                     tela = TELA_FICHARIO_MODELO
+                  },
+                )
+
+              Aba.CONSULTA.name ->
+                TelaConsultaTecnica(
+                  banco = banco,
+                  estadoInicial = estadoConsulta,
+                  aoMudarEstado = { estadoConsulta = it },
+                  onAbrir = { id ->
+                    idFicha = id
+                    tela = TELA_FICHA
+                  },
+                  onNova = { nova ->
+                    baseFicha = nova
+                    idFicha = 0L
+                    tela = TELA_FICHA_FORMULARIO
                   },
                 )
 

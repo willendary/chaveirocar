@@ -7,6 +7,7 @@ import android.database.sqlite.SQLiteDatabase
 import android.database.sqlite.SQLiteOpenHelper
 import com.willendary.chaveirocar.modelo.Atendimento
 import com.willendary.chaveirocar.modelo.CategoriaFoto
+import com.willendary.chaveirocar.modelo.FichaTecnica
 import com.willendary.chaveirocar.modelo.Foto
 import com.willendary.chaveirocar.modelo.ResumoModelo
 import com.willendary.chaveirocar.modelo.TipoServico
@@ -56,6 +57,8 @@ class BancoDeAtendimentos(contexto: Context) :
     banco.execSQL("CREATE INDEX idx_atendimentos_data ON atendimentos(data_servico)")
     criarTabelaFotos(banco)
     banco.execSQL("CREATE INDEX idx_fotos_atendimento ON fotos(atendimento_id)")
+    criarTabelaFichas(banco)
+    banco.execSQL("CREATE INDEX idx_fichas_veiculo ON fichas_tecnicas(marca, modelo)")
   }
 
   private fun criarTabelaFotos(banco: SQLiteDatabase) {
@@ -69,6 +72,35 @@ class BancoDeAtendimentos(contexto: Context) :
         legenda TEXT NOT NULL DEFAULT '',
         ordem INTEGER NOT NULL DEFAULT 0,
         criado_em INTEGER NOT NULL
+      )
+      """.trimIndent(),
+    )
+  }
+
+  private fun criarTabelaFichas(banco: SQLiteDatabase) {
+    banco.execSQL(
+      """
+      CREATE TABLE fichas_tecnicas (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        equipamento TEXT NOT NULL DEFAULT '',
+        marca TEXT NOT NULL DEFAULT '',
+        modelo TEXT NOT NULL DEFAULT '',
+        ano TEXT NOT NULL DEFAULT '',
+        sistema TEXT NOT NULL DEFAULT '',
+        descricao TEXT NOT NULL DEFAULT '',
+        chip TEXT NOT NULL DEFAULT '',
+        chave TEXT NOT NULL DEFAULT '',
+        telecomando TEXT NOT NULL DEFAULT '',
+        frequencia TEXT NOT NULL DEFAULT '',
+        avisos TEXT NOT NULL DEFAULT '',
+        funcoes TEXT NOT NULL DEFAULT '',
+        manual TEXT NOT NULL DEFAULT '',
+        foto TEXT NOT NULL DEFAULT '',
+        confirmado INTEGER NOT NULL DEFAULT 0,
+        origem TEXT NOT NULL DEFAULT '',
+        busca TEXT NOT NULL DEFAULT '',
+        criado_em INTEGER NOT NULL,
+        atualizado_em INTEGER NOT NULL
       )
       """.trimIndent(),
     )
@@ -94,6 +126,10 @@ class BancoDeAtendimentos(contexto: Context) :
     if (versaoAntiga < 5) {
       banco.execSQL("ALTER TABLE atendimentos ADD COLUMN tipos_servico TEXT NOT NULL DEFAULT ''")
       banco.execSQL("UPDATE atendimentos SET tipos_servico = tipo_servico WHERE tipos_servico = ''")
+    }
+    if (versaoAntiga < 6) {
+      criarTabelaFichas(banco)
+      banco.execSQL("CREATE INDEX idx_fichas_veiculo ON fichas_tecnicas(marca, modelo)")
     }
   }
 
@@ -374,6 +410,106 @@ class BancoDeAtendimentos(contexto: Context) :
     if (cursor.moveToFirst()) cursor.getInt(0) else 0
   }
 
+  fun listarFichas(consulta: String = ""): List<FichaTecnica> {
+    val tokens = normalizar(consulta).split(' ').filter { it.isNotBlank() }
+    val condicoes = tokens.map { "busca LIKE ?" }
+    val onde = if (condicoes.isEmpty()) "" else " WHERE " + condicoes.joinToString(" AND ")
+    return readableDatabase.rawQuery(
+      "SELECT * FROM fichas_tecnicas$onde " +
+        "ORDER BY lower(marca), lower(modelo), ano, lower(sistema), id",
+      tokens.map { "%$it%" }.toTypedArray(),
+    ).use { cursor ->
+      buildList {
+        while (cursor.moveToNext()) add(cursor.paraFicha())
+      }
+    }
+  }
+
+  fun obterFicha(id: Long): FichaTecnica? =
+    readableDatabase.rawQuery(
+      "SELECT * FROM fichas_tecnicas WHERE id = ?",
+      arrayOf(id.toString()),
+    ).use { cursor -> if (cursor.moveToFirst()) cursor.paraFicha() else null }
+
+  fun salvarFicha(ficha: FichaTecnica): Long {
+    val agora = System.currentTimeMillis()
+    val valores = ContentValues().apply {
+      put("equipamento", ficha.equipamento.trim())
+      put("marca", ficha.marca.trim())
+      put("modelo", ficha.modelo.trim())
+      put("ano", ficha.ano.trim())
+      put("sistema", ficha.sistema.trim())
+      put("descricao", ficha.descricao.trim())
+      put("chip", ficha.chip.trim().uppercase())
+      put("chave", ficha.chave.trim())
+      put("telecomando", ficha.telecomando.trim())
+      put("frequencia", ficha.frequencia.trim())
+      put("avisos", ficha.avisos.trim())
+      put("funcoes", ficha.funcoes.trim())
+      put("manual", ficha.manual.trim())
+      put("foto", ficha.foto)
+      put("confirmado", if (ficha.confirmado) 1 else 0)
+      put("origem", ficha.origem.trim())
+      put("busca", normalizar(montarBuscaDaFicha(ficha)))
+      put("atualizado_em", agora)
+    }
+    val banco = writableDatabase
+    if (ficha.id == 0L) {
+      valores.put("criado_em", agora)
+      return banco.insert("fichas_tecnicas", null, valores)
+    }
+    banco.update("fichas_tecnicas", valores, "id = ?", arrayOf(ficha.id.toString()))
+    return ficha.id
+  }
+
+  fun excluirFicha(id: Long): String? {
+    val foto = readableDatabase.rawQuery(
+      "SELECT foto FROM fichas_tecnicas WHERE id = ?",
+      arrayOf(id.toString()),
+    ).use { cursor -> if (cursor.moveToFirst()) cursor.getString(0) else null }
+    writableDatabase.delete("fichas_tecnicas", "id = ?", arrayOf(id.toString()))
+    return foto
+  }
+
+  private fun montarBuscaDaFicha(ficha: FichaTecnica): String = listOf(
+    ficha.equipamento,
+    ficha.marca,
+    ficha.modelo,
+    ficha.ano,
+    ficha.sistema,
+    ficha.descricao,
+    ficha.chip,
+    ficha.chave,
+    ficha.telecomando,
+    ficha.frequencia,
+    ficha.avisos,
+    ficha.funcoes,
+    ficha.manual,
+    ficha.origem,
+  ).joinToString(" ")
+
+  private fun Cursor.paraFicha(): FichaTecnica =
+    FichaTecnica(
+      id = getLong(getColumnIndexOrThrow("id")),
+      equipamento = getString(getColumnIndexOrThrow("equipamento")),
+      marca = getString(getColumnIndexOrThrow("marca")),
+      modelo = getString(getColumnIndexOrThrow("modelo")),
+      ano = getString(getColumnIndexOrThrow("ano")),
+      sistema = getString(getColumnIndexOrThrow("sistema")),
+      descricao = getString(getColumnIndexOrThrow("descricao")),
+      chip = getString(getColumnIndexOrThrow("chip")),
+      chave = getString(getColumnIndexOrThrow("chave")),
+      telecomando = getString(getColumnIndexOrThrow("telecomando")),
+      frequencia = getString(getColumnIndexOrThrow("frequencia")),
+      avisos = getString(getColumnIndexOrThrow("avisos")),
+      funcoes = getString(getColumnIndexOrThrow("funcoes")),
+      manual = getString(getColumnIndexOrThrow("manual")),
+      foto = getString(getColumnIndexOrThrow("foto")),
+      confirmado = getInt(getColumnIndexOrThrow("confirmado")) == 1,
+      origem = getString(getColumnIndexOrThrow("origem")),
+      atualizadoEm = getLong(getColumnIndexOrThrow("atualizado_em")),
+    )
+
   private fun consultar(sql: String, argumentos: Array<String>): List<Atendimento> =
     readableDatabase.rawQuery(sql, argumentos).use { cursor ->
       buildList {
@@ -433,6 +569,6 @@ class BancoDeAtendimentos(contexto: Context) :
 
   companion object {
     const val NOME = "chaveirocar.db"
-    const val VERSAO = 5
+    const val VERSAO = 6
   }
 }

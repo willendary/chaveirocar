@@ -40,6 +40,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SuggestionChip
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
@@ -69,6 +70,8 @@ import com.willendary.chaveirocar.modelo.CategoriaFoto
 import com.willendary.chaveirocar.modelo.Foto
 import com.willendary.chaveirocar.modelo.TipoServico
 import com.willendary.chaveirocar.util.Erros
+import com.willendary.chaveirocar.util.OcrPlaca
+import com.willendary.chaveirocar.util.Placa
 import com.willendary.chaveirocar.util.formatarData
 import com.willendary.chaveirocar.util.formatarValorEditavel
 import com.willendary.chaveirocar.util.paraCentavos
@@ -109,6 +112,11 @@ fun TelaFormulario(
   var importandoFotos by remember { mutableStateOf(false) }
   var fotoEditando by remember { mutableStateOf<Foto?>(null) }
   var novaEditando by remember { mutableStateOf<FotoNova?>(null) }
+  var mostrarCatalogo by remember { mutableStateOf(false) }
+  var arquivoPlaca by remember { mutableStateOf<File?>(null) }
+  var lendoPlaca by remember { mutableStateOf(false) }
+  var candidatosPlaca by remember { mutableStateOf<List<String>>(emptyList()) }
+  var dialogoPlaca by remember { mutableStateOf(false) }
 
   var sugestoesMarca by remember { mutableStateOf<List<String>>(emptyList()) }
   var sugestoesModelo by remember { mutableStateOf<List<String>>(emptyList()) }
@@ -296,6 +304,53 @@ fun TelaFormulario(
     galeria.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
   }
 
+  val cameraPlaca = rememberLauncherForActivityResult(ActivityResultContracts.TakePicture()) { sucesso ->
+    val arquivo = arquivoPlaca
+    arquivoPlaca = null
+    if (sucesso && arquivo != null && arquivo.exists() && arquivo.length() > 0) {
+      lendoPlaca = true
+      escopo.launch {
+        val encontrados = runCatching {
+          withContext(Dispatchers.IO) { OcrPlaca.reconhecer(contexto, arquivo) }
+        }.onFailure { erro ->
+          Erros.registrar(contexto, "Ler placa pela câmera", erro)
+        }.getOrDefault(emptyList())
+        arquivo.delete()
+        lendoPlaca = false
+        candidatosPlaca = encontrados
+        if (encontrados.isEmpty()) {
+          Toast.makeText(
+            contexto,
+            "Não encontrei uma placa. Tente outra foto ou digite manualmente.",
+            Toast.LENGTH_LONG,
+          ).show()
+        } else {
+          dialogoPlaca = true
+        }
+      }
+    } else {
+      arquivo?.delete()
+      if (sucesso) {
+        Toast.makeText(contexto, "Não foi possível usar essa foto. Tente de novo.", Toast.LENGTH_LONG).show()
+      }
+    }
+  }
+
+  fun lerPlaca() {
+    if (lendoPlaca) return
+    val arquivo = File(contexto.cacheDir, "placa_${System.currentTimeMillis()}.jpg")
+    arquivoPlaca = arquivo
+    runCatching {
+      val uri = FileProvider.getUriForFile(contexto, "${contexto.packageName}.arquivos", arquivo)
+      cameraPlaca.launch(uri)
+    }.onFailure { erro ->
+      arquivoPlaca = null
+      arquivo.delete()
+      Erros.registrar(contexto, "Abrir câmera para placa", erro)
+      Toast.makeText(contexto, "Não foi possível abrir a câmera", Toast.LENGTH_LONG).show()
+    }
+  }
+
   fun removerFotoSalva(foto: Foto) {
     escopo.launch {
       val caminho = withContext(Dispatchers.IO) { banco.excluirFoto(foto.id) }
@@ -408,6 +463,9 @@ fun TelaFormulario(
         estiloTexto = MaterialTheme.typography.titleLarge.copy(fontFamily = FontFamily.Monospace),
         modificador = Modifier.fillMaxWidth(),
       )
+      OutlinedButton(onClick = { lerPlaca() }, enabled = !lendoPlaca) {
+        Text(if (lendoPlaca) "Lendo placa…" else "Ler placa pela câmera")
+      }
 
       if (historico.isNotEmpty()) {
         Card(modifier = Modifier.fillMaxWidth()) {
@@ -460,6 +518,10 @@ fun TelaFormulario(
         dica = "Gol 1.6",
         modificador = Modifier.fillMaxWidth(),
       )
+
+      OutlinedButton(onClick = { mostrarCatalogo = true }, modifier = Modifier.fillMaxWidth()) {
+        Text("Buscar marca, modelo e ano no catálogo")
+      }
 
       OutlinedTextField(
         value = atendimento.chassi,
@@ -722,6 +784,62 @@ fun TelaFormulario(
         novaEditando = null
       },
       onCancelar = { novaEditando = null },
+    )
+  }
+
+  if (mostrarCatalogo) {
+    DialogoCatalogoFipe(
+      aoEscolher = { marca, modelo, ano ->
+        atendimento = atendimento.copy(
+          marca = marca,
+          modelo = modelo,
+          ano = ano.filter { it.isDigit() },
+        )
+        mostrarCatalogo = false
+      },
+      onFechar = { mostrarCatalogo = false },
+    )
+  }
+
+  if (dialogoPlaca) {
+    var texto by remember(candidatosPlaca) {
+      mutableStateOf(candidatosPlaca.firstOrNull().orEmpty())
+    }
+    AlertDialog(
+      onDismissRequest = { dialogoPlaca = false },
+      title = { Text("Placa encontrada") },
+      text = {
+        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+          Text("Confira o texto reconhecido antes de usar:", style = MaterialTheme.typography.bodyMedium)
+          OutlinedTextField(
+            value = texto,
+            onValueChange = { digitado -> texto = Placa.normalizar(digitado).take(7) },
+            label = { Text("Placa") },
+            singleLine = true,
+            textStyle = MaterialTheme.typography.titleMedium.copy(fontFamily = FontFamily.Monospace),
+            modifier = Modifier.fillMaxWidth(),
+          )
+          FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            candidatosPlaca.forEach { candidato ->
+              SuggestionChip(onClick = { texto = candidato }, label = { Text(candidato) })
+            }
+          }
+        }
+      },
+      confirmButton = {
+        TextButton(onClick = {
+          val placa = Placa.normalizar(texto)
+          if (!Placa.valida(placa)) {
+            Toast.makeText(contexto, "Placa incompleta. Confira as 7 posições.", Toast.LENGTH_SHORT).show()
+          } else {
+            atendimento = atendimento.copy(placa = placa)
+            dialogoPlaca = false
+          }
+        }) { Text("Usar esta placa") }
+      },
+      dismissButton = {
+        TextButton(onClick = { dialogoPlaca = false }) { Text("Cancelar") }
+      },
     )
   }
 }

@@ -22,8 +22,8 @@ android {
     applicationId = "com.willendary.chaveirocar"
     minSdk = 24
     targetSdk = 36
-    versionCode = 11
-    versionName = "1.4.0"
+    versionCode = 12
+    versionName = "1.5.0"
     testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
   }
 
@@ -78,6 +78,7 @@ dependencies {
   implementation(libs.androidx.activity.compose)
   implementation(libs.androidx.biometric)
   implementation(libs.play.services.auth)
+  implementation(libs.mlkit.text.recognition)
 
   // Arch Components
   implementation(libs.androidx.lifecycle.runtime.compose)
@@ -96,6 +97,7 @@ dependencies {
 
   // Local tests: jUnit, coroutines, Android runner
   testImplementation(libs.junit)
+  testImplementation(libs.org.json)
   testImplementation(libs.kotlinx.coroutines.test)
 
   // Instrumented tests: jUnit rules and runners

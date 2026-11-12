@@ -16,6 +16,7 @@ import androidx.test.platform.app.InstrumentationRegistry
 import com.willendary.chaveirocar.dados.BancoDeAtendimentos
 import com.willendary.chaveirocar.dados.Preferencias
 import com.willendary.chaveirocar.modelo.Atendimento
+import com.willendary.chaveirocar.modelo.FichaTecnica
 import com.willendary.chaveirocar.modelo.TipoServico
 import com.willendary.chaveirocar.ui.*
 import com.willendary.chaveirocar.ui.theme.ChaveiroCarTheme
@@ -167,6 +168,28 @@ class VisualSmokeTest {
     esperar("Placa *")
     compose.onNodeWithContentDescription("Voltar").performClick()
     esperar("Acesso rápido")
+  }
+
+  @Test fun consultaTecnicaPorEtapas() {
+    val fichaId = banco.salvarFicha(FichaTecnica(
+      equipamento = "VVDI", marca = "Volkswagen", modelo = "Gol", ano = "2010",
+      sistema = "G5", chip = "ID48", manual = "Manual de teste disponível offline.",
+      confirmado = true,
+    ))
+    var aberta = 0L
+    tela { TelaConsultaTecnica(banco, EstadoConsulta(), {}, { aberta = it }, {}) }
+    esperar("Escolha o equipamento")
+    compose.onNodeWithText("VVDI").performClick()
+    esperar("Escolha a montadora")
+    compose.onNodeWithText("Volkswagen").performClick()
+    esperar("Escolha o modelo")
+    compose.onNodeWithText("Gol").performClick()
+    esperar("Escolha o ano ou geração")
+    compose.onNodeWithText("2010").performClick()
+    esperar("G5")
+    foto("13-consulta-tecnica")
+    compose.onNodeWithText("G5").performClick()
+    compose.waitUntil(15000) { aberta == fichaId }
   }
 
   @Test fun novidades() {

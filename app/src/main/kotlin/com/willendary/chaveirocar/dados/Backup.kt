@@ -3,6 +3,7 @@ package com.willendary.chaveirocar.dados
 import android.content.Context
 import com.willendary.chaveirocar.modelo.Atendimento
 import com.willendary.chaveirocar.modelo.CategoriaFoto
+import com.willendary.chaveirocar.modelo.FichaTecnica
 import com.willendary.chaveirocar.modelo.TipoServico
 import org.json.JSONArray
 import org.json.JSONObject
@@ -20,11 +21,12 @@ import java.util.zip.ZipOutputStream
 object Backup {
 
   private const val PREFIXO_FOTOS = "fotos/"
+  private const val PREFIXO_FICHAS = "fichas/"
 
   fun exportar(banco: BancoDeAtendimentos, contexto: Context, saida: OutputStream) {
     val zip = ZipOutputStream(BufferedOutputStream(saida))
     val raiz = JSONObject()
-    raiz.put("versao", 5)
+    raiz.put("versao", 6)
     raiz.put("exportadoEm", System.currentTimeMillis())
     val lista = JSONArray()
 
@@ -75,10 +77,44 @@ object Backup {
     }
 
     raiz.put("atendimentos", lista)
+
+    val fichas = JSONArray()
+    for (ficha in banco.listarFichas()) {
+      val objeto = JSONObject().apply {
+        put("id", ficha.id)
+        put("atualizadoEm", ficha.atualizadoEm)
+        put("equipamento", ficha.equipamento)
+        put("marca", ficha.marca)
+        put("modelo", ficha.modelo)
+        put("ano", ficha.ano)
+        put("sistema", ficha.sistema)
+        put("descricao", ficha.descricao)
+        put("chip", ficha.chip)
+        put("chave", ficha.chave)
+        put("telecomando", ficha.telecomando)
+        put("frequencia", ficha.frequencia)
+        put("avisos", ficha.avisos)
+        put("funcoes", ficha.funcoes)
+        put("manual", ficha.manual)
+        put("foto", ficha.foto)
+        put("confirmado", ficha.confirmado)
+        put("origem", ficha.origem)
+      }
+      val arquivo = Fotos.arquivo(contexto, ficha.foto)
+      if (ficha.foto.isNotBlank() && arquivo.exists()) {
+        zip.putNextEntry(ZipEntry(PREFIXO_FICHAS + ficha.foto))
+        arquivo.inputStream().use { it.copyTo(zip) }
+        zip.closeEntry()
+      }
+      fichas.put(objeto)
+    }
+    raiz.put("fichas", fichas)
+
     zip.putNextEntry(ZipEntry("dados.json"))
     zip.write(raiz.toString().toByteArray(Charsets.UTF_8))
     zip.closeEntry()
     zip.finish()
+    zip.flush()
   }
 
   /**
@@ -101,8 +137,8 @@ object Backup {
         val nome = entradaZip.name
         if (nome == "dados.json") {
           json = zip.readBytes().toString(Charsets.UTF_8)
-        } else if (nome.startsWith(PREFIXO_FOTOS)) {
-          val nomeArquivo = nome.removePrefix(PREFIXO_FOTOS)
+        } else if (nome.startsWith(PREFIXO_FOTOS) || nome.startsWith(PREFIXO_FICHAS)) {
+          val nomeArquivo = nome.substringAfter('/')
           if (nomeArquivo.isNotBlank()) fotosDoZip[nomeArquivo] = zip.readBytes()
         }
         zip.closeEntry()
@@ -174,6 +210,42 @@ object Backup {
         val nomeNovo = Fotos.salvarDeBytes(contexto, bytes)
         banco.adicionarFoto(id, nomeNovo, categoria, legenda)
       }
+      aplicados++
+    }
+
+    val listaFichas = raiz.optJSONArray("fichas") ?: JSONArray()
+    for (indice in 0 until listaFichas.length()) {
+      val objeto = listaFichas.optJSONObject(indice) ?: continue
+      val idNuvem = objeto.optLong("id", 0)
+      val atualizadoNuvem = objeto.optLong("atualizadoEm", 0)
+      val local = if (substituir && idNuvem > 0) banco.obterFicha(idNuvem) else null
+      if (local != null && atualizadoNuvem < local.atualizadoEm) continue
+      val fotoAntiga = objeto.optString("foto")
+      val foto = fotosDoZip[fotoAntiga]
+        ?.let { bytes -> Fotos.salvarDeBytes(contexto, bytes) }
+        ?: local?.foto.orEmpty()
+      val ficha = FichaTecnica(
+        equipamento = objeto.optString("equipamento"),
+        marca = objeto.optString("marca"),
+        modelo = objeto.optString("modelo"),
+        ano = objeto.optString("ano"),
+        sistema = objeto.optString("sistema"),
+        descricao = objeto.optString("descricao"),
+        chip = objeto.optString("chip"),
+        chave = objeto.optString("chave"),
+        telecomando = objeto.optString("telecomando"),
+        frequencia = objeto.optString("frequencia"),
+        avisos = objeto.optString("avisos"),
+        funcoes = objeto.optString("funcoes"),
+        manual = objeto.optString("manual"),
+        foto = foto,
+        confirmado = objeto.optBoolean("confirmado", false),
+        origem = objeto.optString("origem"),
+      )
+      if (local != null && local.foto.isNotBlank() && local.foto != foto) {
+        Fotos.excluir(contexto, local.foto)
+      }
+      banco.salvarFicha(if (local != null) ficha.copy(id = local.id) else ficha)
       aplicados++
     }
     return aplicados

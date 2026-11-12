@@ -22,6 +22,14 @@ nuvem é opcional e fica na sua conta Google.
 - Ao digitar a placa de um carro já atendido, o app mostra o histórico dele.
 - **Fichário** por marca/modelo/ano: quantos serviços, abertura, códigos e
   procedimentos consolidados.
+- **Consulta técnica** por equipamento → montadora → modelo → ano → sistema,
+  com fichas de chip/transponder, chave, telecomando, frequência, avisos,
+  funções e manual salvo para uso **offline**.
+- **Leitura da placa** pela câmera (OCR no aparelho), com confirmação do texto
+  antes de preencher o campo.
+- **Catálogo de veículos** por marca/modelo/ano para preencher o cadastro sem
+  digitar.
+- Vários **tipos de serviço** e **várias fotos** de uma vez no mesmo atendimento.
 - Botão **Novo p/ este carro** para repetir um atendimento do mesmo veículo.
 - **Compartilhar** o registro em texto ou gerar **PDF** com os dados e as fotos.
 - **Bloqueio** com PIN de 4 a 6 números e digital (quando o aparelho tem).
@@ -170,6 +178,13 @@ backup passa a ser automático na nuvem.
 1.3.4 — lista sem cards duplicados (popup de atualização basta), detalhe
 com Compartilhar/PDF no topo e cards de texto juntos, botão "Novo
 atendimento (mesmo carro)", e "Última correção" no detalhe.
+
+1.4.0 — nova identidade visual azul/jade, marca vetorial, temas claro e
+escuro, telas renovadas para celular e tablet.
+
+1.5.0 — consulta técnica por etapas com fichas offline, leitura de placa
+pela câmera, catálogo de veículos, campo chip/transponder, múltiplos tipos
+de serviço e seleção de várias fotos.
 
 
 ## Visual 1.4.0
