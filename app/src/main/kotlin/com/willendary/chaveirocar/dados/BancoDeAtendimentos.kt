@@ -174,23 +174,20 @@ class BancoDeAtendimentos(contexto: Context) :
         banco.query(
           "sqlite_master", arrayOf("name"), "name = ?", arrayOf(tabela), null, null, null,
         ).use { it.moveToFirst() }
-      if (existe("atendimentos")) {
-        banco.execSQL("ALTER TABLE atendimentos ADD COLUMN uuid TEXT NOT NULL DEFAULT ''")
-        banco.execSQL("ALTER TABLE atendimentos ADD COLUMN revisao_remota INTEGER NOT NULL DEFAULT 0")
-        banco.execSQL("ALTER TABLE atendimentos ADD COLUMN sinc_pendente INTEGER NOT NULL DEFAULT 0")
+      fun coluna(tabela: String, nome: String): Boolean {
+        if (!existe(tabela)) return false
+        banco.rawQuery("PRAGMA table_info($tabela)", null).use { cursor ->
+          while (cursor.moveToNext()) {
+            if (cursor.getString(1) == nome) return true
+          }
+        }
+        return false
       }
-      if (existe("fichas_tecnicas")) {
-        banco.execSQL("ALTER TABLE fichas_tecnicas ADD COLUMN uuid TEXT NOT NULL DEFAULT ''")
-        banco.execSQL("ALTER TABLE fichas_tecnicas ADD COLUMN revisao_remota INTEGER NOT NULL DEFAULT 0")
-        banco.execSQL("ALTER TABLE fichas_tecnicas ADD COLUMN sinc_pendente INTEGER NOT NULL DEFAULT 0")
+      fun adicionar(tabela: String, nome: String) {
+        if (!coluna(tabela, nome)) {
+          banco.execSQL("ALTER TABLE $tabela ADD COLUMN $nome")
+        }
       }
-      if (existe("fotos")) {
-        banco.execSQL("ALTER TABLE fotos ADD COLUMN uuid TEXT NOT NULL DEFAULT ''")
-        banco.execSQL("ALTER TABLE fotos ADD COLUMN revisao_remota INTEGER NOT NULL DEFAULT 0")
-        banco.execSQL("ALTER TABLE fotos ADD COLUMN sinc_pendente INTEGER NOT NULL DEFAULT 0")
-      }
-      criarTabelasSync(banco)
-      // Registros antigos ganham UUID e entram na fila de envio uma vez.
       fun retrofill(tabela: String) {
         banco.query(tabela, arrayOf("id", "uuid"), "uuid = ''", null, null, null, null).use { cursor ->
           while (cursor.moveToNext()) {
@@ -207,9 +204,25 @@ class BancoDeAtendimentos(contexto: Context) :
           }
         }
       }
-      if (existe("atendimentos")) retrofill("atendimentos")
-      if (existe("fichas_tecnicas")) retrofill("fichas_tecnicas")
-      if (existe("fotos")) retrofill("fotos")
+      if (existe("atendimentos")) {
+        adicionar("atendimentos", "uuid TEXT NOT NULL DEFAULT ''")
+        adicionar("atendimentos", "revisao_remota INTEGER NOT NULL DEFAULT 0")
+        adicionar("atendimentos", "sinc_pendente INTEGER NOT NULL DEFAULT 0")
+        retrofill("atendimentos")
+      }
+      if (existe("fichas_tecnicas")) {
+        adicionar("fichas_tecnicas", "uuid TEXT NOT NULL DEFAULT ''")
+        adicionar("fichas_tecnicas", "revisao_remota INTEGER NOT NULL DEFAULT 0")
+        adicionar("fichas_tecnicas", "sinc_pendente INTEGER NOT NULL DEFAULT 0")
+        retrofill("fichas_tecnicas")
+      }
+      if (existe("fotos")) {
+        adicionar("fotos", "uuid TEXT NOT NULL DEFAULT ''")
+        adicionar("fotos", "revisao_remota INTEGER NOT NULL DEFAULT 0")
+        adicionar("fotos", "sinc_pendente INTEGER NOT NULL DEFAULT 0")
+        retrofill("fotos")
+      }
+      criarTabelasSync(banco)
     }
   }
 
