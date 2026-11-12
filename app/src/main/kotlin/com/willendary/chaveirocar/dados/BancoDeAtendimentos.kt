@@ -34,6 +34,7 @@ class BancoDeAtendimentos(contexto: Context) :
         chassi TEXT NOT NULL DEFAULT '',
         data_servico INTEGER NOT NULL,
         tipo_servico TEXT NOT NULL,
+        tipos_servico TEXT NOT NULL DEFAULT '',
         defeito TEXT NOT NULL DEFAULT '',
         solucao TEXT NOT NULL DEFAULT '',
         abertura TEXT NOT NULL DEFAULT '',
@@ -90,6 +91,10 @@ class BancoDeAtendimentos(contexto: Context) :
     if (versaoAntiga < 4) {
       banco.execSQL("ALTER TABLE atendimentos ADD COLUMN chip_transponder TEXT NOT NULL DEFAULT ''")
     }
+    if (versaoAntiga < 5) {
+      banco.execSQL("ALTER TABLE atendimentos ADD COLUMN tipos_servico TEXT NOT NULL DEFAULT ''")
+      banco.execSQL("UPDATE atendimentos SET tipos_servico = tipo_servico WHERE tipos_servico = ''")
+    }
   }
 
   fun listar(
@@ -107,7 +112,8 @@ class BancoDeAtendimentos(contexto: Context) :
       argumentos.add("%$token%")
     }
     if (tipo != null) {
-      condicoes.add("a.tipo_servico = ?")
+      // A lista é delimitada por vírgulas; a busca mantém correspondência exata.
+      condicoes.add("instr(',' || a.tipos_servico || ',', ',' || ? || ',') > 0")
       argumentos.add(tipo.name)
     }
     if (desde != null) {
@@ -262,7 +268,8 @@ class BancoDeAtendimentos(contexto: Context) :
       put("ano", atendimento.ano.trim())
       put("chassi", atendimento.chassi.trim().uppercase())
       put("data_servico", atendimento.dataServico)
-      put("tipo_servico", atendimento.tipoServico.name)
+      put("tipo_servico", atendimento.tiposOrdenados.first().name)
+      put("tipos_servico", atendimento.tiposOrdenados.joinToString(",") { it.name })
       put("defeito", atendimento.defeito.trim())
       put("solucao", atendimento.solucao.trim())
       put("abertura", atendimento.abertura.trim())
@@ -384,6 +391,10 @@ class BancoDeAtendimentos(contexto: Context) :
       chassi = getString(getColumnIndexOrThrow("chassi")),
       dataServico = getLong(getColumnIndexOrThrow("data_servico")),
       tipoServico = TipoServico.de(getString(getColumnIndexOrThrow("tipo_servico"))),
+      tiposServico = TipoServico.deNomes(
+        getString(getColumnIndexOrThrow("tipos_servico")).split(","),
+        TipoServico.de(getString(getColumnIndexOrThrow("tipo_servico"))),
+      ),
       defeito = getString(getColumnIndexOrThrow("defeito")),
       solucao = getString(getColumnIndexOrThrow("solucao")),
       abertura = getString(getColumnIndexOrThrow("abertura")),
@@ -406,7 +417,7 @@ class BancoDeAtendimentos(contexto: Context) :
       atendimento.modelo,
       atendimento.ano,
       atendimento.chassi,
-      atendimento.tipoServico.rotulo,
+      atendimento.tiposEmTexto,
       atendimento.defeito,
       atendimento.solucao,
       atendimento.abertura,
@@ -422,6 +433,6 @@ class BancoDeAtendimentos(contexto: Context) :
 
   companion object {
     const val NOME = "chaveirocar.db"
-    const val VERSAO = 4
+    const val VERSAO = 5
   }
 }

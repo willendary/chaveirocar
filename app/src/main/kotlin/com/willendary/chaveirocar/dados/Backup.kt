@@ -24,7 +24,7 @@ object Backup {
   fun exportar(banco: BancoDeAtendimentos, contexto: Context, saida: OutputStream) {
     val zip = ZipOutputStream(BufferedOutputStream(saida))
     val raiz = JSONObject()
-    raiz.put("versao", 4)
+    raiz.put("versao", 5)
     raiz.put("exportadoEm", System.currentTimeMillis())
     val lista = JSONArray()
 
@@ -38,7 +38,9 @@ object Backup {
         put("ano", atendimento.ano)
         put("chassi", atendimento.chassi)
         put("dataServico", atendimento.dataServico)
-        put("tipoServico", atendimento.tipoServico.name)
+        // Backup singular para interoperabilidade com versões anteriores.
+        put("tipoServico", atendimento.tiposOrdenados.first().name)
+        put("tiposServico", JSONArray(atendimento.tiposOrdenados.map { it.name }))
         put("defeito", atendimento.defeito)
         put("solucao", atendimento.solucao)
         put("abertura", atendimento.abertura)
@@ -120,6 +122,10 @@ object Backup {
       val atualizadoNuvem = objeto.optLong("atualizadoEm", 0)
       val local = if (substituir && idNuvem > 0) banco.obter(idNuvem) else null
       if (local != null && atualizadoNuvem < local.atualizadoEm) continue
+      val tipoAntigo = TipoServico.de(objeto.optString("tipoServico"))
+      val listaTipos = objeto.optJSONArray("tiposServico")
+      val tipos = if (listaTipos == null) setOf(tipoAntigo) else
+        TipoServico.deNomes((0 until listaTipos.length()).map { listaTipos.optString(it) }, tipoAntigo)
       val atendimento = Atendimento(
         placa = objeto.optString("placa"),
         marca = objeto.optString("marca"),
@@ -127,7 +133,8 @@ object Backup {
         ano = objeto.optString("ano"),
         chassi = objeto.optString("chassi"),
         dataServico = objeto.optLong("dataServico", System.currentTimeMillis()),
-        tipoServico = TipoServico.de(objeto.optString("tipoServico")),
+        tipoServico = tipoAntigo,
+        tiposServico = tipos,
         defeito = objeto.optString("defeito"),
         solucao = objeto.optString("solucao"),
         abertura = objeto.optString("abertura"),

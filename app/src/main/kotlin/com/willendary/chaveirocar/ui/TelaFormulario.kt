@@ -420,7 +420,7 @@ fun TelaFormulario(
             historico.take(3).forEach { anterior ->
               Spacer(Modifier.height(6.dp))
               Text(
-                text = "${formatarData(anterior.dataServico)} · ${anterior.tipoServico.rotulo}",
+                text = "${formatarData(anterior.dataServico)} · ${anterior.tiposEmTexto}",
                 style = MaterialTheme.typography.bodySmall,
               )
               if (anterior.solucao.isNotBlank()) {
@@ -491,12 +491,28 @@ fun TelaFormulario(
       }
 
       SecaoFormulario("02", "Atendimento", "Registre o problema e a solução aplicada.")
-      Text("Tipo de serviço", style = MaterialTheme.typography.titleSmall)
+      Text("Serviços realizados", style = MaterialTheme.typography.titleSmall)
+      Text("Marque todas as atividades realizadas neste atendimento.",
+        style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
       FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         TipoServico.entries.forEach { tipo ->
           FilterChip(
-            selected = atendimento.tipoServico == tipo,
-            onClick = { atendimento = atendimento.copy(tipoServico = tipo) },
+            selected = tipo in atendimento.tiposServico,
+            onClick = {
+              val novos = if (tipo in atendimento.tiposServico) {
+                atendimento.tiposServico - tipo
+              } else {
+                atendimento.tiposServico + tipo
+              }
+              if (novos.isEmpty()) {
+                Toast.makeText(contexto, "Selecione pelo menos um serviço", Toast.LENGTH_SHORT).show()
+              } else {
+                atendimento = atendimento.copy(
+                  tipoServico = TipoServico.entries.first { it in novos },
+                  tiposServico = novos,
+                )
+              }
+            },
             label = { Text(tipo.rotulo) },
           )
         }

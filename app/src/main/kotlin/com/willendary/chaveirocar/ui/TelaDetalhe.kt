@@ -149,7 +149,7 @@ fun TelaDetalhe(
     ) {
       PainelDestaque(registro.placa,
         listOf(registro.marca, registro.modelo, registro.ano).filter { it.isNotBlank() }.joinToString(" ").ifBlank { "Veículo sem modelo" },
-        registro.tipoServico.rotulo)
+        registro.tiposEmTexto)
       Card(modifier = Modifier.fillMaxWidth()) {
         Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
           FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {

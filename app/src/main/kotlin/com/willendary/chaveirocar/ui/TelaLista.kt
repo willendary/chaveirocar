@@ -367,11 +367,11 @@ private fun CartaoRegistro(registro: Atendimento, onAbrir: () -> Unit) {
         Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
       }
       FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-        Selo(registro.tipoServico.rotulo)
+        registro.tiposOrdenados.forEach { Selo(it.rotulo) }
         if (!registro.pago) Selo("Pagamento pendente", pendente = true)
       }
       val resumo = when {
-        registro.tipoServico == TipoServico.ABERTURA && registro.abertura.isNotBlank() -> registro.abertura
+        TipoServico.ABERTURA in registro.tiposServico && registro.abertura.isNotBlank() -> registro.abertura
         registro.defeito.isNotBlank() -> registro.defeito
         else -> registro.solucao
       }

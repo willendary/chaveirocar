@@ -21,7 +21,7 @@ object Compartilhamento {
       .filter { it.isNotBlank() }
       .joinToString(" ")
     appendLine("*${atendimento.placa}* ${carro}".trim())
-    appendLine("${formatarData(atendimento.dataServico)} · ${atendimento.tipoServico.rotulo}")
+    appendLine("${formatarData(atendimento.dataServico)} · ${atendimento.tiposEmTexto}")
     if (atendimento.defeito.isNotBlank()) appendLine("Defeito: ${atendimento.defeito}")
     if (atendimento.solucao.isNotBlank()) appendLine("Solução: ${atendimento.solucao}")
     if (atendimento.abertura.isNotBlank()) appendLine("Abertura: ${atendimento.abertura}")
@@ -74,8 +74,10 @@ object Compartilhamento {
       .joinToString(" ")
     tela.drawText(carro, 40f, y, texto)
     y += 18f
-    tela.drawText("${formatarData(atendimento.dataServico)} · ${atendimento.tipoServico.rotulo}", 40f, y, texto)
-    y += 28f
+    y = escreverQuebrado(tela,
+      "${formatarData(atendimento.dataServico)} · ${atendimento.tiposEmTexto}",
+      texto, 40f, y, largura - 80f)
+    y += 12f
 
     fun paragrafo(rotulo: String, valor: String) {
       if (valor.isBlank()) return
