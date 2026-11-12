@@ -1,6 +1,9 @@
 package com.willendary.chaveirocar
 
 import android.graphics.Bitmap
+import android.content.ContentValues
+import android.os.Environment
+import android.provider.MediaStore
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -21,7 +24,6 @@ import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
 import org.junit.Assert.*
-import java.io.File
 
 /** Exercita as telas reais com dados fictícios, sem depender de login ou rede. */
 class VisualSmokeTest {
@@ -53,12 +55,24 @@ class VisualSmokeTest {
     compose.waitUntil(15000) { compose.onAllNodesWithText(texto).fetchSemanticsNodes().isNotEmpty() }
     compose.waitForIdle()
   }
+  private fun salvarCaptura(nome: String, imagem: Bitmap) {
+    // MediaStore preserva as capturas mesmo apos a desinstalacao do APK de teste.
+    val dados = ContentValues().apply {
+      put(MediaStore.MediaColumns.DISPLAY_NAME, "$nome.png")
+      put(MediaStore.MediaColumns.MIME_TYPE, "image/png")
+      put(MediaStore.MediaColumns.RELATIVE_PATH, "${Environment.DIRECTORY_PICTURES}/ChaveiroCarVisual/$perfil")
+    }
+    val uri = requireNotNull(contexto.contentResolver.insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, dados)) {
+      "Nao foi possivel criar captura: $nome"
+    }
+    contexto.contentResolver.openOutputStream(uri)?.use {
+      check(imagem.compress(Bitmap.CompressFormat.PNG, 100, it)) { "Falha ao salvar captura: $nome" }
+    } ?: error("Nao foi possivel abrir a captura: $nome")
+  }
+
   private fun foto(nome: String) {
     compose.waitForIdle()
-    val pasta = File(contexto.getExternalFilesDir(null), "screenshots/$perfil").apply { mkdirs() }
-    File(pasta, "$nome.png").outputStream().use {
-      compose.onRoot().captureToImage().asAndroidBitmap().compress(Bitmap.CompressFormat.PNG, 100, it)
-    }
+    salvarCaptura(nome, compose.onRoot().captureToImage().asAndroidBitmap())
   }
 
   @Test fun listaBuscaFiltrosEAbertura() {
@@ -147,7 +161,7 @@ class VisualSmokeTest {
     esperar("Conta e backup")
     compose.onNode(hasText("Serviços") and hasClickAction()).performClick()
     esperar("Acesso rápido")
-    compose.onNodeWithText("Novo serviço").performClick()
+    compose.onNodeWithTag("acao_novo_servico").assertExists().performClick()
     esperar("Placa *")
     compose.onNodeWithContentDescription("Voltar").performClick()
     esperar("Acesso rápido")
@@ -158,9 +172,6 @@ class VisualSmokeTest {
     compose.onNodeWithText("Vamos lá").assertIsDisplayed()
     // Diálogo é uma janela separada, captura pela automação do Android.
     compose.waitForIdle()
-    val pasta = File(contexto.getExternalFilesDir(null), "screenshots/$perfil").apply { mkdirs() }
-    File(pasta, "12-novidades.png").outputStream().use {
-      InstrumentationRegistry.getInstrumentation().uiAutomation.takeScreenshot().compress(Bitmap.CompressFormat.PNG, 100, it)
-    }
+    salvarCaptura("12-novidades", InstrumentationRegistry.getInstrumentation().uiAutomation.takeScreenshot())
   }
 }
