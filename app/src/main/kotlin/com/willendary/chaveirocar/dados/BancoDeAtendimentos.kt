@@ -49,7 +49,10 @@ class BancoDeAtendimentos(contexto: Context) :
         pago INTEGER NOT NULL DEFAULT 1,
         busca TEXT NOT NULL DEFAULT '',
         criado_em INTEGER NOT NULL,
-        atualizado_em INTEGER NOT NULL
+        atualizado_em INTEGER NOT NULL,
+        uuid TEXT NOT NULL DEFAULT '',
+        revisao_remota INTEGER NOT NULL DEFAULT 0,
+        sinc_pendente INTEGER NOT NULL DEFAULT 0
       )
       """.trimIndent(),
     )
@@ -59,6 +62,7 @@ class BancoDeAtendimentos(contexto: Context) :
     banco.execSQL("CREATE INDEX idx_fotos_atendimento ON fotos(atendimento_id)")
     criarTabelaFichas(banco)
     banco.execSQL("CREATE INDEX idx_fichas_veiculo ON fichas_tecnicas(marca, modelo)")
+    criarTabelasSync(banco)
   }
 
   private fun criarTabelaFotos(banco: SQLiteDatabase) {
@@ -71,7 +75,10 @@ class BancoDeAtendimentos(contexto: Context) :
         categoria TEXT NOT NULL DEFAULT 'CARRO',
         legenda TEXT NOT NULL DEFAULT '',
         ordem INTEGER NOT NULL DEFAULT 0,
-        criado_em INTEGER NOT NULL
+        criado_em INTEGER NOT NULL,
+        uuid TEXT NOT NULL DEFAULT '',
+        revisao_remota INTEGER NOT NULL DEFAULT 0,
+        sinc_pendente INTEGER NOT NULL DEFAULT 0
       )
       """.trimIndent(),
     )
@@ -100,9 +107,40 @@ class BancoDeAtendimentos(contexto: Context) :
         origem TEXT NOT NULL DEFAULT '',
         busca TEXT NOT NULL DEFAULT '',
         criado_em INTEGER NOT NULL,
-        atualizado_em INTEGER NOT NULL
+        atualizado_em INTEGER NOT NULL,
+        uuid TEXT NOT NULL DEFAULT '',
+        revisao_remota INTEGER NOT NULL DEFAULT 0,
+        sinc_pendente INTEGER NOT NULL DEFAULT 0
       )
       """.trimIndent(),
+    )
+  }
+
+  private fun criarTabelasSync(banco: SQLiteDatabase) {
+    banco.execSQL(
+      """CREATE TABLE IF NOT EXISTS sync_saidas (
+        op_id TEXT PRIMARY KEY,
+        entidade TEXT NOT NULL DEFAULT 'atendimento',
+        uuid TEXT NOT NULL,
+        tipo TEXT NOT NULL,
+        base_revisao INTEGER NOT NULL,
+        criado_em INTEGER NOT NULL
+      )""",
+    )
+    banco.execSQL(
+      """CREATE TABLE IF NOT EXISTS sync_conflitos (
+        local_id INTEGER PRIMARY KEY,
+        entidade TEXT NOT NULL DEFAULT 'atendimento',
+        uuid TEXT NOT NULL,
+        revisao_servidor INTEGER NOT NULL,
+        criado_em INTEGER NOT NULL
+      )""",
+    )
+    banco.execSQL(
+      """CREATE TABLE IF NOT EXISTS sync_excluidos (
+        uuid TEXT PRIMARY KEY,
+        criado_em INTEGER NOT NULL
+      )""",
     )
   }
 
@@ -132,83 +170,46 @@ class BancoDeAtendimentos(contexto: Context) :
       banco.execSQL("CREATE INDEX idx_fichas_veiculo ON fichas_tecnicas(marca, modelo)")
     }
     if (versaoAntiga < 7) {
-      banco.execSQL("ALTER TABLE atendimentos ADD COLUMN uuid TEXT NOT NULL DEFAULT ''")
-      banco.execSQL("ALTER TABLE atendimentos ADD COLUMN revisao_remota INTEGER NOT NULL DEFAULT 0")
-      banco.execSQL("ALTER TABLE atendimentos ADD COLUMN sinc_pendente INTEGER NOT NULL DEFAULT 0")
-      banco.execSQL("ALTER TABLE fichas_tecnicas ADD COLUMN uuid TEXT NOT NULL DEFAULT ''")
-      banco.execSQL("ALTER TABLE fichas_tecnicas ADD COLUMN revisao_remota INTEGER NOT NULL DEFAULT 0")
-      banco.execSQL("ALTER TABLE fichas_tecnicas ADD COLUMN sinc_pendente INTEGER NOT NULL DEFAULT 0")
-      banco.execSQL("ALTER TABLE fotos ADD COLUMN uuid TEXT NOT NULL DEFAULT ''")
-      banco.execSQL("ALTER TABLE fotos ADD COLUMN revisao_remota INTEGER NOT NULL DEFAULT 0")
-      banco.execSQL("ALTER TABLE fotos ADD COLUMN sinc_pendente INTEGER NOT NULL DEFAULT 0")
-      banco.execSQL(
-        """CREATE TABLE sync_saidas (
-          op_id TEXT PRIMARY KEY,
-          entidade TEXT NOT NULL DEFAULT 'atendimento',
-          uuid TEXT NOT NULL,
-          tipo TEXT NOT NULL,
-          base_revisao INTEGER NOT NULL,
-          criado_em INTEGER NOT NULL
-        )""",
-      )
-      banco.execSQL(
-        """CREATE TABLE sync_conflitos (
-          local_id INTEGER PRIMARY KEY,
-          entidade TEXT NOT NULL DEFAULT 'atendimento',
-          uuid TEXT NOT NULL,
-          revisao_servidor INTEGER NOT NULL,
-          criado_em INTEGER NOT NULL
-        )""",
-      )
-      banco.execSQL(
-        """CREATE TABLE sync_excluidos (
-          uuid TEXT PRIMARY KEY,
-          criado_em INTEGER NOT NULL
-        )""",
-      )
+      fun existe(tabela: String): Boolean =
+        banco.query(
+          "sqlite_master", arrayOf("name"), "name = ?", arrayOf(tabela), null, null, null,
+        ).use { it.moveToFirst() }
+      if (existe("atendimentos")) {
+        banco.execSQL("ALTER TABLE atendimentos ADD COLUMN uuid TEXT NOT NULL DEFAULT ''")
+        banco.execSQL("ALTER TABLE atendimentos ADD COLUMN revisao_remota INTEGER NOT NULL DEFAULT 0")
+        banco.execSQL("ALTER TABLE atendimentos ADD COLUMN sinc_pendente INTEGER NOT NULL DEFAULT 0")
+      }
+      if (existe("fichas_tecnicas")) {
+        banco.execSQL("ALTER TABLE fichas_tecnicas ADD COLUMN uuid TEXT NOT NULL DEFAULT ''")
+        banco.execSQL("ALTER TABLE fichas_tecnicas ADD COLUMN revisao_remota INTEGER NOT NULL DEFAULT 0")
+        banco.execSQL("ALTER TABLE fichas_tecnicas ADD COLUMN sinc_pendente INTEGER NOT NULL DEFAULT 0")
+      }
+      if (existe("fotos")) {
+        banco.execSQL("ALTER TABLE fotos ADD COLUMN uuid TEXT NOT NULL DEFAULT ''")
+        banco.execSQL("ALTER TABLE fotos ADD COLUMN revisao_remota INTEGER NOT NULL DEFAULT 0")
+        banco.execSQL("ALTER TABLE fotos ADD COLUMN sinc_pendente INTEGER NOT NULL DEFAULT 0")
+      }
+      criarTabelasSync(banco)
       // Registros antigos ganham UUID e entram na fila de envio uma vez.
-      banco.query("atendimentos", arrayOf("id", "uuid"), "uuid = ''", null, null, null, null).use { cursor ->
-        while (cursor.moveToNext()) {
-          val idLocal = cursor.getLong(0)
-          banco.update(
-            "atendimentos",
-            ContentValues().apply {
-              put("uuid", java.util.UUID.randomUUID().toString())
-              put("sinc_pendente", 1)
-            },
-            "id = ?",
-            arrayOf(idLocal.toString()),
-          )
+      fun retrofill(tabela: String) {
+        banco.query(tabela, arrayOf("id", "uuid"), "uuid = ''", null, null, null, null).use { cursor ->
+          while (cursor.moveToNext()) {
+            val idLocal = cursor.getLong(0)
+            banco.update(
+              tabela,
+              ContentValues().apply {
+                put("uuid", java.util.UUID.randomUUID().toString())
+                put("sinc_pendente", 1)
+              },
+              "id = ?",
+              arrayOf(idLocal.toString()),
+            )
+          }
         }
       }
-      banco.query("fichas_tecnicas", arrayOf("id", "uuid"), "uuid = ''", null, null, null, null).use { cursor ->
-        while (cursor.moveToNext()) {
-          val idLocal = cursor.getLong(0)
-          banco.update(
-            "fichas_tecnicas",
-            ContentValues().apply {
-              put("uuid", java.util.UUID.randomUUID().toString())
-              put("sinc_pendente", 1)
-            },
-            "id = ?",
-            arrayOf(idLocal.toString()),
-          )
-        }
-      }
-      banco.query("fotos", arrayOf("id", "uuid"), "uuid = ''", null, null, null, null).use { cursor ->
-        while (cursor.moveToNext()) {
-          val idLocal = cursor.getLong(0)
-          banco.update(
-            "fotos",
-            ContentValues().apply {
-              put("uuid", java.util.UUID.randomUUID().toString())
-              put("sinc_pendente", 1)
-            },
-            "id = ?",
-            arrayOf(idLocal.toString()),
-          )
-        }
-      }
+      if (existe("atendimentos")) retrofill("atendimentos")
+      if (existe("fichas_tecnicas")) retrofill("fichas_tecnicas")
+      if (existe("fotos")) retrofill("fotos")
     }
   }
 
