@@ -183,9 +183,10 @@ class BancoDeAtendimentos(contexto: Context) :
         }
         return false
       }
-      fun adicionar(tabela: String, nome: String) {
-        if (!coluna(tabela, nome)) {
-          banco.execSQL("ALTER TABLE $tabela ADD COLUMN $nome")
+      fun adicionar(tabela: String, definicao: String) {
+        val nomeColuna = definicao.substringBefore(" ")
+        if (!coluna(tabela, nomeColuna)) {
+          banco.execSQL("ALTER TABLE $tabela ADD COLUMN $definicao")
         }
       }
       fun retrofill(tabela: String) {
