@@ -1,5 +1,11 @@
 package com.willendary.chaveirocar.ui
 
+import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.OutlinedTextFieldDefaults
+import androidx.compose.material.icons.filled.Star
+import androidx.compose.material.icons.filled.Build
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -106,24 +112,12 @@ fun TelaFichario(
 
   Scaffold(
     topBar = {
-      TopAppBar(
-        title = {
-          Column {
-            Text("Fichário", style = MaterialTheme.typography.titleLarge)
-            Text(
-              text = if (modelos.isEmpty()) "Carros já atendidos" else "${modelos.size} modelo(s)",
-              style = MaterialTheme.typography.bodySmall,
-              color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-          }
-        },
-        colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.background),
-      )
+      CabecalhoTela("Fichário", "Sua biblioteca de soluções")
     },
     contentWindowInsets = WindowInsets(0, 0, 0, 0),
     containerColor = MaterialTheme.colorScheme.background,
   ) { espacamento ->
-    Column(modifier = Modifier.fillMaxSize().padding(espacamento)) {
+    Column(modifier = Modifier.conteudoResponsivo().padding(espacamento)) {
       OutlinedTextField(
         value = busca,
         onValueChange = { busca = it },
@@ -131,7 +125,12 @@ fun TelaFichario(
         placeholder = { Text("Buscar marca ou modelo") },
         leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
         singleLine = true,
-        shape = MaterialTheme.shapes.extraLarge,
+        shape = MaterialTheme.shapes.medium,
+        colors = OutlinedTextFieldDefaults.colors(
+          unfocusedContainerColor = MaterialTheme.colorScheme.surface,
+          focusedContainerColor = MaterialTheme.colorScheme.surface,
+          unfocusedBorderColor = MaterialTheme.colorScheme.outlineVariant,
+        ),
       )
 
       when {
@@ -143,19 +142,9 @@ fun TelaFichario(
           Modifier.fillMaxSize().padding(32.dp),
           contentAlignment = Alignment.Center,
         ) {
-          Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            Text(
-              text = if (busca.isBlank()) "Fichário vazio" else "Nada encontrado",
-              style = MaterialTheme.typography.titleMedium,
-            )
-            Spacer(Modifier.height(6.dp))
-            Text(
-              text = if (busca.isBlank()) "Os carros aparecem aqui depois do primeiro serviço."
-              else "Tente outra marca ou modelo.",
-              style = MaterialTheme.typography.bodyMedium,
-              color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-          }
+          EstadoVazio(if (busca.isBlank()) "Sua biblioteca começa aqui" else "Nenhum modelo encontrado",
+            if (busca.isBlank()) "Os veículos e procedimentos aparecem aqui depois do primeiro serviço."
+            else "Tente outra marca ou modelo.")
         }
 
         else -> LazyColumn(
@@ -163,6 +152,10 @@ fun TelaFichario(
           verticalArrangement = Arrangement.spacedBy(10.dp),
           contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 10.dp, bottom = 24.dp),
         ) {
+          item {
+            PainelDestaque("Conhecimento que fica.", "Aberturas, códigos e procedimentos organizados por veículo.", "${modelos.size} MODELO(S) NA BIBLIOTECA")
+          }
+          item { TituloSecao(if (favoritos.isEmpty()) "Seus veículos" else "Seus veículos · favoritos primeiro") }
           items(visiveis) { modelo ->
             CartaoModelo(
               modelo = modelo,
@@ -178,43 +171,27 @@ fun TelaFichario(
 }
 
 @Composable
-private fun CartaoModelo(
-  modelo: ResumoModelo,
-  onAbrir: () -> Unit,
-  fixado: Boolean = false,
-  onFixar: () -> Unit = {},
-) {
-  Card(
-    modifier = Modifier.fillMaxWidth().clickable(onClick = onAbrir),
-    shape = MaterialTheme.shapes.large,
-  ) {
-    Column(modifier = Modifier.padding(16.dp)) {
-      Row(verticalAlignment = Alignment.CenterVertically) {
-        Text(
-          text = listOf(modelo.marca, modelo.modelo).filter { it.isNotBlank() }.joinToString(" ")
-            .ifBlank { "Sem nome" },
-          style = MaterialTheme.typography.titleMedium,
-          modifier = Modifier.weight(1f),
-        )
-        if (modelo.ano.isNotBlank()) Selo(modelo.ano)
+private fun CartaoModelo(modelo: ResumoModelo, onAbrir: () -> Unit, fixado: Boolean = false, onFixar: () -> Unit = {}) {
+  Card(onClick = onAbrir, modifier = Modifier.fillMaxWidth(),
+    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+    border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)) {
+    Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+      Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+        Column(Modifier.weight(1f)) {
+          Text(modelo.marca.ifBlank { "Veículo" }, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
+          Text(modelo.modelo.ifBlank { "Modelo não informado" }, style = MaterialTheme.typography.titleLarge)
+        }
+        IconButton(onClick = onFixar) {
+          Icon(Icons.Default.Star, if (fixado) "Desafixar modelo" else "Fixar modelo",
+            tint = if (fixado) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline)
+        }
       }
-      Spacer(Modifier.height(6.dp))
-      Text(
-        text = "${modelo.quantidade} serviço(s) · último em ${formatarData(modelo.ultimaData)}",
+      if (modelo.ano.isNotBlank()) Selo(modelo.ano)
+      Text("${modelo.quantidade} serviço(s) · último em ${formatarData(modelo.ultimaData)}",
+        style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+      Text(if (modelo.temProcedimento) "Procedimentos disponíveis" else "Adicione um procedimento no próximo serviço",
         style = MaterialTheme.typography.bodySmall,
-        color = MaterialTheme.colorScheme.onSurfaceVariant,
-      )
-      if (!modelo.temProcedimento) {
-        Spacer(Modifier.height(8.dp))
-        Text(
-          text = "Sem procedimento registrado",
-          style = MaterialTheme.typography.bodySmall,
-          color = MaterialTheme.colorScheme.error,
-        )
-      }
-      Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        TextButton(onClick = onFixar) { Text(if (fixado) "Fixado" else "Fixar") }
-      }
+        color = if (modelo.temProcedimento) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant)
     }
   }
 }
@@ -268,7 +245,7 @@ fun TelaFicharioModelo(
             )
           }
         },
-        navigationIcon = { TextButton(onClick = onVoltar) { Text("Voltar") } },
+        navigationIcon = { BotaoVoltar(onVoltar) },
       )
     },
   ) { espacamento ->
@@ -281,7 +258,7 @@ fun TelaFicharioModelo(
 
     Column(
       modifier = Modifier
-        .fillMaxSize()
+        .conteudoResponsivo()
         .padding(espacamento)
         .verticalScroll(rememberScrollState())
         .padding(16.dp),

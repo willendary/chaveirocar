@@ -1,6 +1,10 @@
 package com.willendary.chaveirocar.ui
 
 import android.widget.Toast
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Share
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -117,10 +121,10 @@ fun TelaDetalhe(
   Scaffold(
     topBar = {
       TopAppBar(
-        title = { Text("Registro") },
-        navigationIcon = { TextButton(onClick = onVoltar) { Text("Voltar") } },
+        title = { Text("Atendimento", style = MaterialTheme.typography.titleLarge) },
+        navigationIcon = { BotaoVoltar(onVoltar) },
         actions = {
-          TextButton(onClick = { compartilhar() }, enabled = atendimento != null) { Text("Compartilhar") }
+          IconButton(onClick = { compartilhar() }, enabled = atendimento != null) { Icon(Icons.Default.Share, "Compartilhar atendimento") }
           TextButton(onClick = { gerarPdf() }, enabled = atendimento != null && !gerandoPdf) {
             Text(if (gerandoPdf) "Gerando..." else "PDF")
           }
@@ -137,75 +141,47 @@ fun TelaDetalhe(
 
     Column(
       modifier = Modifier
-        .fillMaxSize()
+        .conteudoResponsivo()
         .padding(espacamento)
         .verticalScroll(rememberScrollState())
         .padding(16.dp),
       verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-      Row(verticalAlignment = Alignment.CenterVertically) {
-        Text(
-          text = registro.placa,
-          fontFamily = FontFamily.Monospace,
-          fontWeight = FontWeight.Bold,
-          fontSize = 32.sp,
-          color = MaterialTheme.colorScheme.primary,
-        )
-        Spacer(Modifier.width(12.dp))
-        Selo(registro.tipoServico.rotulo)
+      PainelDestaque(registro.placa,
+        listOf(registro.marca, registro.modelo, registro.ano).filter { it.isNotBlank() }.joinToString(" ").ifBlank { "Veículo sem modelo" },
+        registro.tipoServico.rotulo)
+      Card(modifier = Modifier.fillMaxWidth()) {
+        Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+          FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Selo(if (registro.pago) "Pago" else "Pagamento pendente", pendente = !registro.pago)
+            if (registro.valorCentavos > 0) Text(formatarValor(registro.valorCentavos),
+              style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.primary)
+          }
+          Text("Serviço em ${formatarData(registro.dataServico)}", style = MaterialTheme.typography.bodyMedium)
+          if (registro.chassi.isNotBlank()) Text("Chassi ${registro.chassi}", style = MaterialTheme.typography.bodySmall)
+          if (registro.atualizadoEm > registro.dataServico) Text("Última correção em ${formatarData(registro.atualizadoEm)}",
+            style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+          if (registro.clienteNome.isNotBlank() || registro.clienteTelefone.isNotBlank()) {
+            Text("Cliente", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text(listOf(registro.clienteNome, registro.clienteTelefone).filter { it.isNotBlank() }.joinToString(" · "),
+              style = MaterialTheme.typography.bodyMedium)
+          }
+        }
       }
-      Text(
-        text = listOf(registro.marca, registro.modelo, registro.ano)
-          .filter { it.isNotBlank() }
-          .joinToString(" "),
-        style = MaterialTheme.typography.titleMedium,
-      )
-      Text(
-        text = formatarData(registro.dataServico) +
-          if (registro.chassi.isNotBlank()) " · Chassi ${registro.chassi}" else "" +
-          if (registro.atualizadoEm > registro.dataServico) " · Última correção em ${formatarData(registro.atualizadoEm)}" else "",
-        style = MaterialTheme.typography.bodySmall,
-        color = MaterialTheme.colorScheme.onSurfaceVariant,
-      )
-      if (registro.pago) {
-        Text("Pago", style = MaterialTheme.typography.bodyMedium)
-      } else {
-        Text(
-          "Pendente de pagamento",
-          style = MaterialTheme.typography.bodyMedium,
-          color = MaterialTheme.colorScheme.error,
-        )
-      }
-      if (registro.valorCentavos > 0) {
-        Text("Valor: ${formatarValor(registro.valorCentavos)}", style = MaterialTheme.typography.bodyMedium)
-      }
-      if (registro.clienteNome.isNotBlank() || registro.clienteTelefone.isNotBlank()) {
-        Text(
-          text = listOfNotNull(
-            registro.clienteNome.takeIf { it.isNotBlank() },
-            registro.clienteTelefone.takeIf { it.isNotBlank() },
-          ).joinToString(" · "),
-          style = MaterialTheme.typography.bodyMedium,
-        )
-      }
-
-      Card(
-        modifier = Modifier.fillMaxWidth(),
-        colors = androidx.compose.material3.CardDefaults.cardColors(
-          containerColor = MaterialTheme.colorScheme.secondaryContainer,
-        ),
-      ) {
-        Column(Modifier.padding(14.dp)) {
-          Text("Abertura", style = MaterialTheme.typography.labelLarge)
-          Spacer(Modifier.height(4.dp))
-          Text(registro.abertura, style = MaterialTheme.typography.bodyLarge)
+      if (registro.abertura.isNotBlank()) {
+        TituloSecao("Técnica de abertura")
+        Card(modifier = Modifier.fillMaxWidth(), colors = androidx.compose.material3.CardDefaults.cardColors(
+          containerColor = MaterialTheme.colorScheme.primaryContainer)) {
+          Text(registro.abertura, Modifier.padding(20.dp), style = MaterialTheme.typography.bodyLarge,
+            color = MaterialTheme.colorScheme.onPrimaryContainer)
         }
       }
 
       if (registro.codigoChave.isNotBlank() || registro.codigoConfiguracao.isNotBlank()) {
+        TituloSecao("Códigos do veículo")
         Card(modifier = Modifier.fillMaxWidth()) {
           Column(
-            modifier = Modifier.padding(14.dp),
+            modifier = Modifier.padding(20.dp),
             verticalArrangement = Arrangement.spacedBy(10.dp),
           ) {
             if (registro.codigoChave.isNotBlank()) {
@@ -228,8 +204,10 @@ fun TelaDetalhe(
         }
       }
 
+      if (registro.defeito.isNotBlank() || registro.solucao.isNotBlank() || registro.ferramenta.isNotBlank()) {
+      TituloSecao("Diagnóstico e solução")
       Card(modifier = Modifier.fillMaxWidth()) {
-        Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
           if (registro.defeito.isNotBlank()) {
             Text("Defeito encontrado", style = MaterialTheme.typography.labelLarge)
             Text(registro.defeito, style = MaterialTheme.typography.bodyMedium)
@@ -242,6 +220,8 @@ fun TelaDetalhe(
             Text("Ferramenta: ${registro.ferramenta}", style = MaterialTheme.typography.bodyMedium)
           }
         }
+      }
+
       }
 
       val fotosDoCarro = fotos.filter { it.categoria == CategoriaFoto.CARRO }
@@ -257,9 +237,9 @@ fun TelaDetalhe(
         GradeDeFotos(fotosDeProcedimento, mostrarPasso = true) { fotoAberta = it }
       }
 
-      Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        Button(onClick = { onEditar(registro.id) }, modifier = Modifier.weight(1f)) { Text("Editar") }
-        OutlinedButton(onClick = { onDuplicar(registro) }, modifier = Modifier.weight(1f)) {
+      Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Button(onClick = { onEditar(registro.id) }, modifier = Modifier.fillMaxWidth()) { Text("Editar atendimento") }
+        OutlinedButton(onClick = { onDuplicar(registro) }, modifier = Modifier.fillMaxWidth()) {
           Text("Novo atendimento (mesmo carro)")
         }
       }

@@ -30,13 +30,16 @@ fun DialogoNovidades(
 ) {
   AlertDialog(
     onDismissRequest = onFechar,
-    title = { Text("Novidades da versão $versao") },
+    icon = { MarcaChaveiro(56.dp) },
+    title = { Text("Uma nova versão para você") },
     text = {
       Column(
         modifier = Modifier
           .heightIn(max = 360.dp)
           .verticalScroll(rememberScrollState()),
       ) {
+        Text("ChaveiroCar $versao", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
+        Spacer(Modifier.height(12.dp))
         when {
           carregando -> {
             Spacer(Modifier.height(8.dp))
@@ -52,6 +55,6 @@ fun DialogoNovidades(
         }
       }
     },
-    confirmButton = { TextButton(onClick = onFechar) { Text("Fechar") } },
+    confirmButton = { TextButton(onClick = onFechar) { Text("Vamos lá") } },
   )
 }

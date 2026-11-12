@@ -1,5 +1,9 @@
 package com.willendary.chaveirocar.ui
 
+import androidx.compose.foundation.layout.safeDrawingPadding
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.Surface
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -103,18 +107,14 @@ fun TelaBloqueio(
     modifier = Modifier
       .fillMaxSize()
       .background(MaterialTheme.colorScheme.background)
-      .padding(24.dp),
+      .safeDrawingPadding().conteudoResponsivo(400.dp)
+      .verticalScroll(rememberScrollState()).padding(24.dp),
     horizontalAlignment = Alignment.CenterHorizontally,
     verticalArrangement = Arrangement.Center,
   ) {
-    Icon(
-      imageVector = Icons.Default.Lock,
-      contentDescription = null,
-      tint = MaterialTheme.colorScheme.primary,
-      modifier = Modifier.size(40.dp),
-    )
+    MarcaChaveiro(64.dp)
     Spacer(Modifier.height(8.dp))
-    Text("ChaveiroCar", style = MaterialTheme.typography.headlineSmall)
+    Text("Bem-vindo de volta", style = MaterialTheme.typography.headlineSmall)
     Text(
       text = "Digite seu PIN para abrir",
       style = MaterialTheme.typography.bodyMedium,
@@ -167,6 +167,7 @@ fun TelaBloqueio(
                 }
               },
               modifier = Modifier.width(76.dp).height(56.dp),
+              shape = MaterialTheme.shapes.medium,
             ) {
               Text(tecla, fontSize = 20.sp, fontWeight = FontWeight.SemiBold)
             }

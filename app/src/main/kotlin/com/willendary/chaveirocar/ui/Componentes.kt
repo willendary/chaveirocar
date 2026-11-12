@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.SuggestionChip
 import androidx.compose.material3.Text
@@ -106,7 +107,12 @@ fun CampoTexto(
       minLines = minimoLinhas,
       keyboardOptions = teclado,
       textStyle = estiloTexto,
-      shape = RoundedCornerShape(14.dp),
+      shape = MaterialTheme.shapes.medium,
+      colors = OutlinedTextFieldDefaults.colors(
+        unfocusedContainerColor = MaterialTheme.colorScheme.surface,
+        focusedContainerColor = MaterialTheme.colorScheme.surface,
+        unfocusedBorderColor = MaterialTheme.colorScheme.outlineVariant,
+      ),
     )
     if (visiveis.isNotEmpty()) {
       FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -124,25 +130,25 @@ fun CampoTexto(
 }
 
 @Composable
-fun Selo(texto: String, modificador: Modifier = Modifier) {
+fun Selo(texto: String, modificador: Modifier = Modifier, pendente: Boolean = false) {
   Text(
     text = texto,
     style = MaterialTheme.typography.labelSmall,
-    color = MaterialTheme.colorScheme.onSecondaryContainer,
+    color = if (pendente) MaterialTheme.colorScheme.onTertiaryContainer else MaterialTheme.colorScheme.onPrimaryContainer,
     modifier = modificador
       .clip(RoundedCornerShape(8.dp))
-      .background(MaterialTheme.colorScheme.secondaryContainer)
-      .padding(horizontal = 8.dp, vertical = 3.dp),
+      .background(if (pendente) MaterialTheme.colorScheme.tertiaryContainer else MaterialTheme.colorScheme.primaryContainer)
+      .padding(horizontal = 10.dp, vertical = 5.dp),
   )
 }
 
 @Composable
 fun TituloSecao(texto: String, modificador: Modifier = Modifier) {
   Text(
-    text = texto.uppercase(),
-    style = MaterialTheme.typography.labelSmall,
+    text = texto,
+    style = MaterialTheme.typography.titleMedium,
     color = MaterialTheme.colorScheme.onSurfaceVariant,
-    modifier = modificador.padding(top = 8.dp, bottom = 2.dp),
+    modifier = modificador.padding(top = 16.dp, bottom = 6.dp),
   )
 }
 
