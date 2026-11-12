@@ -33,4 +33,5 @@ jobs:
       - run: npm run build
       - run: npm run openapi
       - name: OpenAPI atualizado
-        run: git diff --exit-code contracts/openapi.json
+        run: git diff --exit-code -- contracts/openapi.json
+        working-directory: ${{ github.workspace }}
