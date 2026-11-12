@@ -4,6 +4,9 @@ on:
     branches: [main, 'design/**']
   pull_request:
   workflow_dispatch:
+concurrency:
+  group: visual-${{ github.head_ref || github.ref_name }}
+  cancel-in-progress: true
 permissions:
   contents: read
 jobs:
@@ -32,16 +35,7 @@ jobs:
           target: google_apis
           profile: pixel_2
           disable-animations: true
-          script: |
-            adb shell wm size 1080x1920
-            adb shell wm density 480
-            ./gradlew --no-daemon connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.perfil=celular
-            mkdir -p capturas
-            adb pull /sdcard/Android/data/com.willendary.chaveirocar/files/screenshots/ capturas/
-            adb shell wm size 1600x2560
-            adb shell wm density 320
-            ./gradlew --no-daemon connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.perfil=tablet
-            adb pull /sdcard/Android/data/com.willendary.chaveirocar/files/screenshots/ capturas/
+          script: bash scripts/validar-visual.sh
       - uses: actions/upload-artifact@v4
         if: always()
         with:

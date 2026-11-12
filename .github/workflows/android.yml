@@ -2,19 +2,25 @@ name: Android APK
 
 on:
   push:
-    branches: [main]
     tags: ["v*"]
   workflow_dispatch:
+  workflow_run:
+    workflows: ["Visual e navegacao"]
+    types: [completed]
+    branches: [main]
 
 permissions:
   contents: write
 
 jobs:
   build:
+    if: github.event_name != 'workflow_run' || (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push' && github.event.workflow_run.head_branch == 'main')
     runs-on: ubuntu-latest
     steps:
       - name: Baixar codigo
         uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
 
       - name: Java 17
         uses: actions/setup-java@v4
@@ -50,7 +56,8 @@ jobs:
       - name: Nomear APK
         run: |
           mkdir -p dist
-          versao="${GITHUB_REF_NAME#v}"
+          versao=$(sed -n 's/.*versionName = "\([^"]*\)".*/\1/p' app/build.gradle.kts)
+          echo "APP_VERSION=$versao" >> "$GITHUB_ENV"
           cp app/build/outputs/apk/release/app-release.apk "dist/chaveirocar-${versao}.apk"
 
       - name: Guardar APK do build
@@ -66,3 +73,19 @@ jobs:
           name: ChaveiroCar ${{ github.ref_name }}
           files: dist/*.apk
           generate_release_notes: true
+
+      - name: Publicar versao validada na main
+        if: github.event_name == 'workflow_run'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          notas="release/v${APP_VERSION}.md"
+          if [ ! -f "$notas" ]; then
+            echo "Sem notas de publicacao para esta versao."
+            exit 0
+          fi
+          if gh release view "v${APP_VERSION}" >/dev/null 2>&1; then
+            echo "Versao ja publicada."
+            exit 0
+          fi
+          gh release create "v${APP_VERSION}" dist/*.apk --target "$(git rev-parse HEAD)" --title "ChaveiroCar ${APP_VERSION}" --notes-file "$notas"

@@ -71,16 +71,18 @@ class VisualSmokeTest {
     foto("01-servicos")
     compose.onNode(hasSetTextAction()).performTextInput("ABC1D23")
     esperar("1 serviço(s)")
-    compose.onNodeWithText("ABC1D23").performScrollTo().assertIsDisplayed()
+    compose.onNode(hasText("ABC1D23") and !hasSetTextAction()).performScrollTo().assertIsDisplayed()
     foto("02-busca")
-    compose.onNodeWithText("ABC1D23").performClick()
+    compose.onNode(hasText("ABC1D23") and !hasSetTextAction()).performClick()
     compose.runOnIdle { assertEquals(id, aberto) }
     compose.onNodeWithContentDescription("Limpar busca").performScrollTo().performClick()
     esperar("Acesso rápido")
     compose.onNodeWithText("Filtros").performScrollTo().performClick()
     compose.onNodeWithText("Abertura", useUnmergedTree = true).performScrollTo().performClick()
-    esperar("Nenhum resultado")
-    compose.onNodeWithText("Nenhum resultado").performScrollTo().assertIsDisplayed()
+    compose.waitUntil(15000) {
+      runCatching { compose.onNode(hasScrollToNodeAction()).performScrollToNode(hasText("Nenhum resultado")) }.isSuccess
+    }
+    compose.onNodeWithText("Nenhum resultado").assertIsDisplayed()
     foto("03-vazio-filtrado")
   }
 
@@ -132,6 +134,25 @@ class VisualSmokeTest {
     compose.onNodeWithText("Entrar").assertIsEnabled()
     foto("11-bloqueio")
   }
+  @Test fun navegacaoPrincipal() {
+    Preferencias.obter(contexto).edit()
+      .putString(Preferencias.CONTA_NUVEM, "demonstracao@example.com")
+      .putString(Preferencias.VERSAO_VISTA, "1.4.0")
+      .putLong(Preferencias.ULTIMO_BACKUP_AUTO, System.currentTimeMillis()).commit()
+    tela { ChaveiroCarApp() }
+    esperar("Acesso rápido"); foto("00-inicio-com-navegacao")
+    compose.onNodeWithText("Fichário").performClick()
+    esperar("Polo")
+    compose.onNode(hasText("Ajustes") and hasClickAction()).performClick()
+    esperar("Conta e backup")
+    compose.onNode(hasText("Serviços") and hasClickAction()).performClick()
+    esperar("Acesso rápido")
+    compose.onNodeWithText("Novo serviço").performClick()
+    esperar("Placa *")
+    compose.onNodeWithContentDescription("Voltar").performClick()
+    esperar("Acesso rápido")
+  }
+
   @Test fun novidades() {
     tela { DialogoNovidades("1.4.0", "Nova identidade visual, navegação mais clara e fichário renovado.", false, {}) }
     compose.onNodeWithText("Vamos lá").assertIsDisplayed()
