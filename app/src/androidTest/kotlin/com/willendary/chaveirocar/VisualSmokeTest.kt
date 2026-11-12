@@ -13,6 +13,7 @@ import androidx.compose.ui.graphics.asAndroidBitmap
 import androidx.compose.ui.test.*
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.test.platform.app.InstrumentationRegistry
+import com.willendary.chaveirocar.atualizacao.Atualizacoes
 import com.willendary.chaveirocar.dados.BancoDeAtendimentos
 import com.willendary.chaveirocar.dados.Preferencias
 import com.willendary.chaveirocar.modelo.Atendimento
@@ -152,7 +153,7 @@ class VisualSmokeTest {
   @Test fun navegacaoPrincipal() {
     Preferencias.obter(contexto).edit()
       .putString(Preferencias.CONTA_NUVEM, "demonstracao@example.com")
-      .putString(Preferencias.VERSAO_VISTA, "1.4.0")
+      .putString(Preferencias.VERSAO_VISTA, Atualizacoes.versaoInstalada(contexto))
       .putLong(Preferencias.ULTIMO_BACKUP_AUTO, System.currentTimeMillis()).commit()
     tela { ChaveiroCarApp() }
     esperar("Acesso rápido"); foto("00-inicio-com-navegacao")
