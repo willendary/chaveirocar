@@ -267,34 +267,23 @@ fun TelaAjustes(
 
   Scaffold(
     topBar = {
-      TopAppBar(
-        title = {
-          Column {
-            Text("Ajustes", style = MaterialTheme.typography.titleLarge)
-            Text(
-              text = "Versão $versao",
-              style = MaterialTheme.typography.bodySmall,
-              color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-          }
-        },
-        colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.background),
-      )
+      CabecalhoTela("Ajustes", "Seu aplicativo, do seu jeito")
     },
     contentWindowInsets = WindowInsets(0, 0, 0, 0),
     containerColor = MaterialTheme.colorScheme.background,
   ) { espacamento ->
     Column(
       modifier = Modifier
-        .fillMaxSize()
+        .conteudoResponsivo()
         .padding(espacamento)
         .verticalScroll(rememberScrollState())
         .padding(16.dp),
       verticalArrangement = Arrangement.spacedBy(10.dp),
     ) {
+      PainelDestaque("Tudo em ordem.", "Gerencie sua conta, proteja seus registros e mantenha o app atualizado.", "CHAVEIROCAR · $versao")
       TituloSecao("Segurança")
       Card(modifier = Modifier.fillMaxWidth()) {
-        Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        Column(modifier = Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
           LinhaInterruptor(
             titulo = "Exigir PIN ao abrir",
             descricao = "Protege o histórico quando o celular fica na bancada.",
@@ -340,12 +329,12 @@ fun TelaAjustes(
         }
       }
 
-      TituloSecao("Nuvem (Google Drive)")
+      TituloSecao("Conta e backup")
       Card(modifier = Modifier.fillMaxWidth()) {
-        Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Column(modifier = Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
           if (contaNuvem == null) {
             Text(
-              "Conecte sua conta Google para enviar o backup para a pasta oculta do app no Drive e restaurar em outro celular. Sem servidor e sem custo.",
+              "Conecte sua conta Google para guardar uma cópia dos seus registros e restaurar em outro aparelho.",
               style = MaterialTheme.typography.bodySmall,
               color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
@@ -392,10 +381,10 @@ fun TelaAjustes(
 
       TituloSecao("Atualizações")
       Card(modifier = Modifier.fillMaxWidth()) {
-        Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Column(modifier = Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
           Text(
             text = if (atualizacao != null) "Versão ${atualizacao.versao} disponível para baixar."
-            else "Você está na versão mais nova.",
+            else "Versão instalada: $versao. Verifique se há novidades.",
             style = MaterialTheme.typography.bodyMedium,
           )
           Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -419,7 +408,7 @@ fun TelaAjustes(
 
       TituloSecao("Sobre")
       Card(modifier = Modifier.fillMaxWidth()) {
-        Column(modifier = Modifier.padding(14.dp)) {
+        Column(modifier = Modifier.padding(20.dp)) {
           Text("ChaveiroCar $versao", style = MaterialTheme.typography.titleSmall)
           Spacer(Modifier.height(4.dp))
           Text(

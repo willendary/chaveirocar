@@ -1,5 +1,7 @@
 package com.willendary.chaveirocar
 
+import androidx.compose.ui.unit.dp
+import com.willendary.chaveirocar.ui.MarcaChaveiro
 import android.widget.Toast
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.Box
@@ -278,12 +280,12 @@ fun ChaveiroCarApp() {
       else ->
         Scaffold(
           bottomBar = {
-            NavigationBar {
+            NavigationBar(containerColor = MaterialTheme.colorScheme.surface, tonalElevation = 0.dp) {
               NavigationBarItem(
                 selected = aba == Aba.HISTORICO.name,
                 onClick = { aba = Aba.HISTORICO.name },
                 icon = { Icon(Icons.AutoMirrored.Filled.List, contentDescription = null) },
-                label = { Text("Histórico") },
+                label = { Text("Serviços") },
               )
               NavigationBarItem(
                 selected = aba == Aba.FICHARIO.name,

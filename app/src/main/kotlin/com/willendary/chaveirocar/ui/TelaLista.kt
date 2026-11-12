@@ -1,6 +1,19 @@
 package com.willendary.chaveirocar.ui
 
 import android.app.DatePickerDialog
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.ui.platform.testTag
+import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.KeyboardArrowUp
+import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.OutlinedTextFieldDefaults
+import androidx.compose.runtime.saveable.rememberSaveable
+
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -135,7 +148,7 @@ private fun zerarHorario(calendario: Calendar) {
   calendario.set(Calendar.MILLISECOND, 0)
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun TelaLista(
   banco: BancoDeAtendimentos,
@@ -145,230 +158,155 @@ fun TelaLista(
   onNovo: () -> Unit,
 ) {
   var registros by remember { mutableStateOf<List<Atendimento>>(emptyList()) }
+  var carregando by remember { mutableStateOf(true) }
+  var erroCarga by remember { mutableStateOf(false) }
+  var tentativa by remember { mutableStateOf(0) }
+  var filtrosAbertos by rememberSaveable { mutableStateOf(false) }
 
-  LaunchedEffect(filtro) {
-    registros = withContext(Dispatchers.IO) {
-      banco.listar(
-        consulta = filtro.busca,
-        tipo = filtro.tipo,
-        desde = filtro.desde(),
-        ate = filtro.ate(),
-        somenteComFotos = filtro.somenteComFotos,
-      )
+  LaunchedEffect(filtro, tentativa) {
+    carregando = true
+    erroCarga = false
+    try {
+      registros = withContext(Dispatchers.IO) {
+        banco.listar(consulta = filtro.busca, tipo = filtro.tipo, desde = filtro.desde(),
+          ate = filtro.ate(), somenteComFotos = filtro.somenteComFotos)
+      }
+    } catch (cancelado: kotlinx.coroutines.CancellationException) {
+      throw cancelado
+    } catch (_: Exception) {
+      erroCarga = true
+    } finally {
+      carregando = false
     }
   }
 
   Scaffold(
-    topBar = {
-      TopAppBar(
-        title = {
-          Column {
-            Text("ChaveiroCar", style = MaterialTheme.typography.titleLarge)
-            Text(
-              text = if (registros.isEmpty()) "Seu histórico de serviços"
-              else "${registros.size} registro(s)",
-              style = MaterialTheme.typography.bodySmall,
-              color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-          }
-        },
-        colors = TopAppBarDefaults.topAppBarColors(
-          containerColor = MaterialTheme.colorScheme.background,
-        ),
-      )
-    },
+    topBar = { CabecalhoTela("ChaveiroCar", "Seu parceiro de bancada") },
     floatingActionButton = {
       ExtendedFloatingActionButton(
-        onClick = onNovo,
-        text = { Text("Novo serviço", fontWeight = FontWeight.SemiBold) },
-        icon = { Icon(Icons.Default.Add, contentDescription = null) },
+        modifier = Modifier.testTag("acao_novo_servico"),
+        onClick = onNovo, containerColor = MaterialTheme.colorScheme.primary,
+        contentColor = MaterialTheme.colorScheme.onPrimary,
+        text = { Text("Novo serviço") }, icon = { Icon(Icons.Default.Add, contentDescription = null) },
       )
     },
     contentWindowInsets = WindowInsets(0, 0, 0, 0),
     containerColor = MaterialTheme.colorScheme.background,
   ) { espacamento ->
-    Column(modifier = Modifier.fillMaxSize().padding(espacamento)) {
-      OutlinedTextField(
-        value = filtro.busca,
-        onValueChange = { aoMudarFiltro(filtro.copy(busca = it)) },
-        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
-        placeholder = { Text("Placa, modelo, defeito, código...") },
-        leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
-        singleLine = true,
-        shape = MaterialTheme.shapes.extraLarge,
-        keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Characters),
-      )
-
-      LazyRow(
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
-        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
-      ) {
-        item {
-          FilterChip(
-            selected = filtro.tipo == null,
-            onClick = { aoMudarFiltro(filtro.copy(tipo = null)) },
-            label = { Text("Todos os tipos") },
-          )
-        }
-        items(TipoServico.entries.toList()) { tipo ->
-          FilterChip(
-            selected = filtro.tipo == tipo,
-            onClick = {
-              aoMudarFiltro(filtro.copy(tipo = if (filtro.tipo == tipo) null else tipo))
-            },
-            label = { Text(tipo.rotulo) },
-          )
+    // Tudo rola junto: filtros não comprimem a lista em telas baixas ou com teclado aberto.
+    LazyColumn(
+      modifier = Modifier.conteudoResponsivo().padding(espacamento),
+      contentPadding = PaddingValues(start = 20.dp, end = 20.dp, top = 12.dp, bottom = 100.dp),
+      verticalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+      item {
+        PainelDestaque("Cada serviço,\nsempre à mão.", "Seu histórico, códigos e soluções em um só lugar.", "SUA OFICINA ORGANIZADA")
+      }
+      item {
+        OutlinedTextField(
+          value = filtro.busca, onValueChange = { aoMudarFiltro(filtro.copy(busca = it)) },
+          modifier = Modifier.fillMaxWidth(),
+          placeholder = { Text("Buscar placa, modelo, código…") },
+          leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
+          trailingIcon = {
+            if (filtro.busca.isNotEmpty()) IconButton(onClick = { aoMudarFiltro(filtro.copy(busca = "")) }) {
+              Icon(Icons.Default.Close, contentDescription = "Limpar busca")
+            }
+          },
+          singleLine = true, shape = MaterialTheme.shapes.medium,
+          colors = OutlinedTextFieldDefaults.colors(
+            unfocusedContainerColor = MaterialTheme.colorScheme.surface,
+            focusedContainerColor = MaterialTheme.colorScheme.surface,
+            unfocusedBorderColor = MaterialTheme.colorScheme.outlineVariant,
+          ),
+        )
+      }
+      item {
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+          Column(Modifier.weight(1f)) {
+            Text(if (filtro.ativo) "Resultados" else "Atendimentos", style = MaterialTheme.typography.titleLarge)
+            Text(if (carregando) "Buscando serviços…" else if (erroCarga) "Não foi possível carregar"
+              else "${registros.size} serviço(s)" + if (filtro.descricao().isNotBlank()) " · ${filtro.descricao()}" else "",
+              style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+          }
+          TextButton(onClick = { filtrosAbertos = !filtrosAbertos }) {
+            Text(if (filtrosAbertos) "Ocultar filtros" else "Filtros")
+            Icon(if (filtrosAbertos) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown, null)
+          }
         }
       }
-
-      LazyRow(
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
-        contentPadding = PaddingValues(horizontal = 16.dp),
-      ) {
-        items(Periodo.entries.toList()) { periodo ->
-          FilterChip(
-            selected = filtro.periodo == periodo,
-            onClick = {
-              if (periodo == Periodo.PERSONALIZADO && filtro.desdePersonalizado == null) {
-                aoMudarFiltro(filtro.copy(periodo = periodo, desdePersonalizado = null, atePersonalizado = null))
-              } else {
-                aoMudarFiltro(filtro.copy(periodo = periodo))
+      if (filtrosAbertos) item {
+        Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)) {
+          Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text("Tipo de serviço", style = MaterialTheme.typography.labelLarge)
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+              FilterChip(selected = filtro.tipo == null, onClick = { aoMudarFiltro(filtro.copy(tipo = null)) }, label = { Text("Todos") })
+              TipoServico.entries.forEach { tipo ->
+                FilterChip(selected = filtro.tipo == tipo,
+                  onClick = { aoMudarFiltro(filtro.copy(tipo = if (filtro.tipo == tipo) null else tipo)) },
+                  label = { Text(tipo.rotulo) })
               }
-            },
-            label = { Text(periodo.rotulo) },
-          )
-        }
-        item {
-          FilterChip(
-            selected = filtro.somenteComFotos,
-            onClick = { aoMudarFiltro(filtro.copy(somenteComFotos = !filtro.somenteComFotos)) },
-            label = { Text("Só com fotos") },
-          )
-        }
-        if (filtro.ativo) {
-          item {
-            TextButton(onClick = { aoMudarFiltro(FiltroLista()) }) { Text("Limpar") }
+            }
+            Text("Período", style = MaterialTheme.typography.labelLarge)
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+              Periodo.entries.forEach { periodo ->
+                FilterChip(selected = filtro.periodo == periodo, onClick = { aoMudarFiltro(filtro.copy(periodo = periodo)) }, label = { Text(periodo.rotulo) })
+              }
+            }
+            if (filtro.periodo == Periodo.PERSONALIZADO) {
+              Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                EscolherData("De", filtro.desdePersonalizado, Modifier.weight(1f)) {
+                  aoMudarFiltro(filtro.copy(desdePersonalizado = it))
+                }
+                EscolherData("Até", filtro.atePersonalizado, Modifier.weight(1f)) { escolhido ->
+                  val fim = Calendar.getInstance().apply {
+                    timeInMillis = escolhido
+                    set(Calendar.HOUR_OF_DAY, 23); set(Calendar.MINUTE, 59); set(Calendar.SECOND, 59); set(Calendar.MILLISECOND, 999)
+                  }.timeInMillis
+                  aoMudarFiltro(filtro.copy(atePersonalizado = fim))
+                }
+              }
+            }
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+              FilterChip(selected = filtro.somenteComFotos,
+                onClick = { aoMudarFiltro(filtro.copy(somenteComFotos = !filtro.somenteComFotos)) }, label = { Text("Só com fotos") })
+              if (filtro.ativo) TextButton(onClick = { aoMudarFiltro(FiltroLista()) }) { Text("Limpar filtros") }
+            }
           }
         }
       }
-
-      if (filtro.periodo == Periodo.PERSONALIZADO) {
-        Row(
-          modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp),
-          horizontalArrangement = Arrangement.spacedBy(8.dp),
-        ) {
-          EscolherData(
-            rotulo = "De",
-            valor = filtro.desdePersonalizado,
-            modificador = Modifier.weight(1f),
-          ) { escolhido -> aoMudarFiltro(filtro.copy(desdePersonalizado = escolhido)) }
-          EscolherData(
-            rotulo = "Até",
-            valor = filtro.atePersonalizado,
-            modificador = Modifier.weight(1f),
-          ) { escolhido ->
-            val fimDoDia = (Calendar.getInstance().apply { timeInMillis = escolhido }).apply {
-              set(Calendar.HOUR_OF_DAY, 23)
-              set(Calendar.MINUTE, 59)
-              set(Calendar.SECOND, 59)
-            }.timeInMillis
-            aoMudarFiltro(filtro.copy(atePersonalizado = fimDoDia))
-          }
-        }
-      }
-
-      if (registros.isNotEmpty() || filtro.ativo) {
-        Row(
-          modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 6.dp),
-          verticalAlignment = Alignment.CenterVertically,
-        ) {
-          Text(
-            text = "${registros.size} registro(s)" +
-              if (filtro.descricao().isNotBlank()) " · ${filtro.descricao()}" else "",
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.weight(1f),
-          )
-        }
-      }
-
-      if (!filtro.ativo && registros.size > 1) {
-        Column(modifier = Modifier.fillMaxWidth()) {
-          Text(
-            "Últimos",
-            style = MaterialTheme.typography.titleSmall,
-            modifier = Modifier.padding(horizontal = 16.dp),
-          )
-          LazyRow(
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-            contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
-          ) {
-            items(registros.take(5)) { registro ->
-              Card(
-                modifier = Modifier.fillMaxWidth().width(200.dp).clickable { onAbrir(registro.id) },
-                shape = MaterialTheme.shapes.large,
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-              ) {
-                Column(modifier = Modifier.padding(12.dp)) {
-                  Text(
-                    text = registro.placa,
-                    fontFamily = FontFamily.Monospace,
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 18.sp,
-                    color = MaterialTheme.colorScheme.primary,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                  )
-                  Spacer(Modifier.height(2.dp))
-                  Text(
-                    text = listOf(registro.marca, registro.modelo).filter { it.isNotBlank() }.joinToString(" "),
-                    style = MaterialTheme.typography.bodySmall,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                  )
-                  Spacer(Modifier.height(2.dp))
-                  Text(
-                    text = if (registro.pago) formatarData(registro.dataServico) else "Pendente",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = if (registro.pago) MaterialTheme.colorScheme.onSurfaceVariant
-                    else MaterialTheme.colorScheme.error,
-                  )
+      if (!carregando && !erroCarga && !filtro.ativo && registros.size > 1) item {
+        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+          Text("Acesso rápido", style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+          LazyRow(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            items(registros.take(5), key = { it.id }) { registro ->
+              Card(onClick = { onAbrir(registro.id) }, modifier = Modifier.width(188.dp),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer)) {
+                Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                  Text(registro.placa, fontFamily = FontFamily.Monospace, fontWeight = FontWeight.Bold, fontSize = 18.sp)
+                  Text(listOf(registro.marca, registro.modelo).filter { it.isNotBlank() }.joinToString(" "),
+                    style = MaterialTheme.typography.bodySmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                  Text(formatarData(registro.dataServico), style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
               }
             }
           }
         }
       }
-
-      if (registros.isEmpty()) {
-        Box(modifier = Modifier.fillMaxSize().padding(32.dp), contentAlignment = Alignment.Center) {
-          Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            Text(
-              text = if (filtro.ativo) "Nada encontrado" else "Nenhum carro ainda",
-              style = MaterialTheme.typography.titleMedium,
-            )
-            Spacer(Modifier.height(6.dp))
-            Text(
-              text = if (filtro.ativo) "Tente outra placa, modelo ou limpe os filtros."
-              else "Toque em \"Novo serviço\" para registrar o primeiro carro.",
-              style = MaterialTheme.typography.bodyMedium,
-              color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-            if (filtro.ativo) {
-              Spacer(Modifier.height(12.dp))
-              OutlinedButton(onClick = { aoMudarFiltro(FiltroLista()) }) { Text("Limpar filtros") }
-            }
+      when {
+        carregando -> item { Box(Modifier.fillMaxWidth().padding(32.dp), contentAlignment = Alignment.Center) { CircularProgressIndicator() } }
+        erroCarga -> item { EstadoVazio("Não foi possível carregar", "Tente novamente para consultar seus atendimentos.") {
+          OutlinedButton(onClick = { tentativa++ }) { Text("Tentar novamente") }
+        } }
+        registros.isEmpty() -> item {
+          EstadoVazio(if (filtro.ativo) "Nenhum resultado" else "Seu próximo serviço começa aqui",
+            if (filtro.ativo) "Tente outra busca ou remova os filtros." else "Registre o primeiro carro e construa sua memória de oficina.") {
+            if (filtro.ativo) OutlinedButton(onClick = { aoMudarFiltro(FiltroLista()) }) { Text("Limpar filtros") }
           }
         }
-      } else {
-        LazyColumn(
-          modifier = Modifier.fillMaxSize(),
-          verticalArrangement = Arrangement.spacedBy(10.dp),
-          contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 4.dp, bottom = 96.dp),
-        ) {
-          items(registros, key = { it.id }) { registro ->
-            CartaoRegistro(registro = registro, onAbrir = { onAbrir(registro.id) })
-          }
+        else -> items(registros, key = { it.id }) { registro ->
+          CartaoRegistro(registro, onAbrir = { onAbrir(registro.id) })
         }
       }
     }
@@ -410,66 +348,40 @@ private fun EscolherData(
   }
 }
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun CartaoRegistro(registro: Atendimento, onAbrir: () -> Unit) {
   Card(
-    modifier = Modifier.fillMaxWidth().clickable(onClick = onAbrir),
-    shape = MaterialTheme.shapes.large,
+    onClick = onAbrir, modifier = Modifier.fillMaxWidth(),
     colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+    border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
   ) {
-    Column(modifier = Modifier.padding(16.dp)) {
+    Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
       Row(verticalAlignment = Alignment.CenterVertically) {
-        Text(
-          text = registro.placa,
-          fontFamily = FontFamily.Monospace,
-          fontWeight = FontWeight.Bold,
-          fontSize = 22.sp,
-          color = MaterialTheme.colorScheme.primary,
-        )
-        Spacer(Modifier.width(10.dp))
-        Text(
-          text = listOf(registro.marca, registro.modelo).filter { it.isNotBlank() }.joinToString(" "),
-          style = MaterialTheme.typography.titleMedium,
-          maxLines = 1,
-          overflow = TextOverflow.Ellipsis,
-        )
+        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+          Text(registro.placa, fontFamily = FontFamily.Monospace, fontWeight = FontWeight.Bold, fontSize = 22.sp,
+            color = MaterialTheme.colorScheme.onSurface)
+          Text(listOf(registro.marca, registro.modelo, registro.ano).filter { it.isNotBlank() }.joinToString(" ").ifBlank { "Veículo sem modelo" },
+            style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+        Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
       }
-      Spacer(Modifier.height(4.dp))
-      Row(verticalAlignment = Alignment.CenterVertically) {
+      FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
         Selo(registro.tipoServico.rotulo)
-        if (!registro.pago) {
-          Spacer(Modifier.width(8.dp))
-          Selo("Pendente")
-        }
-        Spacer(Modifier.width(8.dp))
-        Text(
-          text = formatarData(registro.dataServico),
-          style = MaterialTheme.typography.bodySmall,
-          color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-        if (registro.quantidadeFotos > 0) {
-          Spacer(Modifier.width(8.dp))
-          Text(
-            text = "${registro.quantidadeFotos} foto(s)",
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-          )
-        }
+        if (!registro.pago) Selo("Pagamento pendente", pendente = true)
       }
       val resumo = when {
         registro.tipoServico == TipoServico.ABERTURA && registro.abertura.isNotBlank() -> registro.abertura
         registro.defeito.isNotBlank() -> registro.defeito
-        registro.solucao.isNotBlank() -> registro.solucao
-        else -> ""
+        else -> registro.solucao
       }
-      if (resumo.isNotBlank()) {
-        Spacer(Modifier.height(8.dp))
-        Text(
-          text = resumo,
-          style = MaterialTheme.typography.bodyMedium,
-          maxLines = 2,
-          overflow = TextOverflow.Ellipsis,
-        )
+      if (resumo.isNotBlank()) Text(resumo, style = MaterialTheme.typography.bodyMedium, maxLines = 2, overflow = TextOverflow.Ellipsis)
+      HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+      FlowRow(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        Text(formatarData(registro.dataServico), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        if (registro.quantidadeFotos > 0) Text("${registro.quantidadeFotos} foto(s)", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        if (registro.valorCentavos > 0) Text(com.willendary.chaveirocar.util.formatarValor(registro.valorCentavos),
+          style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
       }
     }
   }

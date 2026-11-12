@@ -1,5 +1,11 @@
 package com.willendary.chaveirocar.ui
 
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.CircularProgressIndicator
 import android.app.Activity
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -99,40 +105,39 @@ fun TelaLoginNuvem(aoConectar: (String?) -> Unit) {
   }
 
   Column(
-    modifier = Modifier
-      .fillMaxSize()
-      .background(MaterialTheme.colorScheme.background)
-      .padding(24.dp),
-    horizontalAlignment = Alignment.CenterHorizontally,
+    modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)
+      .safeDrawingPadding().imePadding().conteudoResponsivo(480.dp)
+      .verticalScroll(rememberScrollState()).padding(28.dp),
+    horizontalAlignment = Alignment.Start,
     verticalArrangement = Arrangement.Center,
   ) {
-    Icon(
-      imageVector = Icons.Default.Build,
-      contentDescription = null,
-      tint = MaterialTheme.colorScheme.primary,
-      modifier = Modifier.size(48.dp),
-    )
+    MarcaChaveiro(88.dp)
+    Spacer(Modifier.height(28.dp))
+    Text("ChaveiroCar", style = MaterialTheme.typography.headlineLarge)
+    Spacer(Modifier.height(12.dp))
+    Text("Sua experiência.\nSempre com você.", style = MaterialTheme.typography.headlineMedium)
     Spacer(Modifier.height(16.dp))
-    Text("ChaveiroCar", style = MaterialTheme.typography.headlineSmall)
-    Spacer(Modifier.height(8.dp))
-    Text(
-      text = "Conecte sua conta Google para abrir o app.",
-      style = MaterialTheme.typography.bodyMedium,
-      color = MaterialTheme.colorScheme.onSurfaceVariant,
-      textAlign = TextAlign.Center,
-    )
+    Text("Guarde serviços, códigos e soluções. Encontre o que precisa no próximo atendimento.",
+      style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
+    Spacer(Modifier.height(32.dp))
+    Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)) {
+      Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Text("Seu histórico acompanha você", style = MaterialTheme.typography.titleMedium)
+        Text("Conecte sua conta Google para entrar e guardar cópias de segurança no seu Drive.",
+          style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+      }
+    }
     Spacer(Modifier.height(24.dp))
-    Button(onClick = { conectar() }, enabled = !conectando, modifier = Modifier.fillMaxWidth()) {
-      Text(if (conectando) "Conectando..." else "Continuar com Google")
+    Button(onClick = { conectar() }, enabled = !conectando,
+      modifier = Modifier.fillMaxWidth().heightIn(min = 56.dp), shape = MaterialTheme.shapes.medium) {
+      if (conectando) {
+        CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp)
+        Spacer(Modifier.width(12.dp))
+      }
+      Text(if (conectando) "Conectando…" else "Continuar com Google")
     }
     Spacer(Modifier.height(16.dp))
-    Text(
-      text = "O backup fica na pasta oculta do app no Drive " +
-        "(appDataFolder) — só o app alcança e o arquivo não aparece no seu Drive. " +
-        "Sem conta conectada, o app não abre.",
-      style = MaterialTheme.typography.bodySmall,
-      color = MaterialTheme.colorScheme.onSurfaceVariant,
-      textAlign = TextAlign.Center,
-    )
+    Text("Seus registros ficam no aparelho. O backup é privado e vinculado à sua conta Google.",
+      style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
   }
 }

@@ -1,5 +1,8 @@
 package com.willendary.chaveirocar.ui
 
+import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.material3.Button
 import android.app.DatePickerDialog
 import android.widget.Toast
 import androidx.activity.compose.BackHandler
@@ -28,7 +31,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -317,10 +319,10 @@ fun TelaFormulario(
       TopAppBar(
         title = { Text(if (id > 0) "Editar serviço" else "Novo serviço") },
         navigationIcon = {
-          TextButton(onClick = { sairDescartandoNovas() }) { Text("Voltar") }
+          BotaoVoltar { sairDescartandoNovas() }
         },
         actions = {
-          TextButton(onClick = { salvar() }, enabled = !salvando) { Text("Salvar", fontWeight = FontWeight.Bold) }
+          Button(onClick = { salvar() }, enabled = !salvando, modifier = Modifier.padding(end = 12.dp)) { Text(if (salvando) "Salvando…" else "Salvar") }
         },
       )
     },
@@ -334,12 +336,13 @@ fun TelaFormulario(
 
     Column(
       modifier = Modifier
-        .fillMaxSize()
+        .conteudoResponsivo().imePadding()
         .padding(espacamento)
         .verticalScroll(rememberScrollState())
         .padding(horizontal = 16.dp, vertical = 8.dp),
       verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
+      SecaoFormulario("01", "Veículo", "Comece pela placa para consultar o histórico.")
       CampoTexto(
         rotulo = "Placa *",
         valor = atendimento.placa,
@@ -385,6 +388,7 @@ fun TelaFormulario(
         OutlinedTextField(
           value = atendimento.ano,
           onValueChange = { atendimento = atendimento.copy(ano = it.filter { letra -> letra.isDigit() || letra == '/' }) },
+          shape = MaterialTheme.shapes.medium,
           label = { Text("Ano") },
           placeholder = { Text("2018") },
           singleLine = true,
@@ -405,6 +409,7 @@ fun TelaFormulario(
       OutlinedTextField(
         value = atendimento.chassi,
         onValueChange = { atendimento = atendimento.copy(chassi = it.uppercase().take(17)) },
+        shape = MaterialTheme.shapes.medium,
         label = { Text("Chassi (opcional)") },
         singleLine = true,
         textStyle = MaterialTheme.typography.bodyLarge.copy(fontFamily = FontFamily.Monospace),
@@ -430,6 +435,7 @@ fun TelaFormulario(
         Text("Data do serviço: ${formatarData(atendimento.dataServico)}")
       }
 
+      SecaoFormulario("02", "Atendimento", "Registre o problema e a solução aplicada.")
       Text("Tipo de serviço", style = MaterialTheme.typography.titleSmall)
       FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         TipoServico.entries.forEach { tipo ->
@@ -473,6 +479,7 @@ fun TelaFormulario(
         modificador = Modifier.fillMaxWidth(),
       )
 
+      SecaoFormulario("03", "Cliente e pagamento", "Informações de contato e cobrança.")
       CampoTexto(
         rotulo = "Valor cobrado (opcional)",
         valor = valorTexto,
@@ -516,6 +523,7 @@ fun TelaFormulario(
         )
       }
 
+      SecaoFormulario("04", "Memória técnica", "Guarde os detalhes para o próximo atendimento.")
       TituloSecao("Abertura")
       CampoTexto(
         rotulo = "Como se abre este carro",
@@ -561,6 +569,7 @@ fun TelaFormulario(
         ) { Text("Copiar código de configuração") }
       }
 
+      SecaoFormulario("05", "Registro em fotos", "Documente o veículo e o passo a passo.")
       TituloSecao("Fotos do carro")
       SecaoDeFotos(
         descricao = "Fotos do veículo, do painel, do defeito.",

@@ -170,3 +170,23 @@ backup passa a ser automático na nuvem.
 1.3.4 — lista sem cards duplicados (popup de atualização basta), detalhe
 com Compartilhar/PDF no topo e cards de texto juntos, botão "Novo
 atendimento (mesmo carro)", e "Última correção" no detalhe.
+
+
+## Visual 1.4.0
+
+Nova identidade azul/jade, marca vetorial, temas claro e escuro e telas renovadas.
+Atendimentos têm busca em destaque, filtros recolhíveis e rolagem única. O fichário
+organiza os veículos com favoritos; o formulário separa veículo, serviço, cliente,
+memória técnica e fotos. Os dados e o formato do banco são preservados.
+
+A identidade vetorial está em `docs/design/marca.svg`. As capturas das telas reais
+são geradas pelo workflow **Visual e navegacao**, no artefato `revisao-visual`,
+com perfis de celular (360 dp) e tablet (800 dp), incluindo tema escuro.
+
+### Validação e publicação
+
+O workflow visual compila o aplicativo, executa os testes unitários e testa os
+fluxos reais em emulador (busca, filtros, favoritos, edição e cópia de códigos).
+Após esse workflow passar na `main`, **Android APK** gera o APK assinado e publica
+a versão indicada no Gradle, usando `release/v<versão>.md` como notas. Uma versão
+já publicada não é sobrescrita. Tags `v*` continuam aceitas para publicação manual.
