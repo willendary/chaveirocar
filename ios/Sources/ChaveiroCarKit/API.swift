@@ -1,7 +1,8 @@
 import Foundation
+import Security
 
 /// Cliente da API ChaveiroCar (contracts/openapi.json).
-/// Tokens em Keychain; fila offline e cache entram na próxima iteração.
+/// Tokens em Keychain; fila offline (Core Data + outbox) entra na próxima iteração.
 public final class API: Sendable {
     private let base: URL
     private let sessao: URLSession
@@ -11,6 +12,7 @@ public final class API: Sendable {
                 sessao: URLSession = .shared) {
         self.base = base
         self.sessao = sessao
+        self.acesso = ArmazenamentoSeguro.tokenAcesso
     }
 
     public struct Tokens: Decodable {
@@ -34,6 +36,7 @@ public final class API: Sendable {
         }
         let sessaoResposta = try JSONDecoder().decode(RespostaSessao.self, from: dados)
         acesso = sessaoResposta.tokens.acesso
+        ArmazenamentoSeguro.salvar(tokenAcesso: acesso!, tokenRefresh: sessaoResposta.tokens.refresh)
         return sessaoResposta.tokens
     }
 
@@ -57,5 +60,57 @@ public final class API: Sendable {
             throw NSError(domain: "ChaveiroCar", code: 500, userInfo: nil)
         }
         return try JSONSerialization.jsonObject(with: dados) as? [String: Any] ?? [:]
+    }
+}
+
+/// Keychain mínimo: tokens nunca em UserDefaults.
+public enum ArmazenamentoSeguro {
+    private static let servico = "com.willendary.chaveirocar"
+    private static let contaAcesso = "api_acesso"
+    private static let contaRefresh = "api_refresh"
+
+    public static var tokenAcesso: String? { ler(contaAcesso) }
+    public static var tokenRefresh: String? { ler(contaRefresh) }
+
+    public static func salvar(tokenAcesso: String, tokenRefresh: String) {
+        gravar(contaAcesso, tokenAcesso)
+        gravar(contaRefresh, tokenRefresh)
+    }
+
+    public static func limpar() {
+        apagar(contaAcesso)
+        apagar(contaRefresh)
+    }
+
+    private static func ler(_ conta: String) -> String? {
+        var consulta = base(conta)
+        consulta[kSecAttrReturnData as String] = true
+        consulta[kSecMatchLimit as String] = kSecMatchLimitOne
+        var item: CFTypeRef?
+        guard SecItemCopyMatching(consulta as CFDictionary, &item) == errSecSuccess,
+              let dados = item as? Data,
+              let texto = String(data: dados, encoding: .utf8) else { return nil }
+        return texto
+    }
+
+    private static func gravar(_ conta: String, _ valor: String) {
+        apagar(conta)
+        guard let dados = valor.data(using: .utf8) else { return }
+        var item = base(conta)
+        item[kSecValueData as String] = dados
+        SecItemAdd(item as CFDictionary, nil)
+    }
+
+    private static func apagar(_ conta: String) {
+        SecItemDelete(base(conta) as CFDictionary)
+    }
+
+    private static func base(_ conta: String) -> [String: Any] {
+        [
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrService as String: servico,
+            kSecAttrAccount as String: conta,
+            kSecAttrAccessible as String: kSecAttrAccessibleWhenUnlockedThisDeviceOnly,
+        ]
     }
 }
