@@ -177,7 +177,7 @@ fun TelaDetalhe(
         }
       }
 
-      if (registro.codigoChave.isNotBlank() || registro.codigoConfiguracao.isNotBlank()) {
+      if (registro.codigoChave.isNotBlank() || registro.codigoConfiguracao.isNotBlank() || registro.chipTransponder.isNotBlank()) {
         TituloSecao("Códigos do veículo")
         Card(modifier = Modifier.fillMaxWidth()) {
           Column(
@@ -198,6 +198,13 @@ fun TelaDetalhe(
                 onCopiar = {
                   copiarTexto(contexto, "Código de configuração", registro.codigoConfiguracao)
                 },
+              )
+            }
+            if (registro.chipTransponder.isNotBlank()) {
+              CodigoCopiado(
+                rotulo = "Chip / Transponder",
+                valor = registro.chipTransponder,
+                onCopiar = { copiarTexto(contexto, "Chip / Transponder", registro.chipTransponder) },
               )
             }
           }

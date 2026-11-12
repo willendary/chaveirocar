@@ -36,6 +36,7 @@ data class Atendimento(
   val abertura: String = "",
   val codigoChave: String = "",
   val codigoConfiguracao: String = "",
+  val chipTransponder: String = "",
   val ferramenta: String = "",
   val valorCentavos: Long = 0,
   val clienteNome: String = "",

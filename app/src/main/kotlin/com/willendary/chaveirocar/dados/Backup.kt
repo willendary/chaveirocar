@@ -24,7 +24,7 @@ object Backup {
   fun exportar(banco: BancoDeAtendimentos, contexto: Context, saida: OutputStream) {
     val zip = ZipOutputStream(BufferedOutputStream(saida))
     val raiz = JSONObject()
-    raiz.put("versao", 3)
+    raiz.put("versao", 4)
     raiz.put("exportadoEm", System.currentTimeMillis())
     val lista = JSONArray()
 
@@ -44,6 +44,7 @@ object Backup {
         put("abertura", atendimento.abertura)
         put("codigoChave", atendimento.codigoChave)
         put("codigoConfiguracao", atendimento.codigoConfiguracao)
+        put("chipTransponder", atendimento.chipTransponder)
         put("ferramenta", atendimento.ferramenta)
         put("valorCentavos", atendimento.valorCentavos)
         put("clienteNome", atendimento.clienteNome)
@@ -132,6 +133,7 @@ object Backup {
         abertura = objeto.optString("abertura"),
         codigoChave = objeto.optString("codigoChave"),
         codigoConfiguracao = objeto.optString("codigoConfiguracao"),
+        chipTransponder = objeto.optString("chipTransponder"),
         ferramenta = objeto.optString("ferramenta"),
         valorCentavos = objeto.optLong("valorCentavos"),
         clienteNome = objeto.optString("clienteNome"),

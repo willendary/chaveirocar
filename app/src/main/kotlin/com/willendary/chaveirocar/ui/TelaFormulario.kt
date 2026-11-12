@@ -8,6 +8,7 @@ import android.widget.Toast
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.activity.result.PickVisualMediaRequest
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -105,6 +106,7 @@ fun TelaFormulario(
   var arquivoCamera by remember { mutableStateOf<File?>(null) }
   var categoriaPendente by remember { mutableStateOf(CategoriaFoto.CARRO) }
   var salvando by remember { mutableStateOf(false) }
+  var importandoFotos by remember { mutableStateOf(false) }
   var fotoEditando by remember { mutableStateOf<Foto?>(null) }
   var novaEditando by remember { mutableStateOf<FotoNova?>(null) }
 
@@ -209,22 +211,66 @@ fun TelaFormulario(
     }
   }
 
-  val galeria = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
-    if (uri != null) {
+  // O Photo Picker permite escolher várias imagens na mesma abertura (inclusive 10+).
+  // O contrato fornece um fallback para versões antigas do Android.
+  val galeria = rememberLauncherForActivityResult(
+    ActivityResultContracts.PickMultipleVisualMedia(50),
+  ) { imagens ->
+    if (imagens.isNotEmpty() && !importandoFotos) {
       val categoria = categoriaPendente
       escopo.launch {
-        val nome = runCatching {
-          withContext(Dispatchers.IO) {
-            contexto.contentResolver.openInputStream(uri)?.use { Fotos.salvarDeFluxo(contexto, it) }
+        importandoFotos = true
+        var importadas = 0
+        var falhas = 0
+        val novas = mutableListOf<FotoNova>()
+        try {
+          for (uri in imagens.distinct()) {
+            val nome = runCatching {
+              withContext(Dispatchers.IO) {
+                contexto.contentResolver.openInputStream(uri)?.use { Fotos.salvarDeFluxo(contexto, it) }
+                  ?: error("Imagem não disponível para importação")
+              }
+            }.onFailure { erro ->
+              Erros.registrar(contexto, "Importar imagem da galeria", erro)
+            }.getOrNull()
+
+            if (nome == null) {
+              falhas++
+              continue
+            }
+
+            if (id > 0L) {
+              val gravada = runCatching {
+                withContext(Dispatchers.IO) { banco.adicionarFoto(id, nome, categoria) >= 0 }
+              }.onFailure { erro ->
+                Erros.registrar(contexto, "Vincular imagem ao atendimento", erro)
+              }.getOrDefault(false)
+              if (!gravada) {
+                withContext(Dispatchers.IO) { Fotos.excluir(contexto, nome) }
+                falhas++
+                continue
+              }
+            } else {
+              novas.add(FotoNova(nome, categoria))
+            }
+            importadas++
           }
-        }.onFailure { erro ->
-          Erros.registrar(contexto, "Salvar foto da galeria", erro)
-        }.getOrNull()
-        if (nome != null) {
-          anexarFoto(nome, categoria)
-        } else {
-          Toast.makeText(contexto, "Não foi possível abrir essa imagem.", Toast.LENGTH_LONG).show()
+        } finally {
+          // Atualiza o estado uma vez por lote e preserva as fotos já existentes.
+          if (id > 0L) {
+            fotosSalvas = withContext(Dispatchers.IO) { banco.listarFotos(id) }
+          } else {
+            fotosNovas = fotosNovas + novas
+          }
+          importandoFotos = false
         }
+
+        val mensagem = when {
+          falhas == 0 -> "$importadas foto(s) adicionada(s)"
+          importadas == 0 -> "Não foi possível importar as fotos selecionadas"
+          else -> "$importadas foto(s) adicionada(s); $falhas não importada(s)"
+        }
+        Toast.makeText(contexto, mensagem, Toast.LENGTH_LONG).show()
       }
     }
   }
@@ -245,8 +291,9 @@ fun TelaFormulario(
   }
 
   fun escolherDaGaleria(categoria: CategoriaFoto) {
+    if (importandoFotos) return
     categoriaPendente = categoria
-    galeria.launch("image/*")
+    galeria.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
   }
 
   fun removerFotoSalva(foto: Foto) {
@@ -289,6 +336,10 @@ fun TelaFormulario(
   }
 
   fun salvar() {
+    if (importandoFotos) {
+      Toast.makeText(contexto, "Conclua a importação das fotos antes de salvar", Toast.LENGTH_SHORT).show()
+      return
+    }
     val placa = atendimento.placa.trim().uppercase()
     if (placa.isBlank()) {
       Toast.makeText(contexto, "Informe a placa do carro", Toast.LENGTH_SHORT).show()
@@ -308,6 +359,10 @@ fun TelaFormulario(
   }
 
   fun sairDescartandoNovas() {
+    if (importandoFotos) {
+      Toast.makeText(contexto, "Conclua a importação das fotos antes de sair", Toast.LENGTH_SHORT).show()
+      return
+    }
     fotosNovas.forEach { Fotos.excluir(contexto, it.nome) }
     onVoltar()
   }
@@ -322,7 +377,7 @@ fun TelaFormulario(
           BotaoVoltar { sairDescartandoNovas() }
         },
         actions = {
-          Button(onClick = { salvar() }, enabled = !salvando, modifier = Modifier.padding(end = 12.dp)) { Text(if (salvando) "Salvando…" else "Salvar") }
+          Button(onClick = { salvar() }, enabled = !salvando && !importandoFotos, modifier = Modifier.padding(end = 12.dp)) { Text(if (salvando) "Salvando…" else "Salvar") }
         },
       )
     },
@@ -569,6 +624,21 @@ fun TelaFormulario(
         ) { Text("Copiar código de configuração") }
       }
 
+      CampoTexto(
+        rotulo = "Chip / Transponder",
+        valor = atendimento.chipTransponder,
+        aoMudar = { atendimento = atendimento.copy(chipTransponder = it) },
+        dica = "Ex.: ID46, PCF7936, 4D-63",
+        estiloTexto = MaterialTheme.typography.bodyLarge.copy(fontFamily = FontFamily.Monospace),
+        modificador = Modifier.fillMaxWidth(),
+      )
+      Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        TextButton(
+          onClick = { copiarTexto(contexto, "Chip / Transponder", atendimento.chipTransponder) },
+          enabled = atendimento.chipTransponder.isNotBlank(),
+        ) { Text("Copiar chip / transponder") }
+      }
+
       SecaoFormulario("05", "Registro em fotos", "Documente o veículo e o passo a passo.")
       TituloSecao("Fotos do carro")
       SecaoDeFotos(
@@ -576,6 +646,7 @@ fun TelaFormulario(
         categoria = CategoriaFoto.CARRO,
         fotosSalvas = fotosSalvas.filter { it.categoria == CategoriaFoto.CARRO },
         fotosNovas = fotosNovas.filter { it.categoria == CategoriaFoto.CARRO },
+        emImportacao = importandoFotos,
         onTirarFoto = { tirarFoto(CategoriaFoto.CARRO) },
         onGaleria = { escolherDaGaleria(CategoriaFoto.CARRO) },
         onRemoverSalva = { removerFotoSalva(it) },
@@ -592,6 +663,7 @@ fun TelaFormulario(
         categoria = CategoriaFoto.PROCEDIMENTO,
         fotosSalvas = fotosSalvas.filter { it.categoria == CategoriaFoto.PROCEDIMENTO },
         fotosNovas = fotosNovas.filter { it.categoria == CategoriaFoto.PROCEDIMENTO },
+        emImportacao = importandoFotos,
         onTirarFoto = { tirarFoto(CategoriaFoto.PROCEDIMENTO) },
         onGaleria = { escolherDaGaleria(CategoriaFoto.PROCEDIMENTO) },
         onRemoverSalva = { removerFotoSalva(it) },
@@ -603,7 +675,7 @@ fun TelaFormulario(
       )
 
       Spacer(Modifier.height(8.dp))
-      Button(onClick = { salvar() }, enabled = !salvando, modifier = Modifier.fillMaxWidth()) {
+      Button(onClick = { salvar() }, enabled = !salvando && !importandoFotos, modifier = Modifier.fillMaxWidth()) {
         Text(if (salvando) "Salvando..." else "Salvar serviço")
       }
       Spacer(Modifier.height(24.dp))
@@ -644,6 +716,7 @@ private fun SecaoDeFotos(
   categoria: CategoriaFoto,
   fotosSalvas: List<Foto>,
   fotosNovas: List<FotoNova>,
+  emImportacao: Boolean,
   onTirarFoto: () -> Unit,
   onGaleria: () -> Unit,
   onRemoverSalva: (Foto) -> Unit,
@@ -691,9 +764,15 @@ private fun SecaoDeFotos(
         }
       }
     }
+    if (emImportacao) {
+      Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp)
+        Text("Importando fotos...", style = MaterialTheme.typography.bodySmall)
+      }
+    }
     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-      OutlinedButton(onClick = onTirarFoto) { Text("Tirar foto") }
-      OutlinedButton(onClick = onGaleria) { Text("Galeria") }
+      OutlinedButton(onClick = onTirarFoto, enabled = !emImportacao) { Text("Tirar foto") }
+      OutlinedButton(onClick = onGaleria, enabled = !emImportacao) { Text("Galeria (várias fotos)") }
     }
   }
 }

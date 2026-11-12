@@ -39,6 +39,7 @@ class BancoDeAtendimentos(contexto: Context) :
         abertura TEXT NOT NULL DEFAULT '',
         codigo_chave TEXT NOT NULL DEFAULT '',
         codigo_configuracao TEXT NOT NULL DEFAULT '',
+        chip_transponder TEXT NOT NULL DEFAULT '',
         ferramenta TEXT NOT NULL DEFAULT '',
         valor_centavos INTEGER NOT NULL DEFAULT 0,
         cliente_nome TEXT NOT NULL DEFAULT '',
@@ -85,6 +86,9 @@ class BancoDeAtendimentos(contexto: Context) :
       banco.execSQL("ALTER TABLE atendimentos ADD COLUMN cliente_nome TEXT NOT NULL DEFAULT ''")
       banco.execSQL("ALTER TABLE atendimentos ADD COLUMN cliente_telefone TEXT NOT NULL DEFAULT ''")
       banco.execSQL("ALTER TABLE atendimentos ADD COLUMN pago INTEGER NOT NULL DEFAULT 1")
+    }
+    if (versaoAntiga < 4) {
+      banco.execSQL("ALTER TABLE atendimentos ADD COLUMN chip_transponder TEXT NOT NULL DEFAULT ''")
     }
   }
 
@@ -207,7 +211,7 @@ class BancoDeAtendimentos(contexto: Context) :
   fun resumoPorModelo(): List<ResumoModelo> =
     readableDatabase.rawQuery(
       "SELECT marca, modelo, ano, COUNT(*) AS quantidade, MAX(data_servico) AS ultima, " +
-        "MAX(CASE WHEN abertura <> '' OR codigo_chave <> '' OR codigo_configuracao <> '' THEN 1 " +
+        "MAX(CASE WHEN abertura <> '' OR codigo_chave <> '' OR codigo_configuracao <> '' OR chip_transponder <> '' THEN 1 " +
         "WHEN EXISTS (SELECT 1 FROM fotos f WHERE f.atendimento_id = atendimentos.id " +
         "AND f.categoria = 'PROCEDIMENTO') THEN 1 ELSE 0 END) AS tem_procedimento " +
         "FROM atendimentos WHERE marca <> '' OR modelo <> '' " +
@@ -264,6 +268,7 @@ class BancoDeAtendimentos(contexto: Context) :
       put("abertura", atendimento.abertura.trim())
       put("codigo_chave", atendimento.codigoChave.trim().uppercase())
       put("codigo_configuracao", atendimento.codigoConfiguracao.trim())
+      put("chip_transponder", atendimento.chipTransponder.trim())
       put("ferramenta", atendimento.ferramenta.trim())
       put("valor_centavos", atendimento.valorCentavos)
       put("cliente_nome", atendimento.clienteNome.trim())
@@ -384,6 +389,7 @@ class BancoDeAtendimentos(contexto: Context) :
       abertura = getString(getColumnIndexOrThrow("abertura")),
       codigoChave = getString(getColumnIndexOrThrow("codigo_chave")),
       codigoConfiguracao = getString(getColumnIndexOrThrow("codigo_configuracao")),
+      chipTransponder = getString(getColumnIndexOrThrow("chip_transponder")),
       ferramenta = getString(getColumnIndexOrThrow("ferramenta")),
       valorCentavos = getLong(getColumnIndexOrThrow("valor_centavos")),
       clienteNome = getString(getColumnIndexOrThrow("cliente_nome")),
@@ -406,6 +412,7 @@ class BancoDeAtendimentos(contexto: Context) :
       atendimento.abertura,
       atendimento.codigoChave,
       atendimento.codigoConfiguracao,
+      atendimento.chipTransponder,
       atendimento.ferramenta,
       atendimento.clienteNome,
       atendimento.clienteTelefone,
@@ -415,6 +422,6 @@ class BancoDeAtendimentos(contexto: Context) :
 
   companion object {
     const val NOME = "chaveirocar.db"
-    const val VERSAO = 3
+    const val VERSAO = 4
   }
 }
