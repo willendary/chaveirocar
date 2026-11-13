@@ -136,13 +136,10 @@ class VisualSmokeTest {
     compose.onNodeWithText("Exigir PIN ao abrir").performScrollTo().assertIsDisplayed()
   }
   @Test fun acesso() {
-    var continuouSemDrive = false
-    tela { TelaLoginNuvem { continuouSemDrive = it == null } }
-    compose.onNodeWithText("Conectar Google Drive legado").performScrollTo().assertIsEnabled()
-    compose.onNodeWithText("Continuar sem Drive").performScrollTo().assertIsEnabled()
+    tela { SecaoContaApi(banco) }
+    compose.onNodeWithText("Entrar com Google").assertIsEnabled()
+    compose.onNodeWithText("Entrar").assertIsEnabled()
     foto("10-acesso")
-    compose.onNodeWithText("Continuar sem Drive").performScrollTo().performClick()
-    compose.runOnIdle { assertTrue(continuouSemDrive) }
   }
   @Test fun bloqueio() {
     tela { TelaBloqueio(false) {} }
@@ -156,7 +153,6 @@ class VisualSmokeTest {
   }
   @Test fun navegacaoPrincipal() {
     Preferencias.obter(contexto).edit()
-      .putString(Preferencias.CONTA_NUVEM, "demonstracao@example.com")
       .putString(Preferencias.VERSAO_VISTA, Atualizacoes.versaoInstalada(contexto))
       .putLong(Preferencias.ULTIMO_BACKUP_AUTO, System.currentTimeMillis()).commit()
     tela { ChaveiroCarApp() }

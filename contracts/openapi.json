@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "ChaveiroCar API",
-    "version": "1.7.0",
+    "version": "1.8.0",
     "description": "API única dos aplicativos Android, iOS e Windows do ChaveiroCar. Autenticação por Bearer token; dados isolados por empresa."
   },
   "components": {

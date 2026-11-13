@@ -30,15 +30,17 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import com.willendary.chaveirocar.dados.BancoDeAtendimentos
+import com.willendary.chaveirocar.dados.Backup
 import com.willendary.chaveirocar.dados.Preferencias
 import com.willendary.chaveirocar.nuvem.ApiChaveiroCar
 import com.willendary.chaveirocar.nuvem.CredencialGoogle
-import com.willendary.chaveirocar.nuvem.GoogleDrive
+import com.willendary.chaveirocar.nuvem.IdentidadeGoogle
 import com.willendary.chaveirocar.nuvem.MotorSinc
 import com.willendary.chaveirocar.util.Erros
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import java.io.File
 
 /** Conta ChaveiroCar (API): login, empresa, sync manual e resolução de conflitos. */
 @Composable
@@ -213,7 +215,7 @@ fun SecaoContaApi(banco: BancoDeAtendimentos) {
     }
     escopo.launch {
       runCatching {
-        withContext(Dispatchers.IO) { GoogleDrive.concluirAutorizacao(contexto, dados) }
+        withContext(Dispatchers.IO) { IdentidadeGoogle.concluirAutorizacao(contexto, dados) }
       }.onSuccess { autorizacao ->
         val credencial = autorizacao.credencial
         if (credencial != null) {
@@ -235,7 +237,7 @@ fun SecaoContaApi(banco: BancoDeAtendimentos) {
     entrando = true
     escopo.launch {
       runCatching {
-        withContext(Dispatchers.IO) { GoogleDrive.autenticarConta(contexto) }
+        withContext(Dispatchers.IO) { IdentidadeGoogle.autenticarConta(contexto) }
       }.onSuccess { autorizacao ->
         when {
           autorizacao.pendente != null ->
@@ -444,6 +446,53 @@ fun SecaoContaApi(banco: BancoDeAtendimentos) {
     }
   }
 
+  var migrandoBackup by remember { mutableStateOf(false) }
+  var resumoMigracao by remember { mutableStateOf("") }
+
+  fun migrarHistoricoLocalParaApi() {
+    if (migrandoBackup || sincronizando) return
+    val empresa = empresaId
+    if (empresa.isBlank()) {
+      Toast.makeText(contexto, "Escolha uma empresa primeiro.", Toast.LENGTH_SHORT).show()
+      return
+    }
+    migrandoBackup = true
+    escopo.launch {
+      val resultado = runCatching {
+        withContext(Dispatchers.IO) {
+          val arquivo = File(contexto.cacheDir, "migracao-api.zip")
+          try {
+            arquivo.outputStream().use { Backup.exportar(banco, contexto, it) }
+            val cliente = api()
+            val resposta = cliente.importarBackupAndroid(empresa, arquivo.readBytes())
+            guardarTokens(cliente)
+            resposta
+          } finally {
+            arquivo.delete()
+          }
+        }
+      }
+      migrandoBackup = false
+      resultado
+        .onSuccess { r ->
+          val atdImp = r.optInt("atendimentosImportados")
+          val atdIgn = r.optInt("atendimentosIgnorados")
+          val ficImp = r.optInt("fichasImportadas")
+          val fotImp = r.optInt("fotosImportadas")
+          val fotAus = r.optInt("fotosAusentes")
+          resumoMigracao = "Migração concluída: $atdImp atendimento(s) novo(s) ($atdIgn já existente(s)), " +
+            "$ficImp ficha(s) e $fotImp foto(s) enviada(s)" +
+            (if (fotAus > 0) " ($fotAus foto(s) ausente(s))" else ".")
+          Toast.makeText(contexto, resumoMigracao, Toast.LENGTH_LONG).show()
+          recarregar()
+        }
+        .onFailure {
+          Erros.registrar(contexto, "Conta API: migrar backup local", it)
+          Toast.makeText(contexto, "Não foi possível migrar o backup local. Tente novamente.", Toast.LENGTH_LONG).show()
+        }
+    }
+  }
+
   LaunchedEffect(logado) {
     if (logado) carregarEmpresas()
   }
@@ -453,7 +502,7 @@ fun SecaoContaApi(banco: BancoDeAtendimentos) {
       Text("Conta ChaveiroCar (API)", style = MaterialTheme.typography.titleSmall)
       Text(
         text = if (logado) "Conectado ${if (email.isBlank()) "" else "como $email"}. Edições locais sobem na sincronização; sem internet, ficam na fila."
-        else "Entre com sua conta ChaveiroCar para sincronizar atendimentos entre celular, PC e iPhone. O backup no Google Drive continua como está.",
+        else "Entre com sua conta ChaveiroCar para sincronizar atendimentos, fichas e fotos entre celular, PC e iPhone.",
         style = MaterialTheme.typography.bodySmall,
         color = MaterialTheme.colorScheme.onSurfaceVariant,
       )
@@ -606,13 +655,27 @@ fun SecaoContaApi(banco: BancoDeAtendimentos) {
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
           Button(
             onClick = { sincronizar() },
-            enabled = !sincronizando,
+            enabled = !sincronizando && !migrandoBackup,
             modifier = Modifier.weight(1f),
           ) { Text(if (sincronizando) "Sincronizando..." else "Sincronizar agora") }
           OutlinedButton(
             onClick = { carregarEmpresas(); recarregar() },
             modifier = Modifier.weight(1f),
           ) { Text("Atualizar status") }
+        }
+        OutlinedButton(
+          onClick = { migrarHistoricoLocalParaApi() },
+          enabled = !sincronizando && !migrandoBackup && empresaId.isNotBlank(),
+          modifier = Modifier.fillMaxWidth(),
+        ) {
+          Text(if (migrandoBackup) "Migrando histórico e fotos..." else "Migrar todo o histórico local para a empresa")
+        }
+        if (resumoMigracao.isNotBlank()) {
+          Text(
+            resumoMigracao,
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.primary,
+          )
         }
         conflitos.forEach { conflito ->
           Card(modifier = Modifier.fillMaxWidth()) {

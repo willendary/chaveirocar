@@ -237,7 +237,12 @@ class BancoDeAtendimentos(contexto: Context) :
       criarTabelasSync(banco)
     }
     if (versaoAntiga < 8) {
+      fun existe(tabela: String): Boolean =
+        banco.query(
+          "sqlite_master", arrayOf("name"), "name = ?", arrayOf(tabela), null, null, null,
+        ).use { it.moveToFirst() }
       fun coluna(tabela: String, nome: String): Boolean {
+        if (!existe(tabela)) return false
         banco.rawQuery("PRAGMA table_info($tabela)", null).use { cursor ->
           while (cursor.moveToNext()) {
             if (cursor.getString(1) == nome) return true
@@ -246,20 +251,25 @@ class BancoDeAtendimentos(contexto: Context) :
         return false
       }
       fun adicionar(tabela: String, definicao: String) {
+        if (!existe(tabela)) return
         val nomeColuna = definicao.substringBefore(" ")
         if (!coluna(tabela, nomeColuna)) {
           banco.execSQL("ALTER TABLE $tabela ADD COLUMN $definicao")
         }
       }
-      adicionar("atendimentos", "segmento TEXT NOT NULL DEFAULT 'AUTOMOTIVO'")
-      adicionar("atendimentos", "tipo_local TEXT NOT NULL DEFAULT ''")
-      adicionar("atendimentos", "ambiente_porta TEXT NOT NULL DEFAULT ''")
-      adicionar("atendimentos", "marca_fechadura TEXT NOT NULL DEFAULT ''")
-      adicionar("atendimentos", "modelo_fechadura TEXT NOT NULL DEFAULT ''")
-      adicionar("atendimentos", "tipo_cilindro TEXT NOT NULL DEFAULT ''")
-      adicionar("atendimentos", "endereco_local TEXT NOT NULL DEFAULT ''")
-      banco.execSQL("CREATE INDEX IF NOT EXISTS idx_atendimentos_segmento ON atendimentos(segmento)")
-      adicionar("fotos", "anotacoes TEXT NOT NULL DEFAULT '[]'")
+      if (existe("atendimentos")) {
+        adicionar("atendimentos", "segmento TEXT NOT NULL DEFAULT 'AUTOMOTIVO'")
+        adicionar("atendimentos", "tipo_local TEXT NOT NULL DEFAULT ''")
+        adicionar("atendimentos", "ambiente_porta TEXT NOT NULL DEFAULT ''")
+        adicionar("atendimentos", "marca_fechadura TEXT NOT NULL DEFAULT ''")
+        adicionar("atendimentos", "modelo_fechadura TEXT NOT NULL DEFAULT ''")
+        adicionar("atendimentos", "tipo_cilindro TEXT NOT NULL DEFAULT ''")
+        adicionar("atendimentos", "endereco_local TEXT NOT NULL DEFAULT ''")
+        banco.execSQL("CREATE INDEX IF NOT EXISTS idx_atendimentos_segmento ON atendimentos(segmento)")
+      }
+      if (existe("fotos")) {
+        adicionar("fotos", "anotacoes TEXT NOT NULL DEFAULT '[]'")
+      }
     }
   }
 

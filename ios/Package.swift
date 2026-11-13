@@ -1,13 +1,37 @@
-// swift-tools-version: 5.9
+// swift-tools-version: 5.10
 import PackageDescription
 
 let package = Package(
     name: "ChaveiroCar",
-    platforms: [.iOS(.v17)],
+    defaultLocalization: "pt",
+    platforms: [
+        .iOS(.v16),
+        .macOS(.v13),
+    ],
     products: [
-        .library(name: "ChaveiroCarKit", targets: ["ChaveiroCarKit"]),
+        .library(
+            name: "ChaveiroCarCore",
+            targets: ["ChaveiroCarCore"]
+        ),
+        .executable(
+            name: "ChaveiroCarApp",
+            targets: ["ChaveiroCarApp"]
+        ),
     ],
     targets: [
-        .target(name: "ChaveiroCarKit"),
+        .target(
+            name: "ChaveiroCarCore",
+            path: "Sources/ChaveiroCarCore"
+        ),
+        .executableTarget(
+            name: "ChaveiroCarApp",
+            dependencies: ["ChaveiroCarCore"],
+            path: "Sources/ChaveiroCarApp"
+        ),
+        .testTarget(
+            name: "ChaveiroCarTests",
+            dependencies: ["ChaveiroCarCore"],
+            path: "Tests/ChaveiroCarTests"
+        ),
     ]
 )

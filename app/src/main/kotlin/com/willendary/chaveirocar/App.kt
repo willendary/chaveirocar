@@ -45,7 +45,6 @@ import com.willendary.chaveirocar.modelo.Atendimento
 import com.willendary.chaveirocar.modelo.FichaTecnica
 import com.willendary.chaveirocar.modelo.TipoServico
 import com.willendary.chaveirocar.nuvem.ApiChaveiroCar
-import com.willendary.chaveirocar.nuvem.GoogleDrive
 import com.willendary.chaveirocar.nuvem.MotorSinc
 import com.willendary.chaveirocar.ui.DialogoNovidades
 import com.willendary.chaveirocar.ui.EstadoConsulta
@@ -61,7 +60,6 @@ import com.willendary.chaveirocar.ui.TelaFichaFormulario
 import com.willendary.chaveirocar.ui.TelaFichaTecnica
 import com.willendary.chaveirocar.ui.TelaFormulario
 import com.willendary.chaveirocar.ui.TelaLista
-import com.willendary.chaveirocar.ui.TelaLoginNuvem
 import com.willendary.chaveirocar.util.Erros
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -112,13 +110,6 @@ fun ChaveiroCarApp() {
   var bloqueado by remember { mutableStateOf(preferencias.getBoolean(Preferencias.PIN_ATIVO, false)) }
   var biometriaAtiva by remember {
     mutableStateOf(preferencias.getBoolean(Preferencias.BIOMETRIA_ATIVA, false))
-  }
-
-  var loginNuvemObrigatorio by remember {
-    mutableStateOf(
-      preferencias.getString(Preferencias.CONTA_NUVEM, null).isNullOrBlank() &&
-        !preferencias.getBoolean(Preferencias.DRIVE_IGNORADO, false),
-    )
   }
 
   var atualizacao by remember { mutableStateOf<AtualizacaoDisponivel?>(null) }
@@ -190,12 +181,7 @@ fun ChaveiroCarApp() {
 
   LaunchedEffect(Unit) {
     withContext(Dispatchers.IO) {
-      val arquivo = runCatching { BackupAutomatico.executarSeNecessario(banco, contexto) }.getOrNull()
-      val driveConectado = !preferencias.getString(Preferencias.CONTA_NUVEM, null).isNullOrBlank()
-      if (arquivo != null && driveConectado) {
-        runCatching { GoogleDrive.enviarAutomatico(contexto, arquivo) }
-          .onFailure { Erros.registrar(contexto, "Envio automático para o Google Drive", it) }
-      }
+      runCatching { BackupAutomatico.executarSeNecessario(banco, contexto) }
     }
   }
 
@@ -252,7 +238,6 @@ fun ChaveiroCarApp() {
     if (!voltarParaFichario && !voltarParaFicharioResidencial) idSelecionado = 0L
   }
 
-  BackHandler(enabled = loginNuvemObrigatorio) {}
   BackHandler(enabled = bloqueado) {}
 
   BackHandler(
@@ -513,7 +498,7 @@ fun ChaveiroCarApp() {
     }
 
     val disponivel = atualizacao
-    if (!loginNuvemObrigatorio && !bloqueado && disponivel != null && mostradorAtualizacao) {
+    if (!bloqueado && disponivel != null && mostradorAtualizacao) {
       AlertDialog(
         onDismissRequest = {
           if (!baixandoAtualizacao && apkBaixado == null) mostradorAtualizacao = false
@@ -548,18 +533,6 @@ fun ChaveiroCarApp() {
           ) {
             Text("Depois")
           }
-        },
-      )
-    }
-
-    if (loginNuvemObrigatorio) {
-      TelaLoginNuvem(
-        aoConectar = { email ->
-          preferencias.edit()
-            .putString(Preferencias.CONTA_NUVEM, email.orEmpty())
-            .putBoolean(Preferencias.DRIVE_IGNORADO, email.isNullOrBlank())
-            .apply()
-          loginNuvemObrigatorio = false
         },
       )
     }

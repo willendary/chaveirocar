@@ -215,6 +215,44 @@ class ApiChaveiroCar(baseUrl: String = URL_PADRAO) {
   fun enviarLote(empresaId: String, operacoes: org.json.JSONArray): JSONObject =
     post("/api/v1/empresas/$empresaId/sync", JSONObject().apply { put("operacoes", operacoes) })
 
+  /** Envia backup ZIP do Android para importação idempotente na API. */
+  fun importarBackupAndroid(empresaId: String, bytes: ByteArray): JSONObject =
+    importarBackupTentativa(empresaId, bytes, tentouRenovar = false)
+
+  private fun importarBackupTentativa(
+    empresaId: String,
+    bytes: ByteArray,
+    tentouRenovar: Boolean,
+  ): JSONObject {
+    val fronteira = "----chaveirocarBackup${java.util.UUID.randomUUID()}"
+    val saida = java.io.ByteArrayOutputStream()
+    saida.write(
+      ("--$fronteira\r\nContent-Disposition: form-data; name=\"arquivo\"; filename=\"backup.zip\"\r\n" +
+        "Content-Type: application/zip\r\n\r\n").toByteArray(Charsets.UTF_8),
+    )
+    saida.write(bytes)
+    saida.write("\r\n--$fronteira--\r\n".toByteArray(Charsets.UTF_8))
+    val corpo = saida.toByteArray()
+    val conexao = (URL(baseUrl + "/api/v1/empresas/$empresaId/importacoes/backup")
+      .openConnection() as HttpURLConnection).apply {
+      requestMethod = "POST"
+      connectTimeout = 30_000
+      readTimeout = 180_000
+      setRequestProperty("Content-Type", "multipart/form-data; boundary=$fronteira")
+      tokenAcesso?.let { setRequestProperty("Authorization", "Bearer $it") }
+      doOutput = true
+      setFixedLengthStreamingMode(corpo.size)
+    }
+    conexao.outputStream.use { it.write(corpo) }
+    val fluxo = if (conexao.responseCode in 200..299) conexao.inputStream else conexao.errorStream
+    val texto = fluxo?.bufferedReader()?.use { it.readText() }.orEmpty()
+    if (conexao.responseCode == 401 && !tentouRenovar && renovar()) {
+      return importarBackupTentativa(empresaId, bytes, tentouRenovar = true)
+    }
+    if (conexao.responseCode !in 200..299) error("API ${conexao.responseCode}: $texto")
+    return JSONObject(texto)
+  }
+
   private fun get(caminho: String): JSONObject = request("GET", caminho, null)
 
   private fun post(caminho: String, corpo: JSONObject): JSONObject = request("POST", caminho, corpo)
