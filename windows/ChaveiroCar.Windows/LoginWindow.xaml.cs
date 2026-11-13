@@ -13,12 +13,23 @@ public partial class LoginWindow : Window
     {
         _local = local;
         InitializeComponent();
+        CarregarIconeSeguro();
         if (string.IsNullOrWhiteSpace(_local.Estado.BaseUrl))
         {
             _local.Estado.BaseUrl = App.UrlApiPadrao;
         }
         Email.Text = _local.Estado.Email;
         Email.Focus();
+    }
+
+    private void CarregarIconeSeguro()
+    {
+        try
+        {
+            var uri = new Uri("pack://application:,,,/ChaveiroCar.Windows;component/Assets/logo.png", UriKind.Absolute);
+            Icon = System.Windows.Media.Imaging.BitmapFrame.Create(uri);
+        }
+        catch { }
     }
 
     private string ObterUrlApi() =>

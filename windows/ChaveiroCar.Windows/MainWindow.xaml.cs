@@ -30,10 +30,21 @@ public partial class MainWindow : Window
     {
         _local = local;
         InitializeComponent();
+        CarregarIconeSeguro();
         Loaded += MainWindow_Loaded;
         Activated += MainWindow_Activated;
         Closed += MainWindow_Closed;
         _timerSincronia.Tick += async (_, _) => await Sincronizar();
+    }
+
+    private void CarregarIconeSeguro()
+    {
+        try
+        {
+            var uri = new Uri("pack://application:,,,/ChaveiroCar.Windows;component/Assets/logo.png", UriKind.Absolute);
+            Icon = System.Windows.Media.Imaging.BitmapFrame.Create(uri);
+        }
+        catch { }
     }
 
     private async void MainWindow_Loaded(object sender, RoutedEventArgs e)
