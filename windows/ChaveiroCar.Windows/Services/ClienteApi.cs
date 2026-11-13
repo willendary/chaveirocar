@@ -28,6 +28,7 @@ public sealed class ClienteApi : IDisposable
     }
 
     public event Action<string, string>? OnTokensAtualizados;
+    public event Action? AoExpirarSessao;
 
     public void DefinirTokens(string? acesso, string? refresh)
     {
@@ -185,15 +186,37 @@ public sealed class ClienteApi : IDisposable
 
     public async Task<bool> RenovarAsync()
     {
-        if (string.IsNullOrWhiteSpace(_refresh)) return false;
-        using var resposta = await PostAsync("/api/v1/auth/renovar", new { refresh = _refresh });
-        if (!resposta.IsSuccessStatusCode) return false;
-        var doc = await LerJson(resposta);
-        var tokens = doc.TryGetProperty("tokens", out var t) && t.ValueKind == JsonValueKind.Object ? t : doc;
-        DefinirTokens(
-            tokens.TryGetProperty("acesso", out var a) ? a.GetString() : null,
-            tokens.TryGetProperty("refresh", out var r) ? r.GetString() : null);
-        return !string.IsNullOrWhiteSpace(_acesso) && !string.IsNullOrWhiteSpace(_refresh);
+        if (string.IsNullOrWhiteSpace(_refresh))
+        {
+            AoExpirarSessao?.Invoke();
+            return false;
+        }
+        try
+        {
+            using var conteudo = new StringContent(
+                JsonSerializer.Serialize(new { refresh = _refresh }),
+                Encoding.UTF8, "application/json");
+            using var resposta = await _http.PostAsync("/api/v1/auth/renovar", conteudo);
+            if (!resposta.IsSuccessStatusCode)
+            {
+                _acesso = null;
+                _refresh = null;
+                AoExpirarSessao?.Invoke();
+                return false;
+            }
+            var doc = await LerJson(resposta);
+            var tokens = doc.TryGetProperty("tokens", out var t) && t.ValueKind == JsonValueKind.Object ? t : doc;
+            DefinirTokens(
+                tokens.TryGetProperty("acesso", out var a) ? a.GetString() : null,
+                tokens.TryGetProperty("refresh", out var r) ? r.GetString() : null);
+            var renovado = !string.IsNullOrWhiteSpace(_acesso) && !string.IsNullOrWhiteSpace(_refresh);
+            if (!renovado) AoExpirarSessao?.Invoke();
+            return renovado;
+        }
+        catch
+        {
+            return false;
+        }
     }
 
     public async Task SairAsync()
@@ -388,7 +411,12 @@ public sealed class ClienteApi : IDisposable
             if (_acesso is not null) requisicao.Headers.Authorization =
                 new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", _acesso);
             var resposta = await _http.SendAsync(requisicao);
-            if (resposta.StatusCode != System.Net.HttpStatusCode.Unauthorized || tentativa > 0) return resposta;
+            if (caminho.Contains("/auth/login") || caminho.Contains("/auth/cadastro") ||
+                caminho.Contains("/auth/google-login") || caminho.Contains("/auth/renovar") ||
+                resposta.StatusCode != System.Net.HttpStatusCode.Unauthorized || tentativa > 0)
+            {
+                return resposta;
+            }
             if (!await RenovarAsync()) return resposta;
             resposta.Dispose();
         }
@@ -627,7 +655,7 @@ internal static class Converter
         tipoCilindro = a.TipoCilindro,
         enderecoLocal = a.EnderecoLocal,
         dataServico = a.DataServico,
-        tiposServico = a.TiposServico.Count > 0 ? a.TiposServico : new List<string> { "OUTRO" },
+        tiposServico = (a.TiposServico?.Count ?? 0) > 0 ? a.TiposServico! : new List<string> { "OUTRO" },
         defeito = a.Defeito,
         solucao = a.Solucao,
         abertura = a.Abertura,

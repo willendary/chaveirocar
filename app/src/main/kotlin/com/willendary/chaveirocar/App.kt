@@ -125,12 +125,12 @@ fun ChaveiroCarApp() {
     try {
       val resumo = withContext(Dispatchers.IO) {
         val acesso = Preferencias.obterApi(contexto).getString(Preferencias.API_ACESSO, "").orEmpty()
-        val empresaId = preferencias.getString(Preferencias.API_EMPRESA_ID, "").orEmpty()
+        var empresaId = preferencias.getString(Preferencias.API_EMPRESA_ID, "").orEmpty()
         val baseSalva = preferencias.getString(Preferencias.API_BASE_URL, null).orEmpty()
         val baseUrl = if (baseSalva.isBlank() || baseSalva.contains("10.0.2.2") || baseSalva.contains("localhost")) {
           ApiChaveiroCar.URL_PADRAO
         } else baseSalva
-        if (acesso.isBlank() || empresaId.isBlank()) return@withContext null
+        if (acesso.isBlank()) return@withContext null
         runCatching {
           val api = ApiChaveiroCar(baseUrl.ifBlank { ApiChaveiroCar.URL_PADRAO })
           api.tokenAcesso = acesso
@@ -140,6 +140,16 @@ fun ChaveiroCarApp() {
               .putString(Preferencias.API_ACESSO, novoAcesso)
               .putString(Preferencias.API_REFRESH, novoRefresh)
               .apply()
+          }
+          if (empresaId.isBlank()) {
+            val lista = api.listarEmpresas()
+            val primeira = lista.optJSONObject(0)?.optString("id").orEmpty()
+            if (primeira.isNotBlank()) {
+              empresaId = primeira
+              preferencias.edit().putString(Preferencias.API_EMPRESA_ID, empresaId).apply()
+            } else {
+              return@withContext null
+            }
           }
           val cursor = Preferencias.obterCursorApi(preferencias, empresaId)
           val resultado = MotorSinc.sincronizar(banco, api, empresaId, cursor, contexto)

@@ -243,9 +243,23 @@ fun SecaoContaApi(
           guardarTokens(cliente)
           logado = true
           emailVerificado = resposta.optJSONObject("usuario")?.optBoolean("emailVerificado") ?: false
+          val empresasArray = resposta.optJSONArray("empresas")
+          var idEmpresa = empresasArray?.optJSONObject(0)?.optString("id").orEmpty()
+          if (idEmpresa.isBlank()) {
+            runCatching {
+              val lista = withContext(Dispatchers.IO) { cliente.listarEmpresas() }
+              idEmpresa = lista.optJSONObject(0)?.optString("id").orEmpty()
+            }
+          }
+          if (idEmpresa.isNotBlank()) {
+            empresaId = idEmpresa
+          }
           preferencias.edit()
             .putString(Preferencias.API_BASE_URL, baseUrl.trim())
             .putString(Preferencias.API_EMAIL, email.trim())
+            .apply {
+              if (empresaId.isNotBlank()) putString(Preferencias.API_EMPRESA_ID, empresaId)
+            }
             .apply()
           recarregar()
           aoAutenticar()
@@ -278,9 +292,15 @@ fun SecaoContaApi(
             ?: credencial.email.orEmpty()
           email = emailConta
           emailVerificado = true
-          val primeiraEmpresa = resposta.optJSONArray("empresas")?.optJSONObject(0)?.optString("id").orEmpty()
-          if (primeiraEmpresa.isNotBlank()) {
-            empresaId = primeiraEmpresa
+          var idEmpresa = resposta.optJSONArray("empresas")?.optJSONObject(0)?.optString("id").orEmpty()
+          if (idEmpresa.isBlank()) {
+            runCatching {
+              val lista = withContext(Dispatchers.IO) { cliente.listarEmpresas() }
+              idEmpresa = lista.optJSONObject(0)?.optString("id").orEmpty()
+            }
+          }
+          if (idEmpresa.isNotBlank()) {
+            empresaId = idEmpresa
           }
           preferencias.edit()
             .putString(Preferencias.API_BASE_URL, baseUrl.trim())
@@ -373,7 +393,16 @@ fun SecaoContaApi(
           guardarTokens(cliente)
           logado = true
           emailVerificado = resposta.optJSONObject("usuario")?.optBoolean("emailVerificado") ?: false
-          empresaId = resposta.optJSONArray("empresas")?.optJSONObject(0)?.optString("id").orEmpty()
+          var idEmpresa = resposta.optJSONArray("empresas")?.optJSONObject(0)?.optString("id").orEmpty()
+          if (idEmpresa.isBlank()) {
+            runCatching {
+              val lista = withContext(Dispatchers.IO) { cliente.listarEmpresas() }
+              idEmpresa = lista.optJSONObject(0)?.optString("id").orEmpty()
+            }
+          }
+          if (idEmpresa.isNotBlank()) {
+            empresaId = idEmpresa
+          }
           preferencias.edit()
             .putString(Preferencias.API_BASE_URL, baseUrl.trim())
             .putString(Preferencias.API_EMAIL, email.trim())

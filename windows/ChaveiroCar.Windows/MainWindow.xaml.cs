@@ -1,5 +1,6 @@
 ﻿using System.Diagnostics;
 using System.Globalization;
+using System.Net.Http;
 using System.Text;
 using System.Windows;
 using System.Windows.Documents;
@@ -62,6 +63,8 @@ public partial class MainWindow : Window
 
         RecarregarGrade();
         AtualizarStatus();
+        var versaoAtual = System.Reflection.Assembly.GetEntryAssembly()?.GetName().Version?.ToString(3) ?? "1.11.3";
+        TxtVersaoApp.Text = $"ChaveiroCar Desktop v{versaoAtual}";
         await Inicializar();
         _timerSincronia.Start();
         await VerificarAtualizacao();
@@ -77,22 +80,88 @@ public partial class MainWindow : Window
 
     private void MainWindow_Closed(object? sender, EventArgs e) => _timerSincronia.Stop();
 
-    private static async Task VerificarAtualizacao()
+    private AtualizacaoDisponivel? _atualizacaoPendente;
+
+    private async Task VerificarAtualizacao(bool interativo = false)
     {
         var atualizacao = await VerificadorAtualizacao.VerificarAsync();
-        if (atualizacao is null) return;
-        if (MessageBox.Show(
-                $"ChaveiroCar {atualizacao.Versao} está disponível. Baixar atualização?",
-                "Atualização disponível", MessageBoxButton.YesNo, MessageBoxImage.Information)
-            == MessageBoxResult.Yes)
+        _atualizacaoPendente = atualizacao;
+        if (atualizacao is null)
         {
-            VerificadorAtualizacao.AbrirDownload(atualizacao);
+            BtnAtualizacaoDisponivel.Visibility = Visibility.Collapsed;
+            if (interativo)
+            {
+                MessageBox.Show("Você já está utilizando a versão mais recente do ChaveiroCar.",
+                    "Atualizações", MessageBoxButton.OK, MessageBoxImage.Information);
+            }
+            return;
         }
+
+        BtnAtualizacaoDisponivel.Content = $"Nova versão v{atualizacao.Versao} disponível";
+        BtnAtualizacaoDisponivel.Visibility = Visibility.Visible;
+
+        if (interativo)
+        {
+            AbrirJanelaAtualizacao(atualizacao);
+        }
+        else
+        {
+            var resposta = MessageBox.Show(
+                $"Nova versão v{atualizacao.Versao} disponível no GitHub com melhorias e correções.\n\nDeseja abrir o atualizador agora?",
+                "Atualização disponível", MessageBoxButton.YesNo, MessageBoxImage.Information);
+            if (resposta == MessageBoxResult.Yes)
+            {
+                AbrirJanelaAtualizacao(atualizacao);
+            }
+        }
+    }
+
+    private void AbrirJanelaAtualizacao(AtualizacaoDisponivel atualizacao)
+    {
+        var janela = new JanelaAtualizacao(atualizacao) { Owner = this };
+        janela.ShowDialog();
+    }
+
+    private async void VerificarAtualizacoes_Click(object sender, RoutedEventArgs e)
+    {
+        await VerificarAtualizacao(interativo: true);
+    }
+
+    private void AtualizarApp_Click(object sender, RoutedEventArgs e)
+    {
+        if (_atualizacaoPendente is not null)
+        {
+            AbrirJanelaAtualizacao(_atualizacaoPendente);
+        }
+    }
+
+    private bool _sessaoExpiradaNotificada = false;
+
+    private void TratarSessaoExpirada()
+    {
+        if (_sessaoExpiradaNotificada) return;
+        _sessaoExpiradaNotificada = true;
+
+        Dispatcher.Invoke(() =>
+        {
+            _timerSincronia.Stop();
+            _local.Estado.Acesso = null;
+            _local.Estado.Refresh = null;
+            _local.Salvar();
+
+            MessageBox.Show(
+                "Sua sessão expirou ou foi desconectada. Por favor, faça login novamente para continuar sincronizando com a nuvem.",
+                "Sessão Expirada", MessageBoxButton.OK, MessageBoxImage.Information);
+
+            SaiuDaConta = true;
+            Close();
+        });
     }
 
     private async Task Inicializar()
     {
         _api = new ClienteApi(_local.Estado.BaseUrl);
+        _api.AoExpirarSessao += TratarSessaoExpirada;
         _api.OnTokensAtualizados += (acesso, refresh) =>
         {
             _local.Estado.Acesso = acesso;
@@ -113,6 +182,11 @@ public partial class MainWindow : Window
                 _local.Salvar();
             }
             await Sincronizar();
+        }
+        catch (HttpRequestException ex) when (ex.StatusCode == System.Net.HttpStatusCode.Unauthorized)
+        {
+            TratarSessaoExpirada();
+            return;
         }
         catch
         {
@@ -279,6 +353,11 @@ public partial class MainWindow : Window
             {
                 mensagem = $"{total} atendimento(s) · Sincronizado com a nuvem às {DateTime.Now:HH:mm}";
             }
+        }
+        catch (HttpRequestException ex) when (ex.StatusCode == System.Net.HttpStatusCode.Unauthorized)
+        {
+            TratarSessaoExpirada();
+            return;
         }
         catch
         {

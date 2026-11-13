@@ -1,6 +1,6 @@
 ; Script Inno Setup para o instalador oficial do ChaveiroCar Windows Desktop
 #define MyAppName "ChaveiroCar"
-#define MyAppVersion "1.11.2"
+#define MyAppVersion "1.11.3"
 #define MyAppPublisher "ChaveiroCar"
 #define MyAppExeName "ChaveiroCar.Windows.exe"
 

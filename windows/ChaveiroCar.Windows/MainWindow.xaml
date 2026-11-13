@@ -35,6 +35,7 @@
                     <Border Background="#FF1E293B" CornerRadius="6" Padding="10,6" Margin="0,0,10,0" VerticalAlignment="Center">
                         <TextBlock x:Name="EmailUsuario" Text="" Foreground="#FFE2E8F0" FontSize="12" VerticalAlignment="Center"/>
                     </Border>
+                    <Button Content="Atualizações" Click="VerificarAtualizacoes_Click" Margin="0,0,8,0"/>
                     <Button Content="Equipe e acessos" Click="Equipe_Click" Margin="0,0,8,0"/>
                     <Button Content="Sair da conta" Click="Sair_Click"/>
                 </StackPanel>
@@ -199,8 +200,12 @@
                     <Ellipse x:Name="StatusDot" Width="8" Height="8" Fill="{StaticResource CorPrimaria}" Margin="0,0,8,0" VerticalAlignment="Center"/>
                     <TextBlock x:Name="Status" VerticalAlignment="Center" Foreground="{StaticResource CorTextoSecundario}" FontSize="12.5"/>
                 </StackPanel>
-                <TextBlock DockPanel.Dock="Right" Text="ChaveiroCar Desktop v1.11.2"
-                           Foreground="#FF94A3B8" FontSize="12" VerticalAlignment="Center"/>
+                <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center">
+                    <Button x:Name="BtnAtualizacaoDisponivel" Visibility="Collapsed" Content="Nova versão disponível"
+                            Click="AtualizarApp_Click" Style="{StaticResource BotaoPrimario}" Padding="10,3" Margin="0,0,12,0" VerticalAlignment="Center" FontSize="11.5"/>
+                    <TextBlock x:Name="TxtVersaoApp" Text="ChaveiroCar Desktop"
+                               Foreground="#FF94A3B8" FontSize="12" VerticalAlignment="Center"/>
+                </StackPanel>
             </DockPanel>
         </Border>
     </Grid>
