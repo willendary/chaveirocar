@@ -97,12 +97,16 @@ public sealed class ClienteApi : IDisposable
             item.GetProperty("canceladoEm").ValueKind != JsonValueKind.Null)).ToList();
     }
 
-    public async Task<bool> ConvidarAsync(string empresaId, string email, string papel)
+    public async Task<(bool EmailEnviado, string? Token)> ConvidarAsync(
+        string empresaId, string email, string papel)
     {
         using var resposta = await PostAsync($"/api/v1/empresas/{empresaId}/convites", new { email, papel });
         resposta.EnsureSuccessStatusCode();
         var doc = await LerJson(resposta);
-        return doc.GetProperty("emailEnviado").GetBoolean();
+        var token = doc.TryGetProperty("token", out var t) && t.ValueKind == JsonValueKind.String
+            ? t.GetString()
+            : null;
+        return (doc.GetProperty("emailEnviado").GetBoolean(), token);
     }
 
     public async Task<ConvitePreview> PrevisualizarConviteAsync(string token)

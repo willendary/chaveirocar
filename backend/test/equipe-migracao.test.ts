@@ -59,6 +59,23 @@ describe("equipe e convites", () => {
     expect(remove.statusCode).toBe(204);
   });
 
+  it("devolve o código ao administrador quando o e-mail não sai", async () => {
+    const outro = await criarAmbiente({ EXPOR_TOKEN_DEV: "false", SMTP_URL: "smtp://127.0.0.1:1" });
+    try {
+      const dono = await cadastrar(outro.app, { email: "sem-email@exemplo.com" });
+      const id = dono.empresas[0]!.id;
+      const conv = await outro.app.inject({
+        method: "POST", url: `/api/v1/empresas/${id}/convites`, headers: dono.cabecalho,
+        payload: { email: "func-sem-email@exemplo.com", papel: "colaborador" },
+      });
+      expect(conv.statusCode).toBe(201);
+      expect(conv.json().emailEnviado).toBe(false);
+      expect(conv.json().token).toBeTruthy();
+    } finally {
+      await outro.fechar();
+    }
+  });
+
   it("token reutilizado falha", async () => {
     const dono = await cadastrar(ambiente.app, { email: "dono2@exemplo.com" });
     const id = dono.empresas[0]!.id;

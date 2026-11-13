@@ -160,7 +160,8 @@ export async function criarConvite(
 
   return {
     convite,
-    token: config.exporTokenDev ? token : undefined,
+    // Sem e-mail configurado, o administrador recebe o código para repassar manualmente.
+    token: !emailEnviado || config.exporTokenDev ? token : undefined,
     emailEnviado,
   };
 }

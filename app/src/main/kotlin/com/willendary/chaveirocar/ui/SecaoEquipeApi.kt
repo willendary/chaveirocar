@@ -11,6 +11,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -19,6 +20,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import com.willendary.chaveirocar.nuvem.ApiChaveiroCar
 import kotlinx.coroutines.Dispatchers
@@ -37,15 +39,17 @@ fun SecaoEquipeApi(
   guardarTokens: (ApiChaveiroCar) -> Unit,
 ) {
   val escopo = rememberCoroutineScope()
+  val contexto = LocalContext.current
   val podeGerenciar = papelEmpresa == "proprietario" || papelEmpresa == "administrador"
   var emailConvite by remember { mutableStateOf("") }
   var papelConvite by remember { mutableStateOf("colaborador") }
+  var codigoConvite by remember { mutableStateOf("") }
   var membros by remember { mutableStateOf<List<MembroEquipeUi>>(emptyList()) }
   var convites by remember { mutableStateOf<List<ConviteEquipeUi>>(emptyList()) }
   var estado by remember { mutableStateOf("") }
   var carregando by remember { mutableStateOf(false) }
 
-  fun atualizar() {
+  fun atualizar(mensagem: String = "Equipe atualizada.") {
     if (carregando) return
     carregando = true
     escopo.launch {
@@ -85,7 +89,7 @@ fun SecaoEquipeApi(
       resultado.onSuccess { (listaMembros, listaConvites) ->
         membros = listaMembros
         convites = listaConvites
-        estado = "Equipe atualizada."
+        estado = mensagem
       }.onFailure { erro -> estado = erro.message ?: "Não foi possível carregar a equipe." }
     }
   }
@@ -98,7 +102,7 @@ fun SecaoEquipeApi(
       val resultado = runCatching { withContext(Dispatchers.IO) { acao(api) } }
       guardarTokens(api)
       carregando = false
-      resultado.onSuccess { estado = it; atualizar() }
+      resultado.onSuccess { atualizar(it) }
         .onFailure { estado = it.message ?: "Não foi possível concluir a ação." }
     }
   }
@@ -126,14 +130,44 @@ fun SecaoEquipeApi(
         Button(
           onClick = {
             val destino = emailConvite.trim()
-            if (destino.isNotEmpty()) executar { api ->
-              val resultado = api.convidar(empresaId, destino, papelConvite)
-              if (resultado.optBoolean("emailEnviado")) "Convite enviado para $destino."
-              else "Convite criado, mas o e-mail não foi enviado."
+            if (destino.isNotEmpty() && !carregando) {
+              carregando = true
+              escopo.launch {
+                val api = criarApi()
+                val resultado = runCatching {
+                  withContext(Dispatchers.IO) { api.convidar(empresaId, destino, papelConvite) }
+                }
+                guardarTokens(api)
+                carregando = false
+                resultado.onSuccess { resposta ->
+                  codigoConvite = resposta.optString("token")
+                  val mensagem = when {
+                    resposta.optBoolean("emailEnviado") -> "Convite enviado para $destino."
+                    codigoConvite.isNotBlank() ->
+                      "Convite criado. Envie o código abaixo para $destino."
+                    else -> "Convite criado, mas o e-mail não foi enviado."
+                  }
+                  atualizar(mensagem)
+                }.onFailure { erro ->
+                  estado = erro.message ?: "Não foi possível criar o convite."
+                }
+              }
             }
           },
           enabled = !carregando && emailConvite.isNotBlank(),
         ) { Text(if (carregando) "Aguarde..." else "Convidar") }
+        if (codigoConvite.isNotBlank()) {
+          OutlinedTextField(
+            value = codigoConvite,
+            onValueChange = {},
+            readOnly = true,
+            label = { Text("Código do convite") },
+            modifier = Modifier.fillMaxWidth(),
+          )
+          TextButton(onClick = { copiarTexto(contexto, "Código do convite", codigoConvite) }) {
+            Text("Copiar código")
+          }
+        }
       }
       OutlinedButton(onClick = { atualizar() }, enabled = !carregando) {
         Text(if (carregando) "Atualizando..." else "Atualizar equipe")

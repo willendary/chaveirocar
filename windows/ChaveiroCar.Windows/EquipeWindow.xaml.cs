@@ -49,10 +49,18 @@ public partial class EquipeWindow : Window
         try
         {
             var papel = (PapelNovo.SelectedItem as ComboBoxItem)?.Tag?.ToString() ?? "colaborador";
-            var enviado = await _api.ConvidarAsync(_empresaId, email, papel);
+            var (enviado, token) = await _api.ConvidarAsync(_empresaId, email, papel);
+            if (!string.IsNullOrWhiteSpace(token))
+            {
+                CodigoConvite.Text = token;
+                CodigoConvite.Visibility = Visibility.Visible;
+                CopiarCodigo.Visibility = Visibility.Visible;
+            }
             Status.Text = enviado
                 ? "Convite enviado por e-mail."
-                : "Convite criado, mas o e-mail não foi enviado. Confira a configuração do serviço de e-mail.";
+                : string.IsNullOrWhiteSpace(token)
+                    ? "Convite criado, mas o e-mail não foi enviado."
+                    : "Convite criado. Copie o código e envie para o colaborador.";
             if (enviado) EmailConvite.Clear();
             await Atualizar();
         }
@@ -64,6 +72,13 @@ public partial class EquipeWindow : Window
         {
             Convidar.IsEnabled = true;
         }
+    }
+
+    private void CopiarCodigo_Click(object sender, RoutedEventArgs e)
+    {
+        if (string.IsNullOrWhiteSpace(CodigoConvite.Text)) return;
+        Clipboard.SetText(CodigoConvite.Text);
+        Status.Text = "Código do convite copiado.";
     }
 
     private async void AlterarPapel_Click(object sender, RoutedEventArgs e)

@@ -43,6 +43,14 @@
                 </DockPanel>
             </TabItem>
         </TabControl>
-        <TextBlock Grid.Row="2" x:Name="Status" TextWrapping="Wrap" Margin="0,8,0,0"/>
+        <StackPanel Grid.Row="2" Margin="0,8,0,0">
+            <DockPanel x:Name="PainelCodigo" Margin="0,0,0,6">
+                <Button DockPanel.Dock="Right" x:Name="CopiarCodigo" Content="Copiar"
+                        Click="CopiarCodigo_Click" Visibility="Collapsed" Margin="8,0,0,0"/>
+                <TextBox x:Name="CodigoConvite" IsReadOnly="True" Visibility="Collapsed"
+                         VerticalContentAlignment="Center"/>
+            </DockPanel>
+            <TextBlock x:Name="Status" TextWrapping="Wrap"/>
+        </StackPanel>
     </Grid>
 </Window>
