@@ -82,6 +82,12 @@ public partial class MainWindow : Window
     private async Task Inicializar()
     {
         _api = new ClienteApi(_local.Estado.BaseUrl);
+        _api.OnTokensAtualizados += (acesso, refresh) =>
+        {
+            _local.Estado.Acesso = acesso;
+            _local.Estado.Refresh = refresh;
+            _local.Salvar();
+        };
         _api.DefinirTokens(_local.Estado.Acesso, _local.Estado.Refresh);
         try
         {

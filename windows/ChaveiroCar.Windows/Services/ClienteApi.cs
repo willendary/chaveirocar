@@ -27,10 +27,16 @@ public sealed class ClienteApi : IDisposable
         _http.BaseAddress = new Uri(endereco + "/");
     }
 
+    public event Action<string, string>? OnTokensAtualizados;
+
     public void DefinirTokens(string? acesso, string? refresh)
     {
         _acesso = acesso;
         _refresh = refresh;
+        if (!string.IsNullOrWhiteSpace(acesso) && !string.IsNullOrWhiteSpace(refresh))
+        {
+            OnTokensAtualizados?.Invoke(acesso, refresh);
+        }
     }
 
     public async Task<ResultadoLogin> EntrarAsync(string email, string senha)
@@ -58,10 +64,10 @@ public sealed class ClienteApi : IDisposable
     {
         if (!resposta.IsSuccessStatusCode) return new ResultadoLogin(false, null, []);
         var doc = await LerJson(resposta);
-        var tokens = doc.GetProperty("tokens");
+        var tokens = doc.TryGetProperty("tokens", out var t) && t.ValueKind == JsonValueKind.Object ? t : doc;
         DefinirTokens(
-            tokens.GetProperty("acesso").GetString(),
-            tokens.GetProperty("refresh").GetString());
+            tokens.TryGetProperty("acesso", out var a) ? a.GetString() : null,
+            tokens.TryGetProperty("refresh", out var r) ? r.GetString() : null);
         var empresas = new List<Empresa>();
         foreach (var item in doc.GetProperty("empresas").EnumerateArray())
         {
@@ -139,10 +145,10 @@ public sealed class ClienteApi : IDisposable
             $"/api/v1/convites/{Uri.EscapeDataString(token)}/aceitar", corpo);
         resposta.EnsureSuccessStatusCode();
         var doc = await LerJson(resposta);
-        var tokens = doc.GetProperty("tokens");
+        var tokens = doc.TryGetProperty("tokens", out var t) && t.ValueKind == JsonValueKind.Object ? t : doc;
         DefinirTokens(
-            tokens.GetProperty("acesso").GetString(),
-            tokens.GetProperty("refresh").GetString());
+            tokens.TryGetProperty("acesso", out var a) ? a.GetString() : null,
+            tokens.TryGetProperty("refresh", out var r) ? r.GetString() : null);
         return doc.GetProperty("empresaId").GetString() ?? "";
     }
 
@@ -183,11 +189,11 @@ public sealed class ClienteApi : IDisposable
         using var resposta = await PostAsync("/api/v1/auth/renovar", new { refresh = _refresh });
         if (!resposta.IsSuccessStatusCode) return false;
         var doc = await LerJson(resposta);
-        var tokens = doc.GetProperty("tokens");
+        var tokens = doc.TryGetProperty("tokens", out var t) && t.ValueKind == JsonValueKind.Object ? t : doc;
         DefinirTokens(
-            tokens.GetProperty("acesso").GetString(),
-            tokens.GetProperty("refresh").GetString());
-        return true;
+            tokens.TryGetProperty("acesso", out var a) ? a.GetString() : null,
+            tokens.TryGetProperty("refresh", out var r) ? r.GetString() : null);
+        return !string.IsNullOrWhiteSpace(_acesso) && !string.IsNullOrWhiteSpace(_refresh);
     }
 
     public async Task SairAsync()

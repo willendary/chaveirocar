@@ -135,6 +135,12 @@ fun ChaveiroCarApp() {
           val api = ApiChaveiroCar(baseUrl.ifBlank { ApiChaveiroCar.URL_PADRAO })
           api.tokenAcesso = acesso
           api.tokenRefresh = Preferencias.obterApi(contexto).getString(Preferencias.API_REFRESH, null)?.ifBlank { null }
+          api.aoRenovarToken = { novoAcesso, novoRefresh ->
+            Preferencias.obterApi(contexto).edit()
+              .putString(Preferencias.API_ACESSO, novoAcesso)
+              .putString(Preferencias.API_REFRESH, novoRefresh)
+              .apply()
+          }
           val cursor = Preferencias.obterCursorApi(preferencias, empresaId)
           val resultado = MotorSinc.sincronizar(banco, api, empresaId, cursor, contexto)
           Preferencias.guardarCursorApi(preferencias, empresaId, resultado.cursor)
@@ -143,7 +149,20 @@ fun ChaveiroCarApp() {
             .putString(Preferencias.API_REFRESH, api.tokenRefresh ?: "")
             .apply()
           resultado
-        }.onFailure { Erros.registrar(contexto, "Sincronização automática", it) }.getOrNull()
+        }.onFailure { ex ->
+          if (ex is com.willendary.chaveirocar.nuvem.ExpiradoException) {
+            withContext(Dispatchers.Main) {
+              autenticado = false
+              Preferencias.obterApi(contexto).edit()
+                .remove(Preferencias.API_ACESSO)
+                .remove(Preferencias.API_REFRESH)
+                .apply()
+              Toast.makeText(contexto, "Sua sessão expirou. Faça login novamente.", Toast.LENGTH_LONG).show()
+            }
+          } else {
+            Erros.registrar(contexto, "Sincronização automática", ex)
+          }
+        }.getOrNull()
       }
       if (resumo != null && (resumo.enviadas > 0 || resumo.recebidas > 0 || resumo.conflitos > 0)) {
         versaoSincronia++

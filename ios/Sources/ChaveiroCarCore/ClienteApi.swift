@@ -388,7 +388,7 @@ public final class ClienteApi: @unchecked Sendable {
     }
 
     private func guardarTokens(_ resposta: [String: Any]) {
-        guard let tokens = resposta["tokens"] as? [String: Any] else { return }
+        let tokens = (resposta["tokens"] as? [String: Any]) ?? resposta
         if let acesso = tokens["acesso"] as? String, !acesso.isEmpty { tokenAcesso = acesso }
         if let refresh = tokens["refresh"] as? String, !refresh.isEmpty { tokenRefresh = refresh }
     }

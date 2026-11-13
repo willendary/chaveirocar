@@ -444,7 +444,11 @@ export const rotasAuth: FastifyPluginAsync<ContextoRotas> = async (app, opcoes) 
     },
     async (request) => {
       const entrada = request.body as { refresh: string };
-      return renovarSessao(banco, entrada.refresh);
+      const tokens = await renovarSessao(banco, entrada.refresh);
+      return {
+        ...tokens,
+        tokens,
+      };
     },
   );
 

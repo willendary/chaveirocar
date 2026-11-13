@@ -200,7 +200,7 @@
                     <Ellipse x:Name="StatusDot" Width="8" Height="8" Fill="{StaticResource CorPrimaria}" Margin="0,0,8,0" VerticalAlignment="Center"/>
                     <TextBlock x:Name="Status" VerticalAlignment="Center" Foreground="{StaticResource CorTextoSecundario}" FontSize="12.5"/>
                 </StackPanel>
-                <TextBlock DockPanel.Dock="Right" Text="ChaveiroCar Desktop v1.11.0"
+                <TextBlock DockPanel.Dock="Right" Text="ChaveiroCar Desktop v1.11.1"
                            Foreground="#FF94A3B8" FontSize="12" VerticalAlignment="Center"/>
             </DockPanel>
         </Border>

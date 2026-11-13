@@ -20,6 +20,7 @@ class ApiChaveiroCar(baseUrl: String = URL_PADRAO) {
 
   @Volatile var tokenAcesso: String? = null
   @Volatile var tokenRefresh: String? = null
+  var aoRenovarToken: ((acesso: String, refresh: String) -> Unit)? = null
 
   fun entrar(email: String, senha: String): JSONObject {
     val resposta = post("/api/v1/auth/login", JSONObject().apply {
@@ -78,9 +79,14 @@ class ApiChaveiroCar(baseUrl: String = URL_PADRAO) {
   }
 
   private fun guardarTokens(resposta: JSONObject) {
-    val tokens = resposta.optJSONObject("tokens") ?: return
-    tokenAcesso = tokens.optString("acesso").ifBlank { null }
-    tokenRefresh = tokens.optString("refresh").ifBlank { null }
+    val tokens = resposta.optJSONObject("tokens") ?: resposta
+    val novoAcesso = tokens.optString("acesso").ifBlank { null }
+    val novoRefresh = tokens.optString("refresh").ifBlank { null }
+    if (novoAcesso != null) tokenAcesso = novoAcesso
+    if (novoRefresh != null) tokenRefresh = novoRefresh
+    if (novoAcesso != null && novoRefresh != null) {
+      aoRenovarToken?.invoke(novoAcesso, novoRefresh)
+    }
   }
 
   fun eu(): JSONObject = get("/api/v1/eu")

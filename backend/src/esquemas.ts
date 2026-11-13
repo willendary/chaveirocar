@@ -25,6 +25,15 @@ export const TokensSchema = Type.Object({
   refresh: Type.String(),
   refreshExpiraEm: Type.Integer(),
   tipo: Type.Literal("Bearer"),
+  tokens: Type.Optional(
+    Type.Object({
+      acesso: Type.String(),
+      expiraEm: Type.Integer(),
+      refresh: Type.String(),
+      refreshExpiraEm: Type.Integer(),
+      tipo: Type.Literal("Bearer"),
+    })
+  ),
 });
 
 export const UsuarioSchema = Type.Object({
