@@ -64,8 +64,8 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           name: ChaveiroCar ${{ github.ref_name }}
+          body_path: release/${{ github.ref_name }}.md
           files: dist/*.apk
-          generate_release_notes: true
 
   windows:
     if: startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch'
@@ -83,7 +83,7 @@ jobs:
       - name: Publicar Windows x64 autocontido
         run: dotnet publish windows/ChaveiroCar.Windows/ChaveiroCar.Windows.csproj -c Release -r win-x64 --self-contained true -o publish
 
-      - name: Compactar pacote port·til
+      - name: Compactar pacote port√°til
         shell: pwsh
         run: |
           New-Item -ItemType Directory -Force -Path dist | Out-Null
@@ -95,9 +95,10 @@ jobs:
           name: chaveirocar-windows-x64
           path: dist/chaveirocar-windows-x64.zip
 
-      - name: Anexar Windows ‡ release
+      - name: Anexar Windows √† release
         if: startsWith(github.ref, 'refs/tags/v')
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ github.ref_name }}
+          body_path: release/${{ github.ref_name }}.md
           files: dist/chaveirocar-windows-x64.zip
