@@ -10,7 +10,7 @@ namespace ChaveiroCar.Windows.Services;
 /// </summary>
 public static class MotorSincronia
 {
-    public sealed record Resumo(int Enviadas, int Recebidas, int Conflitos);
+    public sealed record Resumo(int Enviadas, int Recebidas, int Conflitos, int Falhas);
 
     private static string PastaFotos()
     {
@@ -27,6 +27,7 @@ public static class MotorSincronia
         var enviadas = 0;
         var recebidas = 0;
         var conflitos = 0;
+        var falhas = 0;
 
         // PUSH atendimentos + fichas (lote idempotente) e exclusões.
         if (local.Estado.Outbox.Count > 0)
@@ -77,6 +78,9 @@ public static class MotorSincronia
                             RegistroExcluido(resultado.Registro));
                         local.Estado.Outbox.Remove(op);
                         break;
+                    default:
+                        falhas++;
+                        break;
                 }
             }
             local.Salvar();
@@ -85,15 +89,23 @@ public static class MotorSincronia
         // Uploads de foto começam só depois que o atendimento já foi enviado.
         foreach (var foto in local.Estado.Fotos.Where(f => f.Pendente).ToList())
         {
-            if (!File.Exists(foto.CaminhoLocal))
-                throw new FileNotFoundException("A foto pendente não está mais no aparelho.", foto.CaminhoLocal);
-            if (string.IsNullOrWhiteSpace(foto.AtendimentoUuid) == string.IsNullOrWhiteSpace(foto.FichaUuid))
-                throw new InvalidDataException("A foto precisa pertencer a um atendimento ou a uma ficha.");
-            var resposta = await api.EnviarFotoAsync(empresaId, foto);
-            foto.Revisao = resposta.GetProperty("revisao").GetInt64();
-            foto.Pendente = false;
-            local.Salvar();
-            enviadas++;
+            try
+            {
+                if (!File.Exists(foto.CaminhoLocal)) continue;
+                if (string.IsNullOrWhiteSpace(foto.AtendimentoUuid) == string.IsNullOrWhiteSpace(foto.FichaUuid))
+                    continue;
+                var resposta = await api.EnviarFotoAsync(empresaId, foto);
+                foto.Revisao = resposta.GetProperty("revisao").GetInt64();
+                foto.Pendente = false;
+                local.Salvar();
+                enviadas++;
+            }
+            catch
+            {
+                // Falha de storage/rede não pode impedir o restante da sincronização.
+                // A foto continua pendente e é reenviada na próxima execução.
+                falhas++;
+            }
         }
 
         // PULL
@@ -121,7 +133,7 @@ public static class MotorSincronia
             }
         }
         local.Salvar();
-        return new Resumo(enviadas, recebidas, conflitos);
+        return new Resumo(enviadas, recebidas, conflitos, falhas);
     }
 
     public static void EnfileirarUpsert(ArmazenamentoLocal local, Atendimento item)
@@ -164,18 +176,23 @@ public static class MotorSincronia
         local.Salvar();
     }
 
-    public static void EnfileirarExclusao(ArmazenamentoLocal local, string uuid, string entidade = "atendimento")
+    public static void EnfileirarExclusao(
+        ArmazenamentoLocal local, string uuid, long baseRevisao, string entidade = "atendimento")
     {
         local.Estado.Atendimentos.RemoveAll(a => a.Uuid == uuid);
         local.Estado.Fichas.RemoveAll(f => f.Uuid == uuid);
         local.Estado.Outbox.RemoveAll(o => o.Uuid == uuid && o.Tipo == "upsert");
-        local.Estado.Outbox.Add(new ArmazenamentoLocal.OperacaoPendente
+        // Registro criado só neste PC nunca chegou ao servidor: basta remover localmente.
+        if (baseRevisao > 0)
         {
-            Entidade = entidade,
-            Uuid = uuid,
-            Tipo = "exclusao",
-            BaseRevisao = 0,
-        });
+            local.Estado.Outbox.Add(new ArmazenamentoLocal.OperacaoPendente
+            {
+                Entidade = entidade,
+                Uuid = uuid,
+                Tipo = "exclusao",
+                BaseRevisao = baseRevisao,
+            });
+        }
         local.Salvar();
     }
 
@@ -406,8 +423,8 @@ public static class MotorSincronia
         }
         catch
         {
-            // Sem rede, ignora o download; metadados entram na próxima sync.
-            if (existente is null) return 0;
+            // Sem rede, mantém o metadado anterior e tenta o download na próxima sync.
+            return 0;
         }
         var meta = new ArmazenamentoLocal.FotoLocal
         {

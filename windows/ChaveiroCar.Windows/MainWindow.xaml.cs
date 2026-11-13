@@ -127,7 +127,8 @@ public partial class MainWindow : Window
             await SalvarTokens();
             Status.Text =
                 $"Sincronizado: {resumo.Enviadas} enviadas, {resumo.Recebidas} recebidas" +
-                (resumo.Conflitos > 0 ? $", {resumo.Conflitos} conflito(s) — resolva na aba Conflitos" : "");
+                (resumo.Conflitos > 0 ? $", {resumo.Conflitos} conflito(s) — resolva na aba Conflitos" : "") +
+                (resumo.Falhas > 0 ? $", {resumo.Falhas} pendência(s) para tentar de novo" : "");
             if (resumo.Conflitos > 0)
             {
                 var detalhe = string.Join(", ", _local.Estado.Conflitos.Select(c =>
@@ -218,7 +219,7 @@ public partial class MainWindow : Window
         if (item is null) return;
         if (MessageBox.Show($"Excluir {item.Placa}?", "ChaveiroCar",
                 MessageBoxButton.YesNo) != MessageBoxResult.Yes) return;
-        MotorSincronia.EnfileirarExclusao(_local, item.Uuid);
+        MotorSincronia.EnfileirarExclusao(_local, item.Uuid, item.Revisao);
         RecarregarGrade();
         AtualizarStatus();
         _ = Sincronizar();
@@ -319,7 +320,7 @@ public partial class MainWindow : Window
         if (ficha is null) return;
         if (MessageBox.Show($"Excluir ficha {ficha.Marca} {ficha.Modelo}?", "ChaveiroCar",
                 MessageBoxButton.YesNo) != MessageBoxResult.Yes) return;
-        MotorSincronia.EnfileirarExclusao(_local, ficha.Uuid, "ficha");
+        MotorSincronia.EnfileirarExclusao(_local, ficha.Uuid, ficha.Revisao, "ficha");
         RecarregarGrade();
         AtualizarStatus();
         _ = Sincronizar();
