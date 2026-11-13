@@ -7,6 +7,7 @@ import {
   S3Client,
 } from "@aws-sdk/client-s3";
 import type { Config } from "./config.js";
+import { ErroApi } from "./erros.js";
 
 export interface Armazenamento {
   salvar(chave: string, bytes: Buffer, mime: string): Promise<void>;
@@ -43,6 +44,9 @@ function criarS3(config: Config): Armazenamento {
     region: config.storage.s3.regiao,
     endpoint: config.storage.s3.endpoint || undefined,
     forcePathStyle: Boolean(config.storage.s3.endpoint),
+    // O SDK novo assina PutObject com checksum CRC32, que o Backblaze B2 recusa.
+    requestChecksumCalculation: "WHEN_REQUIRED",
+    responseChecksumValidation: "WHEN_REQUIRED",
     credentials: {
       accessKeyId: config.storage.s3.accessKeyId,
       secretAccessKey: config.storage.s3.secretAccessKey,
@@ -50,21 +54,39 @@ function criarS3(config: Config): Armazenamento {
   });
   const bucket = config.storage.s3.bucket;
 
+  async function executar<T>(acao: () => Promise<T>): Promise<T> {
+    try {
+      return await acao();
+    } catch (erro) {
+      const falha = erro as {
+        name?: string;
+        $metadata?: { httpStatusCode?: number };
+        Code?: string;
+      };
+      throw new ErroApi(502, "INDISPONIVEL", "Armazenamento de arquivos indisponível.", {
+        motivo: falha.Code || falha.name || "erro-desconhecido",
+        status: falha.$metadata?.httpStatusCode,
+      });
+    }
+  }
+
   return {
     async salvar(chave, bytes, mime) {
-      await cliente.send(
-        new PutObjectCommand({
-          Bucket: bucket,
-          Key: chaveSegura(chave),
-          Body: bytes,
-          ContentType: mime,
-          CacheControl: "private, max-age=3600",
-        }),
+      await executar(() =>
+        cliente.send(
+          new PutObjectCommand({
+            Bucket: bucket,
+            Key: chaveSegura(chave),
+            Body: bytes,
+            ContentType: mime,
+            CacheControl: "private, max-age=3600",
+          }),
+        ),
       );
     },
     async ler(chave) {
-      const resposta = await cliente.send(
-        new GetObjectCommand({ Bucket: bucket, Key: chaveSegura(chave) }),
+      const resposta = await executar(() =>
+        cliente.send(new GetObjectCommand({ Bucket: bucket, Key: chaveSegura(chave) })),
       );
       const corpo = resposta.Body;
       if (!corpo) throw new Error("Arquivo não encontrado no storage.");
@@ -72,7 +94,9 @@ function criarS3(config: Config): Armazenamento {
       return Buffer.from(bytes);
     },
     async remover(chave) {
-      await cliente.send(new DeleteObjectCommand({ Bucket: bucket, Key: chaveSegura(chave) }));
+      await executar(() =>
+        cliente.send(new DeleteObjectCommand({ Bucket: bucket, Key: chaveSegura(chave) })),
+      );
     },
   };
 }
