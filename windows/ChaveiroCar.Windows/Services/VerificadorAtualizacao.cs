@@ -11,6 +11,7 @@ public sealed record AtualizacaoDisponivel(string Versao, string Url);
 public static class VerificadorAtualizacao
 {
     private const string UrlApi = "https://api.github.com/repos/willendary/chaveirocar/releases/latest";
+    private const string ExecutavelWindows = "ChaveiroCar.Windows.exe";
     private const string PacoteWindows = "chaveirocar-windows-x64.zip";
     private static readonly HttpClient Cliente = new() { Timeout = TimeSpan.FromSeconds(5) };
 
@@ -38,12 +39,18 @@ public static class VerificadorAtualizacao
             if (publicada <= instalada) return null;
 
             if (!raiz.TryGetProperty("assets", out var ativos)) return null;
+            string? urlZip = null;
             foreach (var ativo in ativos.EnumerateArray())
             {
-                if (ativo.GetProperty("name").GetString() != PacoteWindows) continue;
+                var nomeAtivo = ativo.GetProperty("name").GetString();
                 var url = ativo.GetProperty("browser_download_url").GetString();
-                return string.IsNullOrWhiteSpace(url) ? null : new AtualizacaoDisponivel(tag!, url);
+                if (string.IsNullOrWhiteSpace(url)) continue;
+                if (nomeAtivo == ExecutavelWindows)
+                    return new AtualizacaoDisponivel(tag!, url);
+                if (nomeAtivo == PacoteWindows)
+                    urlZip = url;
             }
+            return urlZip is null ? null : new AtualizacaoDisponivel(tag!, urlZip);
         }
         catch
         {

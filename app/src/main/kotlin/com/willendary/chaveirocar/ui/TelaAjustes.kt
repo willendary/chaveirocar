@@ -1,8 +1,6 @@
 package com.willendary.chaveirocar.ui
 
 import android.widget.Toast
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -29,7 +27,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -42,17 +39,10 @@ import androidx.fragment.app.FragmentActivity
 import com.willendary.chaveirocar.atualizacao.AtualizacaoDisponivel
 import com.willendary.chaveirocar.atualizacao.Atualizacoes
 import com.willendary.chaveirocar.dados.BancoDeAtendimentos
-import com.willendary.chaveirocar.dados.Backup
 import com.willendary.chaveirocar.dados.Preferencias
 import com.willendary.chaveirocar.util.Biometria
 import com.willendary.chaveirocar.util.Erros
 import com.willendary.chaveirocar.util.Seguranca
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
-import java.text.SimpleDateFormat
-import java.util.Date
-import java.util.Locale
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -63,12 +53,11 @@ fun TelaAjustes(
   onAtualizarApp: () -> Unit,
   onProcurarAtualizacao: () -> Unit,
   onVerNovidades: () -> Unit,
-  onDadosRestaurados: () -> Unit,
+  onDadosRestaurados: () -> Unit = {},
   onSairDaConta: () -> Unit = {},
 ) {
   val contexto = LocalContext.current
   val atividade = contexto as? FragmentActivity
-  val escopo = rememberCoroutineScope()
   val preferencias = remember { Preferencias.obter(contexto) }
 
   var pinAtivo by remember { mutableStateOf(preferencias.getBoolean(Preferencias.PIN_ATIVO, false)) }
@@ -79,66 +68,6 @@ fun TelaAjustes(
   var pedindoPinAtual by remember { mutableStateOf<AcaoComPin?>(null) }
   var erroRegistrado by remember { mutableStateOf(Erros.ultimo(contexto)) }
   var mostrandoErro by remember { mutableStateOf(false) }
-
-  var ultimoBackupLocal by remember {
-    mutableStateOf(
-      maxOf(
-        preferencias.getLong(Preferencias.ULTIMO_BACKUP, 0L),
-        preferencias.getLong(Preferencias.ULTIMO_BACKUP_AUTO, 0L),
-      ),
-    )
-  }
-  var processandoBackupArquivo by remember { mutableStateOf(false) }
-
-  val exportadorArquivo = rememberLauncherForActivityResult(
-    ActivityResultContracts.CreateDocument("application/zip"),
-  ) { uri ->
-    if (uri == null) return@rememberLauncherForActivityResult
-    processandoBackupArquivo = true
-    escopo.launch {
-      val resultado = runCatching {
-        withContext(Dispatchers.IO) {
-          contexto.contentResolver.openOutputStream(uri)?.use { saida ->
-            Backup.exportar(banco, contexto, saida)
-          } ?: error("Não foi possível criar o arquivo.")
-        }
-        System.currentTimeMillis()
-      }
-      processandoBackupArquivo = false
-      resultado.onSuccess { momento ->
-        ultimoBackupLocal = momento
-        preferencias.edit().putLong(Preferencias.ULTIMO_BACKUP, momento).apply()
-        Toast.makeText(contexto, "Backup exportado com sucesso.", Toast.LENGTH_LONG).show()
-      }.onFailure { erro ->
-        Erros.registrar(contexto, "Exportar backup local", erro)
-        Toast.makeText(contexto, "Não foi possível exportar o backup.", Toast.LENGTH_LONG).show()
-      }
-    }
-  }
-
-  val importadorArquivo = rememberLauncherForActivityResult(
-    ActivityResultContracts.OpenDocument(),
-  ) { uri ->
-    if (uri == null) return@rememberLauncherForActivityResult
-    processandoBackupArquivo = true
-    escopo.launch {
-      val resultado = runCatching {
-        withContext(Dispatchers.IO) {
-          contexto.contentResolver.openInputStream(uri)?.use { entrada ->
-            Backup.importar(banco, contexto, entrada, substituir = false)
-          } ?: error("Não foi possível abrir o arquivo.")
-        }
-      }
-      processandoBackupArquivo = false
-      resultado.onSuccess { total ->
-        Toast.makeText(contexto, "$total registro(s) importado(s) do backup.", Toast.LENGTH_LONG).show()
-        onDadosRestaurados()
-      }.onFailure { erro ->
-        Erros.registrar(contexto, "Importar backup local", erro)
-        Toast.makeText(contexto, "Arquivo de backup inválido ou corrompido.", Toast.LENGTH_LONG).show()
-      }
-    }
-  }
 
   val versao = remember { Atualizacoes.versaoInstalada(contexto) }
   val aparelhoTemBiometria = remember { Biometria.disponivel(contexto) }
@@ -207,42 +136,8 @@ fun TelaAjustes(
         }
       }
 
-      TituloSecao("Conta e backup")
+      TituloSecao("Conta e equipe")
       SecaoContaApi(banco = banco, aoSair = onSairDaConta)
-      Card(modifier = Modifier.fillMaxWidth()) {
-        Column(modifier = Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-          Text("Cópia de segurança em arquivo (.zip)", style = MaterialTheme.typography.titleSmall)
-          Text(
-            text = if (ultimoBackupLocal == 0L) "Nenhuma cópia local exportada ainda."
-            else "Última cópia local: ${formatarDataHora(ultimoBackupLocal)}",
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-          )
-          Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            Button(
-              onClick = {
-                val nome = "chaveirocar-" + SimpleDateFormat("yyyyMMdd-HHmm", Locale.ROOT).format(Date()) + ".zip"
-                exportadorArquivo.launch(nome)
-              },
-              enabled = !processandoBackupArquivo,
-              modifier = Modifier.weight(1f),
-            ) { Text("Exportar (.zip)") }
-            OutlinedButton(
-              onClick = {
-                importadorArquivo.launch(arrayOf("application/zip", "application/octet-stream"))
-              },
-              enabled = !processandoBackupArquivo,
-              modifier = Modifier.weight(1f),
-            ) { Text("Importar (.zip)") }
-          }
-          Text(
-            "Gera ou restaura um arquivo ZIP completo (atendimentos, fichas técnicas e fotos) " +
-              "como cópia de segurança independente no aparelho.",
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-          )
-        }
-      }
 
       TituloSecao("Atualizações")
       Card(modifier = Modifier.fillMaxWidth()) {
@@ -277,8 +172,8 @@ fun TelaAjustes(
           Text("ChaveiroCar $versao", style = MaterialTheme.typography.titleSmall)
           Spacer(Modifier.height(4.dp))
           Text(
-            text = "Seus registros, códigos e fotos ficam salvos neste aparelho com cópia automática local e " +
-              "sincronização segura pela sua conta ChaveiroCar entre Android, iOS e Windows.",
+            text = "Seus atendimentos, fichas técnicas, códigos e fotos são sincronizados automaticamente " +
+              "na nuvem pela sua conta ChaveiroCar entre Android, iOS e Windows.",
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
           )
@@ -479,6 +374,3 @@ private fun DialogoConfirmarPin(
     dismissButton = { TextButton(onClick = onCancelar) { Text("Cancelar") } },
   )
 }
-
-private fun formatarDataHora(millis: Long): String =
-  SimpleDateFormat("dd/MM/yyyy 'às' HH:mm", Locale.forLanguageTag("pt-BR")).format(Date(millis))

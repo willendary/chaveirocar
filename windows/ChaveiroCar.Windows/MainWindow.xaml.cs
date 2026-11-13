@@ -2,6 +2,7 @@
 using System.Windows.Documents;
 using System.Windows.Input;
 using System.Windows.Controls;
+using System.Windows.Threading;
 using ChaveiroCar.Windows.Services;
 
 namespace ChaveiroCar.Windows;
@@ -9,8 +10,11 @@ namespace ChaveiroCar.Windows;
 public partial class MainWindow : Window
 {
     private readonly ArmazenamentoLocal _local;
+    private readonly DispatcherTimer _timerSincronia = new() { Interval = TimeSpan.FromSeconds(20) };
     private ClienteApi? _api;
     private List<ClienteApi.Empresa> _empresas = [];
+    private bool _sincronizando;
+    private DateTimeOffset _ultimaSincronia = DateTimeOffset.MinValue;
 
     public bool SaiuDaConta { get; private set; }
 
@@ -23,6 +27,9 @@ public partial class MainWindow : Window
         _local = local;
         InitializeComponent();
         Loaded += MainWindow_Loaded;
+        Activated += MainWindow_Activated;
+        Closed += MainWindow_Closed;
+        _timerSincronia.Tick += async (_, _) => await Sincronizar();
     }
 
     private async void MainWindow_Loaded(object sender, RoutedEventArgs e)
@@ -41,8 +48,19 @@ public partial class MainWindow : Window
         RecarregarGrade();
         AtualizarStatus();
         await Inicializar();
+        _timerSincronia.Start();
         await VerificarAtualizacao();
     }
+
+    private async void MainWindow_Activated(object? sender, EventArgs e)
+    {
+        if (DateTimeOffset.UtcNow - _ultimaSincronia >= TimeSpan.FromSeconds(5))
+        {
+            await Sincronizar();
+        }
+    }
+
+    private void MainWindow_Closed(object? sender, EventArgs e) => _timerSincronia.Stop();
 
     private static async Task VerificarAtualizacao()
     {
@@ -164,50 +182,79 @@ public partial class MainWindow : Window
 
     private static string normalizar(string texto) => texto.ToLowerInvariant().Trim();
 
-    private void AtualizarStatus()
+    private void AtualizarStatus(string? mensagemConexao = null)
     {
-        var pendentes = _local.Estado.Outbox.Count;
         var conflitos = _local.Estado.Conflitos.Count;
         var total = _local.Estado.Atendimentos.Count;
         EmailUsuario.Text = string.IsNullOrWhiteSpace(_local.Estado.Email)
             ? "Sessão ativa"
             : _local.Estado.Email;
-        Status.Text =
-            $"{total} atendimento(s) · {pendentes} pendência(s) de envio · {conflitos} conflito(s)";
+
+        if (AbaConflitos is not null)
+        {
+            if (conflitos > 0)
+            {
+                AbaConflitos.Visibility = Visibility.Visible;
+            }
+            else
+            {
+                AbaConflitos.Visibility = Visibility.Collapsed;
+                if (AbasPrincipal.SelectedIndex == 3)
+                {
+                    AbasPrincipal.SelectedIndex = 0;
+                }
+            }
+        }
+
+        if (!string.IsNullOrWhiteSpace(mensagemConexao))
+        {
+            Status.Text = mensagemConexao;
+            return;
+        }
+
+        Status.Text = conflitos > 0
+            ? $"{total} atendimento(s) · {conflitos} conflito(s) aguardando decisão"
+            : $"{total} atendimento(s) sincronizado(s) na nuvem";
     }
 
     private async Task Sincronizar()
     {
-        if (_api is null || string.IsNullOrWhiteSpace(_local.Estado.EmpresaId)) return;
+        if (_sincronizando || _api is null || string.IsNullOrWhiteSpace(_local.Estado.EmpresaId)) return;
+        _sincronizando = true;
+        string? mensagem = null;
         try
         {
             var resumo = await MotorSincronia.SincronizarAsync(_local, _api, _local.Estado.EmpresaId);
             await SalvarTokens();
-            Status.Text =
-                $"Sincronizado com sucesso ({resumo.Enviadas} enviada(s), {resumo.Recebidas} recebida(s))" +
-                (resumo.Conflitos > 0 ? $" · {resumo.Conflitos} conflito(s) na aba Conflitos" : "") +
-                (resumo.Falhas > 0 ? $" · {resumo.Falhas} pendência(s) aguardando nova tentativa" : "");
+            _ultimaSincronia = DateTimeOffset.UtcNow;
+            var total = _local.Estado.Atendimentos.Count;
             if (resumo.Conflitos > 0)
             {
                 var detalhe = string.Join(", ", _local.Estado.Conflitos.Select(c =>
                     c.Placa.Length > 0 ? c.Placa : c.Uuid));
+                AbaConflitos.Visibility = Visibility.Visible;
                 MessageBox.Show($"Conflitos detectados: {detalhe}. Nenhum registro foi descartado.",
                     "ChaveiroCar", MessageBoxButton.OK, MessageBoxImage.Warning);
                 AbasPrincipal.SelectedIndex = 3;
+                mensagem = $"{total} atendimento(s) · {_local.Estado.Conflitos.Count} conflito(s) aguardando decisão";
+            }
+            else
+            {
+                mensagem = $"{total} atendimento(s) · Sincronizado com a nuvem às {DateTime.Now:HH:mm}";
             }
         }
         catch
         {
-            Status.Text = "Sem conexão no momento: alterações permanecem salvas neste computador.";
+            mensagem = "Sem conexão no momento: alterações salvas neste computador";
         }
         finally
         {
+            _sincronizando = false;
             RecarregarGrade();
-            AtualizarStatus();
+            AtualizarStatus(mensagem);
         }
     }
 
-    private async void Sincronizar_Click(object sender, RoutedEventArgs e) => await Sincronizar();
     private void Pesquisar_Click(object sender, RoutedEventArgs e) => RecarregarGrade();
     private void FiltroSegmento_Mudou(object sender, SelectionChangedEventArgs e) => RecarregarGrade();
     private void Busca_KeyDown(object sender, KeyEventArgs e)

@@ -36,7 +36,6 @@
                         <TextBlock x:Name="EmailUsuario" Text="" Foreground="#FFE2E8F0" FontSize="12" VerticalAlignment="Center"/>
                     </Border>
                     <Button Content="Equipe e acessos" Click="Equipe_Click" Margin="0,0,8,0"/>
-                    <Button Content="Sincronizar" Click="Sincronizar_Click" Style="{StaticResource BotaoPrimario}" Margin="0,0,8,0"/>
                     <Button Content="Sair da conta" Click="Sair_Click"/>
                 </StackPanel>
             </DockPanel>
@@ -89,7 +88,6 @@
                             <DataGridTextColumn Header="Cód. Chave" Binding="{Binding CodigoChave}" Width="105"/>
                             <DataGridTextColumn Header="Valor" Binding="{Binding ValorFormatado}" Width="105"/>
                             <DataGridTextColumn Header="Pagamento" Binding="{Binding PagoFormatado}" Width="95"/>
-                            <DataGridTextColumn Header="Nuvem" Binding="{Binding SincroniaFormatada}" Width="105"/>
                         </DataGrid.Columns>
                     </DataGrid>
                 </TabItem>
@@ -157,14 +155,13 @@
                                 <DataGridTextColumn Header="Chave" Binding="{Binding Chave}" Width="120"/>
                                 <DataGridTextColumn Header="Telecomando" Binding="{Binding Telecomando}" Width="130"/>
                                 <DataGridTextColumn Header="Frequência" Binding="{Binding Frequencia}" Width="100"/>
-                                <DataGridTextColumn Header="Confirmado" Binding="{Binding ConfirmadoFormatado}" Width="95"/>
-                                <DataGridTextColumn Header="Nuvem" Binding="{Binding SincroniaFormatada}" Width="*"/>
+                                <DataGridTextColumn Header="Confirmado" Binding="{Binding ConfirmadoFormatado}" Width="*"/>
                             </DataGrid.Columns>
                         </DataGrid>
                     </DockPanel>
                 </TabItem>
 
-                <TabItem Header="  Conflitos de Sincronia  " Padding="12,6" FontWeight="SemiBold">
+                <TabItem x:Name="AbaConflitos" Header="  Conflitos de Sincronia  " Padding="12,6" FontWeight="SemiBold" Visibility="Collapsed">
                     <DockPanel Margin="0,8,0,0">
                         <Border DockPanel.Dock="Top" Background="#FFFFFBEB" BorderBrush="#FFFDE68A" BorderThickness="1"
                                 CornerRadius="8" Padding="12,10" Margin="0,0,0,10">
@@ -201,7 +198,7 @@
                     <Ellipse Width="8" Height="8" Fill="{StaticResource CorPrimaria}" Margin="0,0,8,0" VerticalAlignment="Center"/>
                     <TextBlock x:Name="Status" VerticalAlignment="Center" Foreground="{StaticResource CorTextoSecundario}" FontSize="12.5"/>
                 </StackPanel>
-                <TextBlock DockPanel.Dock="Right" Text="ChaveiroCar Desktop v1.9.0"
+                <TextBlock DockPanel.Dock="Right" Text="ChaveiroCar Desktop v1.10.0"
                            Foreground="#FF94A3B8" FontSize="12" VerticalAlignment="Center"/>
             </DockPanel>
         </Border>

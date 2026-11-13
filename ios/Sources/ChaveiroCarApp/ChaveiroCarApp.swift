@@ -32,6 +32,7 @@ final class EstadoAplicativo: ObservableObject {
 
     let armazenamento: ArmazenamentoLocal
     let api: ClienteApi
+    private var tarefaSincroniaPeriodica: Task<Void, Never>? = nil
 
     init(armazenamento: ArmazenamentoLocal = ArmazenamentoLocal()) {
         self.armazenamento = armazenamento
@@ -44,6 +45,19 @@ final class EstadoAplicativo: ObservableObject {
             tokenRefresh: salva.refresh.isEmpty ? nil : salva.refresh
         )
         recarregarLocal()
+        iniciarSincroniaPeriodica()
+    }
+
+    func iniciarSincroniaPeriodica() {
+        tarefaSincroniaPeriodica?.cancel()
+        tarefaSincroniaPeriodica = Task { [weak self] in
+            while !Task.isCancelled {
+                if let self, self.logado {
+                    await self.sincronizarAgora()
+                }
+                try? await Task.sleep(nanoseconds: 25_000_000_000)
+            }
+        }
     }
 
     func recarregarLocal() {
@@ -293,19 +307,13 @@ struct AtendimentosListaView: View {
             .searchable(text: $estado.busca, prompt: "Buscar placa, modelo, local, fechadura...")
             .onChange(of: estado.busca) { _ in estado.recarregarLocal() }
             .navigationTitle("Serviços")
+            .task { await estado.sincronizarAgora() }
             .toolbar {
                 ToolbarItem(placement: .primaryAction) {
                     Button {
                         exibindoNovo = true
                     } label: {
                         Label("Novo", systemImage: "plus")
-                    }
-                }
-                ToolbarItem(placement: .automatic) {
-                    Button {
-                        Task { await estado.sincronizarAgora() }
-                    } label: {
-                        Label("Sincronizar", systemImage: "arrow.triangle.2.circlepath")
                     }
                 }
             }
@@ -487,6 +495,7 @@ struct AtendimentoFormularioSheet: View {
                         do {
                             try estado.armazenamento.salvarAtendimentoLocal(item)
                             estado.recarregarLocal()
+                            Task { await estado.sincronizarAgora() }
                             dismiss()
                         } catch {
                             erro = error.localizedDescription
@@ -609,6 +618,7 @@ struct FotoAnotadorSheet: View {
                             ordem: foto.ordem
                         )
                         estado.recarregarLocal()
+                        Task { await estado.sincronizarAgora() }
                         dismiss()
                     }
                 }
@@ -698,17 +708,7 @@ struct EquipeAjustesView: View {
             Form {
                 Section("Conta e Empresa") {
                     LabeledContent("E-mail", value: estado.sessao.email)
-                    LabeledContent("Ambiente", value: estado.sessao.ambiente.rotulo)
-                    LabeledContent("Fila offline", value: "\(estado.armazenamento.fila.count) pendente(s)")
-                    Button("Sincronizar agora") {
-                        Task { await estado.sincronizarAgora() }
-                    }
-                }
-
-                if !estado.mensagemStatus.isEmpty {
-                    Section("Status") {
-                        Text(estado.mensagemStatus).font(.caption)
-                    }
+                    LabeledContent("Sincronização", value: "Automática na nuvem")
                 }
 
                 Section {

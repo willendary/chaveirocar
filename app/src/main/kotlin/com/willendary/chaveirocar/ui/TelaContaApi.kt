@@ -34,7 +34,6 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import com.willendary.chaveirocar.dados.BancoDeAtendimentos
-import com.willendary.chaveirocar.dados.Backup
 import com.willendary.chaveirocar.dados.Preferencias
 import com.willendary.chaveirocar.nuvem.ApiChaveiroCar
 import com.willendary.chaveirocar.nuvem.CredencialGoogle
@@ -44,7 +43,6 @@ import com.willendary.chaveirocar.util.Erros
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import java.io.File
 
 /** Tela de login obrigatório ao abrir o aplicativo sem sessão ativa. */
 @Composable
@@ -122,9 +120,8 @@ fun SecaoContaApi(
   }
   var empresas by remember { mutableStateOf<List<Pair<String, String>>>(emptyList()) }
   var papeisPorEmpresa by remember { mutableStateOf<Map<String, String>>(emptyMap()) }
-  var pendentes by remember { mutableStateOf(banco.pendentesSync().size) }
   var conflitos by remember { mutableStateOf(banco.conflitos()) }
-  var sincronizando by remember { mutableStateOf(false) }
+  var resolvendoConflito by remember { mutableStateOf(false) }
   var entrando by remember { mutableStateOf(false) }
 
   fun api(): ApiChaveiroCar {
@@ -135,7 +132,6 @@ fun SecaoContaApi(
   }
 
   fun recarregar() {
-    pendentes = banco.pendentesSync().size
     conflitos = banco.conflitos()
   }
 
@@ -458,96 +454,15 @@ fun SecaoContaApi(
     }
   }
 
-  fun sincronizar() {
-    if (sincronizando) return
-    val empresa = empresaId
-    if (empresa.isBlank()) {
-      Toast.makeText(contexto, "Escolha uma empresa primeiro.", Toast.LENGTH_SHORT).show()
-      return
-    }
-    sincronizando = true
-    escopo.launch {
-      val resultado = runCatching {
-        withContext(Dispatchers.IO) {
-          val api = api()
-          val cursor = Preferencias.obterCursorApi(preferencias, empresa)
-          val resumo = MotorSinc.sincronizar(banco, api, empresa, cursor, contexto)
-          Preferencias.guardarCursorApi(preferencias, empresa, resumo.cursor)
-          guardarTokens(api)
-          resumo
-        }
-      }
-      sincronizando = false
-      resultado
-        .onSuccess { resumo ->
-          recarregar()
-          val texto = "Enviadas ${resumo.enviadas}, recebidas ${resumo.recebidas}" +
-            (if (resumo.conflitos > 0) ", ${resumo.conflitos} conflito(s) para resolver" else "")
-          Toast.makeText(contexto, "Sincronização: $texto", Toast.LENGTH_LONG).show()
-        }
-        .onFailure {
-          Erros.registrar(contexto, "Conta API: sincronizar", it)
-          Toast.makeText(contexto, "Sem conexão. O que falta será enviado depois.", Toast.LENGTH_LONG).show()
-        }
-    }
-  }
-
-  var migrandoBackup by remember { mutableStateOf(false) }
-  var resumoMigracao by remember { mutableStateOf("") }
-
-  fun migrarHistoricoLocalParaApi() {
-    if (migrandoBackup || sincronizando) return
-    val empresa = empresaId
-    if (empresa.isBlank()) {
-      Toast.makeText(contexto, "Escolha uma empresa primeiro.", Toast.LENGTH_SHORT).show()
-      return
-    }
-    migrandoBackup = true
-    escopo.launch {
-      val resultado = runCatching {
-        withContext(Dispatchers.IO) {
-          val arquivo = File(contexto.cacheDir, "migracao-api.zip")
-          try {
-            arquivo.outputStream().use { Backup.exportar(banco, contexto, it) }
-            val cliente = api()
-            val resposta = cliente.importarBackupAndroid(empresa, arquivo.readBytes())
-            guardarTokens(cliente)
-            resposta
-          } finally {
-            arquivo.delete()
-          }
-        }
-      }
-      migrandoBackup = false
-      resultado
-        .onSuccess { r ->
-          val atdImp = r.optInt("atendimentosImportados")
-          val atdIgn = r.optInt("atendimentosIgnorados")
-          val ficImp = r.optInt("fichasImportadas")
-          val fotImp = r.optInt("fotosImportadas")
-          val fotAus = r.optInt("fotosAusentes")
-          resumoMigracao = "Migração concluída: $atdImp atendimento(s) novo(s) ($atdIgn já existente(s)), " +
-            "$ficImp ficha(s) e $fotImp foto(s) enviada(s)" +
-            (if (fotAus > 0) " ($fotAus foto(s) ausente(s))" else ".")
-          Toast.makeText(contexto, resumoMigracao, Toast.LENGTH_LONG).show()
-          recarregar()
-        }
-        .onFailure {
-          Erros.registrar(contexto, "Conta API: migrar backup local", it)
-          Toast.makeText(contexto, "Não foi possível migrar o backup local. Tente novamente.", Toast.LENGTH_LONG).show()
-        }
-    }
-  }
-
   LaunchedEffect(logado) {
     if (logado) carregarEmpresas()
   }
 
   Card(modifier = Modifier.fillMaxWidth()) {
     Column(modifier = Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-      Text("Conta ChaveiroCar (API)", style = MaterialTheme.typography.titleSmall)
+      Text("Sua conta e empresa", style = MaterialTheme.typography.titleSmall)
       Text(
-        text = if (logado) "Conectado ${if (email.isBlank()) "" else "como $email"}. Edições locais sobem na sincronização; sem internet, ficam na fila."
+        text = if (logado) "Conectado ${if (email.isBlank()) "" else "como $email"}. Seus registros e fotos são sincronizados automaticamente em todos os seus dispositivos."
         else "Entre com sua conta ChaveiroCar para sincronizar atendimentos, fichas e fotos entre celular, PC e iPhone.",
         style = MaterialTheme.typography.bodySmall,
         color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -657,10 +572,6 @@ fun SecaoContaApi(
             Text(if (entrando) "Enviando..." else "Reenviar confirmação")
           }
         }
-        Text(
-          text = "Fila local: $pendentes registro(s) aguardando envio. Conflitos: ${conflitos.size}.",
-          style = MaterialTheme.typography.bodySmall,
-        )
         if (mostrarAceitarConvite) {
           OutlinedTextField(
             value = tokenConviteLogado,
@@ -693,82 +604,54 @@ fun SecaoContaApi(
           Text("Empresa: ${empresas.firstOrNull { it.first == empresaId }?.second ?: empresaId}",
             style = MaterialTheme.typography.bodySmall)
         }
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-          Button(
-            onClick = { sincronizar() },
-            enabled = !sincronizando && !migrandoBackup,
-            modifier = Modifier.weight(1f),
-          ) { Text(if (sincronizando) "Sincronizando..." else "Sincronizar agora") }
-          OutlinedButton(
-            onClick = { carregarEmpresas(); recarregar() },
-            modifier = Modifier.weight(1f),
-          ) { Text("Atualizar status") }
-        }
-        OutlinedButton(
-          onClick = { migrarHistoricoLocalParaApi() },
-          enabled = !sincronizando && !migrandoBackup && empresaId.isNotBlank(),
-          modifier = Modifier.fillMaxWidth(),
-        ) {
-          Text(if (migrandoBackup) "Migrando histórico e fotos..." else "Migrar todo o histórico local para a empresa")
-        }
-        if (resumoMigracao.isNotBlank()) {
-          Text(
-            resumoMigracao,
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.primary,
-          )
-        }
-        conflitos.forEach { conflito ->
-          Card(modifier = Modifier.fillMaxWidth()) {
-            Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-              Text("Conflito: ${conflito.placa.ifBlank { conflito.uuid }}", style = MaterialTheme.typography.titleSmall)
-              Text(
-                "Sua edição local divergiu da versão ${conflito.revisaoServidor} no servidor. Nada foi perdido.",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-              )
-              Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Button(
-                  onClick = {
-                    if (sincronizando) return@Button
-                    sincronizando = true
-                    escopo.launch {
-                      runCatching {
-                        withContext(Dispatchers.IO) {
-                          MotorSinc.manterLocal(banco, api(), empresaId, conflito.uuid, conflito.revisaoServidor, conflito.entidade)
-                        }
-                      }.onFailure { Erros.registrar(contexto, "Conta API: manter local", it) }
-                      sincronizando = false
-                      recarregar()
-                    }
-                  },
-                  enabled = !sincronizando,
-                ) { Text("Manter meu aparelho") }
-                OutlinedButton(
-                  onClick = {
-                    if (sincronizando) return@OutlinedButton
-                    sincronizando = true
-                    escopo.launch {
-                      runCatching {
-                        withContext(Dispatchers.IO) {
-                          MotorSinc.aceitarServidor(banco, api(), empresaId, conflito.uuid, conflito.entidade)
-                        }
-                      }.onFailure { Erros.registrar(contexto, "Conta API: aceitar servidor", it) }
-                      sincronizando = false
-                      recarregar()
-                    }
-                  },
-                  enabled = !sincronizando,
-                ) { Text("Aceitar servidor") }
+        if (conflitos.isNotEmpty()) {
+          conflitos.forEach { conflito ->
+            Card(modifier = Modifier.fillMaxWidth()) {
+              Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                Text("Conflito: ${conflito.placa.ifBlank { conflito.uuid }}", style = MaterialTheme.typography.titleSmall)
+                Text(
+                  "Sua edição local divergiu da versão ${conflito.revisaoServidor} no servidor. Nada foi perdido.",
+                  style = MaterialTheme.typography.bodySmall,
+                  color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                  Button(
+                    onClick = {
+                      if (resolvendoConflito) return@Button
+                      resolvendoConflito = true
+                      escopo.launch {
+                        runCatching {
+                          withContext(Dispatchers.IO) {
+                            MotorSinc.manterLocal(banco, api(), empresaId, conflito.uuid, conflito.revisaoServidor, conflito.entidade)
+                          }
+                        }.onFailure { Erros.registrar(contexto, "Conta API: manter local", it) }
+                        resolvendoConflito = false
+                        recarregar()
+                      }
+                    },
+                    enabled = !resolvendoConflito,
+                  ) { Text("Manter meu aparelho") }
+                  OutlinedButton(
+                    onClick = {
+                      if (resolvendoConflito) return@OutlinedButton
+                      resolvendoConflito = true
+                      escopo.launch {
+                        runCatching {
+                          withContext(Dispatchers.IO) {
+                            MotorSinc.aceitarServidor(banco, api(), empresaId, conflito.uuid, conflito.entidade)
+                          }
+                        }.onFailure { Erros.registrar(contexto, "Conta API: aceitar servidor", it) }
+                        resolvendoConflito = false
+                        recarregar()
+                      }
+                    },
+                    enabled = !resolvendoConflito,
+                  ) { Text("Aceitar servidor") }
+                }
               }
             }
           }
         }
-        Text(
-          "Atendimentos, fichas técnicas e fotos entram na fila. Fotos sobem após o atendimento; sem rede, ficam na fila e sobem depois.",
-          style = MaterialTheme.typography.bodySmall,
-          color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
         if (empresaId.isNotBlank() && papeisPorEmpresa.containsKey(empresaId)) {
           SecaoEquipeApi(
             empresaId = empresaId,

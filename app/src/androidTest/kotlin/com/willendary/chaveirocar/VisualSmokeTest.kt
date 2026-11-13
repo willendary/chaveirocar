@@ -171,7 +171,7 @@ class VisualSmokeTest {
     // O cabecalho da aba confirma a navegacao sem depender da virtualizacao da lista.
     esperar("Conhecimento que fica.")
     compose.onNode(hasText("Ajustes") and hasClickAction()).performClick()
-    esperar("Conta e backup")
+    esperar("Conta e equipe")
     compose.onNode(hasText("Serviços") and hasClickAction()).performClick()
     esperar("Acesso rápido")
     compose.onNodeWithTag("acao_novo_servico").assertExists().performClick()

@@ -39,7 +39,6 @@ import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.willendary.chaveirocar.atualizacao.AtualizacaoDisponivel
 import com.willendary.chaveirocar.atualizacao.Atualizacoes
 import com.willendary.chaveirocar.dados.BancoDeAtendimentos
-import com.willendary.chaveirocar.dados.BackupAutomatico
 import com.willendary.chaveirocar.dados.Preferencias
 import com.willendary.chaveirocar.modelo.Atendimento
 import com.willendary.chaveirocar.modelo.FichaTecnica
@@ -63,6 +62,8 @@ import com.willendary.chaveirocar.ui.TelaFormulario
 import com.willendary.chaveirocar.ui.TelaLista
 import com.willendary.chaveirocar.util.Erros
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
@@ -115,6 +116,42 @@ fun ChaveiroCarApp() {
   var autenticado by remember {
     mutableStateOf(!Preferencias.obterApi(contexto).getString(Preferencias.API_ACESSO, "").isNullOrBlank())
   }
+  var versaoSincronia by remember { mutableStateOf(0) }
+  var sincronizandoNuvem by remember { mutableStateOf(false) }
+
+  suspend fun dispararSincronizacao() {
+    if (sincronizandoNuvem) return
+    sincronizandoNuvem = true
+    try {
+      val resumo = withContext(Dispatchers.IO) {
+        val acesso = Preferencias.obterApi(contexto).getString(Preferencias.API_ACESSO, "").orEmpty()
+        val empresaId = preferencias.getString(Preferencias.API_EMPRESA_ID, "").orEmpty()
+        val baseSalva = preferencias.getString(Preferencias.API_BASE_URL, null).orEmpty()
+        val baseUrl = if (baseSalva.isBlank() || baseSalva.contains("10.0.2.2") || baseSalva.contains("localhost")) {
+          ApiChaveiroCar.URL_PADRAO
+        } else baseSalva
+        if (acesso.isBlank() || empresaId.isBlank()) return@withContext null
+        runCatching {
+          val api = ApiChaveiroCar(baseUrl.ifBlank { ApiChaveiroCar.URL_PADRAO })
+          api.tokenAcesso = acesso
+          api.tokenRefresh = Preferencias.obterApi(contexto).getString(Preferencias.API_REFRESH, null)?.ifBlank { null }
+          val cursor = Preferencias.obterCursorApi(preferencias, empresaId)
+          val resultado = MotorSinc.sincronizar(banco, api, empresaId, cursor, contexto)
+          Preferencias.guardarCursorApi(preferencias, empresaId, resultado.cursor)
+          Preferencias.obterApi(contexto).edit()
+            .putString(Preferencias.API_ACESSO, api.tokenAcesso ?: "")
+            .putString(Preferencias.API_REFRESH, api.tokenRefresh ?: "")
+            .apply()
+          resultado
+        }.onFailure { Erros.registrar(contexto, "Sincronização automática", it) }.getOrNull()
+      }
+      if (resumo != null && (resumo.enviadas > 0 || resumo.recebidas > 0 || resumo.conflitos > 0)) {
+        versaoSincronia++
+      }
+    } finally {
+      sincronizandoNuvem = false
+    }
+  }
 
   var atualizacao by remember { mutableStateOf<AtualizacaoDisponivel?>(null) }
   var mostradorAtualizacao by remember { mutableStateOf(true) }
@@ -165,11 +202,14 @@ fun ChaveiroCarApp() {
     preferencias.edit().putString(Preferencias.VERSAO_VISTA, versaoAtual).apply()
   }
 
-  DisposableEffect(cicloDeVida) {
+  DisposableEffect(cicloDeVida, autenticado) {
     val observador = LifecycleEventObserver { _, evento ->
       when (evento) {
         Lifecycle.Event.ON_START -> {
           biometriaAtiva = preferencias.getBoolean(Preferencias.BIOMETRIA_ATIVA, false)
+          if (autenticado) {
+            escopo.launch { dispararSincronizacao() }
+          }
         }
 
         Lifecycle.Event.ON_STOP -> {
@@ -184,38 +224,16 @@ fun ChaveiroCarApp() {
   }
 
   LaunchedEffect(Unit) {
-    withContext(Dispatchers.IO) {
-      runCatching { BackupAutomatico.executarSeNecessario(banco, contexto) }
-    }
-  }
-
-  LaunchedEffect(Unit) {
     atualizacao = withContext(Dispatchers.IO) {
       runCatching { Atualizacoes.verificar(versaoAtual) }.getOrNull()
     }
   }
 
-  LaunchedEffect(Unit) {
-    withContext(Dispatchers.IO) {
-      val acesso = Preferencias.obterApi(contexto).getString(Preferencias.API_ACESSO, "").orEmpty()
-      val empresaId = preferencias.getString(Preferencias.API_EMPRESA_ID, "").orEmpty()
-      val baseSalva = preferencias.getString(Preferencias.API_BASE_URL, null).orEmpty()
-      val baseUrl = if (baseSalva.isBlank() || baseSalva.contains("10.0.2.2") || baseSalva.contains("localhost")) {
-        ApiChaveiroCar.URL_PADRAO
-      } else baseSalva
-      if (acesso.isBlank() || empresaId.isBlank()) return@withContext
-      runCatching {
-        val api = ApiChaveiroCar(baseUrl.ifBlank { ApiChaveiroCar.URL_PADRAO })
-        api.tokenAcesso = acesso
-        api.tokenRefresh = Preferencias.obterApi(contexto).getString(Preferencias.API_REFRESH, null)?.ifBlank { null }
-        val cursor = Preferencias.obterCursorApi(preferencias, empresaId)
-        val resumo = MotorSinc.sincronizar(banco, api, empresaId, cursor, contexto)
-        Preferencias.guardarCursorApi(preferencias, empresaId, resumo.cursor)
-        Preferencias.obterApi(contexto).edit()
-          .putString(Preferencias.API_ACESSO, api.tokenAcesso ?: "")
-          .putString(Preferencias.API_REFRESH, api.tokenRefresh ?: "")
-          .apply()
-      }.onFailure { Erros.registrar(contexto, "Sincronização inicial", it) }
+  LaunchedEffect(autenticado) {
+    if (!autenticado) return@LaunchedEffect
+    while (isActive) {
+      dispararSincronizacao()
+      delay(25_000)
     }
   }
 
@@ -280,6 +298,7 @@ fun ChaveiroCarApp() {
             idSelecionado = id
             baseParaNovo = null
             tela = TELA_DETALHE
+            escopo.launch { dispararSincronizacao() }
           },
           onVoltar = {
             tela = if (idSelecionado > 0L) TELA_DETALHE else TELA_PRINCIPAL
@@ -314,6 +333,7 @@ fun ChaveiroCarApp() {
               voltarParaFicharioResidencial -> TELA_FICHARIO_RESIDENCIAL
               else -> TELA_PRINCIPAL
             }
+            escopo.launch { dispararSincronizacao() }
           },
           onVoltar = { voltarDoDetalhe() },
         )
@@ -327,6 +347,7 @@ fun ChaveiroCarApp() {
             idFicha = 0L
             baseFicha = null
             tela = TELA_PRINCIPAL
+            escopo.launch { dispararSincronizacao() }
           },
           onVoltar = { tela = TELA_PRINCIPAL },
         )
@@ -340,6 +361,7 @@ fun ChaveiroCarApp() {
             idFicha = novoId
             baseFicha = null
             tela = TELA_FICHA
+            escopo.launch { dispararSincronizacao() }
           },
           onVoltar = { tela = if (idFicha > 0L) TELA_FICHA else TELA_PRINCIPAL },
         )
@@ -424,6 +446,7 @@ fun ChaveiroCarApp() {
                     resModeloFechadura = item.modeloFechadura
                     tela = TELA_FICHARIO_RESIDENCIAL
                   },
+                  versaoSincronia = versaoSincronia,
                 )
 
               Aba.CONSULTA.name ->
@@ -440,6 +463,7 @@ fun ChaveiroCarApp() {
                     idFicha = 0L
                     tela = TELA_FICHA_FORMULARIO
                   },
+                  versaoSincronia = versaoSincronia,
                 )
 
               Aba.AJUSTES.name ->
@@ -460,10 +484,6 @@ fun ChaveiroCarApp() {
                     }
                   },
                   onVerNovidades = { escopo.launch { abrirNovidades() } },
-                  onDadosRestaurados = {
-                    aba = Aba.HISTORICO.name
-                    filtro = FiltroLista()
-                  },
                   onSairDaConta = {
                     autenticado = false
                     aba = Aba.HISTORICO.name
@@ -496,6 +516,7 @@ fun ChaveiroCarApp() {
                     idSelecionado = 0L
                     tela = TELA_FORMULARIO
                   },
+                  versaoSincronia = versaoSincronia,
                 )
             }
           }

@@ -161,6 +161,7 @@ fun TelaLista(
   aoMudarFiltro: (FiltroLista) -> Unit,
   onAbrir: (Long) -> Unit,
   onNovo: () -> Unit,
+  versaoSincronia: Int = 0,
 ) {
   var registros by remember { mutableStateOf<List<Atendimento>>(emptyList()) }
   var carregando by remember { mutableStateOf(true) }
@@ -168,7 +169,7 @@ fun TelaLista(
   var tentativa by remember { mutableStateOf(0) }
   var filtrosAbertos by rememberSaveable { mutableStateOf(false) }
 
-  LaunchedEffect(filtro, tentativa) {
+  LaunchedEffect(filtro, tentativa, versaoSincronia) {
     carregando = true
     erroCarga = false
     try {

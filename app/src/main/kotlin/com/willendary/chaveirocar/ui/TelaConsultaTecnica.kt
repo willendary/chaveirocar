@@ -82,6 +82,7 @@ fun TelaConsultaTecnica(
   aoMudarEstado: (EstadoConsulta) -> Unit,
   onAbrir: (Long) -> Unit,
   onNova: (FichaTecnica) -> Unit,
+  versaoSincronia: Int = 0,
 ) {
   var fichas by remember { mutableStateOf<List<FichaTecnica>>(emptyList()) }
   var carregado by remember { mutableStateOf(false) }
@@ -97,7 +98,7 @@ fun TelaConsultaTecnica(
     aoMudarEstado(novo)
   }
 
-  LaunchedEffect(Unit) {
+  LaunchedEffect(versaoSincronia) {
     fichas = withContext(Dispatchers.IO) { banco.listarFichas() }
     carregado = true
   }

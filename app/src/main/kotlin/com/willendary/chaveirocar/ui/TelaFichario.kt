@@ -79,6 +79,7 @@ fun TelaFichario(
   banco: BancoDeAtendimentos,
   onAbrirModelo: (ResumoModelo) -> Unit,
   onAbrirResidencial: (ResumoResidencial) -> Unit = {},
+  versaoSincronia: Int = 0,
 ) {
   val contexto = LocalContext.current
   var busca by remember { mutableStateOf("") }
@@ -101,7 +102,7 @@ fun TelaFichario(
     preferencias.edit().putStringSet(Preferencias.MODELOS_FAVORITOS, novo).apply()
   }
 
-  LaunchedEffect(Unit) {
+  LaunchedEffect(versaoSincronia) {
     withContext(Dispatchers.IO) {
       modelos = banco.resumoPorModelo()
       residenciais = banco.resumoResidencial()
