@@ -314,6 +314,7 @@ export const rotasAuth: FastifyPluginAsync<ContextoRotas> = async (app, opcoes) 
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="referrer" content="no-referrer-when-downgrade">
   <title>ChaveiroCar — Entrar com Google</title>
   <script src="https://accounts.google.com/gsi/client" async defer></script>
   <style>
@@ -333,7 +334,14 @@ export const rotasAuth: FastifyPluginAsync<ContextoRotas> = async (app, opcoes) 
     }
     h1 { margin: 14px 0 6px; font-size: 24px; }
     p { margin: 0 0 20px; color: #94a3b8; font-size: 14px; line-height: 1.5; }
-    .gsi-box { display: flex; justify-content: center; margin: 20px 0; min-height: 44px; }
+    .gsi-box { display: flex; flex-direction: column; align-items: center; gap: 12px; margin: 20px 0; min-height: 44px; }
+    .btn-oauth {
+      display: inline-flex; align-items: center; justify-content: center; gap: 10px;
+      width: 340px; height: 42px; border-radius: 6px; border: 1px solid #475569;
+      background: #0f172a; color: #f8fafc; font-size: 14px; font-weight: 600;
+      cursor: pointer; transition: background .15s;
+    }
+    .btn-oauth:hover { background: #1e293b; border-color: #34d399; }
     .status { margin-top: 14px; font-size: 13px; color: #f87171; min-height: 20px; text-align: center; }
   </style>
 </head>
@@ -342,22 +350,28 @@ export const rotasAuth: FastifyPluginAsync<ContextoRotas> = async (app, opcoes) 
     <span class="badge">CHAVEIROCAR</span>
     <h1>Conectar ao aplicativo</h1>
     <p>Selecione sua conta Google abaixo para concluir o acesso e voltar automaticamente ao ChaveiroCar.</p>
-    <div id="gsi-container" class="gsi-box"></div>
+    <div class="gsi-box">
+      <div id="gsi-container"></div>
+      <button id="btn-oauth2" type="button" class="btn-oauth" style="display:none">
+        Usar janela alternativa de login Google
+      </button>
+    </div>
     <div id="status" class="status"></div>
   </div>
   <script>
     const redirectUri = ${redirectSeguro};
     const clientId = ${clientIdSeguro};
     const statusEl = document.getElementById("status");
+    const btnOauth2 = document.getElementById("btn-oauth2");
 
-    async function concluirComIdToken(idToken) {
+    async function concluirSessao(payload) {
       statusEl.style.color = "#34d399";
       statusEl.textContent = "Autenticando no ChaveiroCar...";
       try {
         const resp = await fetch("/api/v1/auth/google-login", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ idToken, empresa: "Minha empresa" })
+          body: JSON.stringify({ ...payload, empresa: "Minha empresa" })
         });
         const dados = await resp.json();
         if (!resp.ok) throw new Error(dados?.erro?.mensagem || "Falha ao autenticar.");
@@ -375,25 +389,45 @@ export const rotasAuth: FastifyPluginAsync<ContextoRotas> = async (app, opcoes) 
 
     window.onload = function () {
       if (!clientId) {
-        statusEl.textContent = "Configure GOOGLE_CLIENT_IDS no servidor para habilitar o botão Google OAuth.";
+        statusEl.textContent = "Configure GOOGLE_CLIENT_ID no servidor para habilitar o botão Google OAuth.";
         return;
       }
-      if (window.google && window.google.accounts && window.google.accounts.id) {
-        window.google.accounts.id.initialize({
-          client_id: clientId,
-          callback: (resp) => { if (resp.credential) concluirComIdToken(resp.credential); }
-        });
-        window.google.accounts.id.renderButton(
-          document.getElementById("gsi-container"),
-          { theme: "filled_blue", size: "large", width: 340, text: "continue_with" }
-        );
-        window.google.accounts.id.prompt();
+      if (window.google && window.google.accounts) {
+        if (window.google.accounts.id) {
+          window.google.accounts.id.initialize({
+            client_id: clientId,
+            ux_mode: "popup",
+            callback: (resp) => {
+              if (resp && resp.credential) concluirSessao({ idToken: resp.credential });
+            }
+          });
+          window.google.accounts.id.renderButton(
+            document.getElementById("gsi-container"),
+            { theme: "filled_blue", size: "large", width: 340, text: "continue_with" }
+          );
+        }
+        if (window.google.accounts.oauth2) {
+          const tokenClient = window.google.accounts.oauth2.initTokenClient({
+            client_id: clientId,
+            scope: "openid email profile",
+            callback: (resp) => {
+              if (resp && resp.access_token) concluirSessao({ accessToken: resp.access_token });
+            }
+          });
+          btnOauth2.style.display = "inline-flex";
+          btnOauth2.onclick = () => tokenClient.requestAccessToken({ prompt: "select_account" });
+        }
       }
     };
   </script>
 </body>
 </html>`;
-      return reply.type("text/html; charset=utf-8").send(html);
+      return reply
+        .header("Cross-Origin-Opener-Policy", "same-origin-allow-popups")
+        .header("Cross-Origin-Embedder-Policy", "unsafe-none")
+        .header("Referrer-Policy", "no-referrer-when-downgrade")
+        .type("text/html; charset=utf-8")
+        .send(html);
     },
   );
 

@@ -162,7 +162,12 @@ export async function verificarTokenGoogle(
       throw erros.naoAutenticado("Token Google inválido ou expirado.");
     }
     const dados = (await resposta.json()) as Record<string, unknown>;
-    if (googleClientId && String(dados.aud ?? "") !== googleClientId) {
+    const permitidos = (googleClientId ?? "")
+      .split(",")
+      .map((s) => s.trim())
+      .filter(Boolean);
+    const aud = String(dados.aud ?? "").trim();
+    if (permitidos.length > 0 && aud && !permitidos.includes(aud)) {
       throw erros.naoAutenticado("Token Google não pertence a este aplicativo.");
     }
     const sub = String(dados.sub ?? "").trim();

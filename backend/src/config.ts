@@ -32,7 +32,9 @@ const esquema = z.object({
   RETENCAO_MUDANCAS_DIAS: numero.default(180),
   EXPOR_TOKEN_DEV: boolean.default(false),
   GOOGLE_ONLY: boolean.default(false),
-  GOOGLE_CLIENT_ID: z.string().default(""),
+  GOOGLE_CLIENT_ID: z
+    .string()
+    .default("626552919131-c0n00ppvs7atldtknhmkh5roatt5t2ib.apps.googleusercontent.com"),
   GOOGLE_CLIENT_IDS: z.string().default(""),
   LOG_NIVEL: z.string().default("info"),
 });

@@ -289,6 +289,8 @@ describe("autenticação", () => {
     });
     expect(ok.statusCode).toBe(200);
     expect(ok.headers["content-type"]).toContain("text/html");
+    expect(ok.headers["cross-origin-opener-policy"]).toBe("same-origin-allow-popups");
+    expect(ok.headers["referrer-policy"]).toBe("no-referrer-when-downgrade");
     expect(ok.body).toContain("Entrar com Google");
 
     const okIos = await ambiente.app.inject({

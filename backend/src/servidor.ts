@@ -57,7 +57,12 @@ export async function criarServidor(opcoes: OpcoesServidor = {}): Promise<{
   const storage = criarArmazenamento(config);
   const autenticacao = criarAutenticacao(banco);
 
-  await app.register(helmet, { contentSecurityPolicy: false });
+  await app.register(helmet, {
+    contentSecurityPolicy: false,
+    crossOriginOpenerPolicy: { policy: "same-origin-allow-popups" },
+    crossOriginResourcePolicy: { policy: "cross-origin" },
+    referrerPolicy: { policy: "no-referrer-when-downgrade" },
+  });
   await app.register(cors, {
     origin: config.origensPermitidas.length > 0 ? config.origensPermitidas : false,
     methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
