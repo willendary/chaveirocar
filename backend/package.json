@@ -1,6 +1,6 @@
 {
   "name": "chaveirocar-api",
-  "version": "0.1.0",
+  "version": "1.6.0",
   "private": true,
   "type": "module",
   "description": "API central do ChaveiroCar",
