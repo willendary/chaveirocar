@@ -136,9 +136,13 @@ class VisualSmokeTest {
     compose.onNodeWithText("Exigir PIN ao abrir").performScrollTo().assertIsDisplayed()
   }
   @Test fun acesso() {
-    tela { TelaLoginNuvem {} }
-    compose.onNodeWithText("Continuar com Google").performScrollTo().assertIsEnabled()
+    var continuouSemDrive = false
+    tela { TelaLoginNuvem { continuouSemDrive = it == null } }
+    compose.onNodeWithText("Conectar Google Drive legado").performScrollTo().assertIsEnabled()
+    compose.onNodeWithText("Continuar sem Drive").performScrollTo().assertIsEnabled()
     foto("10-acesso")
+    compose.onNodeWithText("Continuar sem Drive").performScrollTo().performClick()
+    compose.runOnIdle { assertTrue(continuouSemDrive) }
   }
   @Test fun bloqueio() {
     tela { TelaBloqueio(false) {} }

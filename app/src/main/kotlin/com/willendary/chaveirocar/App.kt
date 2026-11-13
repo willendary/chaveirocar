@@ -43,7 +43,9 @@ import com.willendary.chaveirocar.dados.BackupAutomatico
 import com.willendary.chaveirocar.dados.Preferencias
 import com.willendary.chaveirocar.modelo.Atendimento
 import com.willendary.chaveirocar.modelo.FichaTecnica
+import com.willendary.chaveirocar.nuvem.ApiChaveiroCar
 import com.willendary.chaveirocar.nuvem.GoogleDrive
+import com.willendary.chaveirocar.nuvem.MotorSinc
 import com.willendary.chaveirocar.ui.DialogoNovidades
 import com.willendary.chaveirocar.ui.EstadoConsulta
 import com.willendary.chaveirocar.ui.FiltroLista
@@ -104,7 +106,10 @@ fun ChaveiroCarApp() {
   }
 
   var loginNuvemObrigatorio by remember {
-    mutableStateOf(preferencias.getString(Preferencias.CONTA_NUVEM, null).isNullOrBlank())
+    mutableStateOf(
+      preferencias.getString(Preferencias.CONTA_NUVEM, null).isNullOrBlank() &&
+        !preferencias.getBoolean(Preferencias.DRIVE_IGNORADO, false),
+    )
   }
 
   var atualizacao by remember { mutableStateOf<AtualizacaoDisponivel?>(null) }
@@ -177,7 +182,8 @@ fun ChaveiroCarApp() {
   LaunchedEffect(Unit) {
     withContext(Dispatchers.IO) {
       val arquivo = runCatching { BackupAutomatico.executarSeNecessario(banco, contexto) }.getOrNull()
-      if (arquivo != null) {
+      val driveConectado = !preferencias.getString(Preferencias.CONTA_NUVEM, null).isNullOrBlank()
+      if (arquivo != null && driveConectado) {
         runCatching { GoogleDrive.enviarAutomatico(contexto, arquivo) }
           .onFailure { Erros.registrar(contexto, "Envio automático para o Google Drive", it) }
       }
@@ -187,6 +193,30 @@ fun ChaveiroCarApp() {
   LaunchedEffect(Unit) {
     atualizacao = withContext(Dispatchers.IO) {
       runCatching { Atualizacoes.verificar(versaoAtual) }.getOrNull()
+    }
+  }
+
+  LaunchedEffect(Unit) {
+    withContext(Dispatchers.IO) {
+      val acesso = Preferencias.obterApi(contexto).getString(Preferencias.API_ACESSO, "").orEmpty()
+      val empresaId = preferencias.getString(Preferencias.API_EMPRESA_ID, "").orEmpty()
+      val baseSalva = preferencias.getString(Preferencias.API_BASE_URL, null).orEmpty()
+      val baseUrl = if (baseSalva.isBlank() || baseSalva.contains("10.0.2.2") || baseSalva.contains("localhost")) {
+        ApiChaveiroCar.URL_PADRAO
+      } else baseSalva
+      if (acesso.isBlank() || empresaId.isBlank()) return@withContext
+      runCatching {
+        val api = ApiChaveiroCar(baseUrl.ifBlank { ApiChaveiroCar.URL_PADRAO })
+        api.tokenAcesso = acesso
+        api.tokenRefresh = Preferencias.obterApi(contexto).getString(Preferencias.API_REFRESH, null)?.ifBlank { null }
+        val cursor = Preferencias.obterCursorApi(preferencias, empresaId)
+        val resumo = MotorSinc.sincronizar(banco, api, empresaId, cursor, contexto)
+        Preferencias.guardarCursorApi(preferencias, empresaId, resumo.cursor)
+        Preferencias.obterApi(contexto).edit()
+          .putString(Preferencias.API_ACESSO, api.tokenAcesso ?: "")
+          .putString(Preferencias.API_REFRESH, api.tokenRefresh ?: "")
+          .apply()
+      }.onFailure { Erros.registrar(contexto, "Sincronização inicial", it) }
     }
   }
 
@@ -478,6 +508,7 @@ fun ChaveiroCarApp() {
         aoConectar = { email ->
           preferencias.edit()
             .putString(Preferencias.CONTA_NUVEM, email.orEmpty())
+            .putBoolean(Preferencias.DRIVE_IGNORADO, email.isNullOrBlank())
             .apply()
           loginNuvemObrigatorio = false
         },

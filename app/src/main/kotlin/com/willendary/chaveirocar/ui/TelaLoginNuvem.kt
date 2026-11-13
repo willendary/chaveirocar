@@ -44,8 +44,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 /**
- * Porta de entrada obrigatória: o app só abre depois de conectar a
- * conta Google. Sem botão de pular e sem voltar.
+ * Conexão com Drive legado é opcional durante a migração para a conta ChaveiroCar.
  */
 @Composable
 fun TelaLoginNuvem(aoConectar: (String?) -> Unit) {
@@ -115,16 +114,16 @@ fun TelaLoginNuvem(aoConectar: (String?) -> Unit) {
     Spacer(Modifier.height(28.dp))
     Text("ChaveiroCar", style = MaterialTheme.typography.headlineLarge)
     Spacer(Modifier.height(12.dp))
-    Text("Sua experiência.\nSempre com você.", style = MaterialTheme.typography.headlineMedium)
+     Text("Seu histórico.\nSempre com você.", style = MaterialTheme.typography.headlineMedium)
     Spacer(Modifier.height(16.dp))
     Text("Guarde serviços, códigos e soluções. Encontre o que precisa no próximo atendimento.",
       style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
     Spacer(Modifier.height(32.dp))
     Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)) {
       Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        Text("Seu histórico acompanha você", style = MaterialTheme.typography.titleMedium)
-        Text("Conecte sua conta Google para entrar e guardar cópias de segurança no seu Drive.",
-          style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+         Text("Escolha como começar", style = MaterialTheme.typography.titleMedium)
+         Text("O Google Drive fica disponível para restaurar cópias antigas. Você também pode continuar e entrar na sua conta ChaveiroCar.",
+           style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
       }
     }
     Spacer(Modifier.height(24.dp))
@@ -134,10 +133,16 @@ fun TelaLoginNuvem(aoConectar: (String?) -> Unit) {
         CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp)
         Spacer(Modifier.width(12.dp))
       }
-      Text(if (conectando) "Conectando…" else "Continuar com Google")
+       Text(if (conectando) "Conectando…" else "Conectar Google Drive legado")
     }
     Spacer(Modifier.height(16.dp))
-    Text("Seus registros ficam no aparelho. O backup é privado e vinculado à sua conta Google.",
+    androidx.compose.material3.OutlinedButton(
+      onClick = { aoConectar(null) },
+      enabled = !conectando,
+      modifier = Modifier.fillMaxWidth().heightIn(min = 52.dp),
+    ) { Text("Continuar sem Drive") }
+    Spacer(Modifier.height(16.dp))
+    Text("Você pode conectar a conta ChaveiroCar em Ajustes. Não desinstale o app nem apague seus dados durante a migração.",
       style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
   }
 }

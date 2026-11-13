@@ -4,8 +4,9 @@ App Android para chaveiro automotivo registrar os carros que já atendeu: defeit
 encontrado, solução aplicada, ferramentas usadas e fotos. Serve como memória de
 bolso — busca por placa, modelo, defeito ou solução.
 
-Funciona offline. Nenhum dado sai do celular sem você mandar — o backup na
-nuvem é opcional e fica na sua conta Google.
+Funciona offline. O trabalho fica no aparelho e sincroniza entre celular e
+computador pela API ChaveiroCar quando houver internet. O backup no Google Drive
+continua disponível para as cópias antigas.
 
 ## Funcionalidades
 
@@ -39,6 +40,10 @@ nuvem é opcional e fica na sua conta Google.
   (`appDataFolder`): envia o ZIP, mantém as 4 últimas cópias e restaura em outro
   celular com a mesma conta Google, sem servidor próprio.
 - **Novidades** ao atualizar: mostra o que mudou naquela versão uma única vez.
+- **Conta ChaveiroCar** com e-mail e senha, **equipe** com convites e permissões
+  (administrador, colaborador ou somente leitura).
+- **Sincronização** de atendimentos, fichas técnicas e fotos entre Android e
+  Windows, com fila offline e conflitos mostrados para escolha manual.
 - **Atualização** pelo próprio app: verifica a última release do GitHub e, se
   houver versão nova, baixa o APK e abre o instalador. Checa sozinho uma vez
   por dia e também pelo botão "Verificar atualização" em Ajustes.
@@ -50,6 +55,8 @@ nuvem é opcional e fica na sua conta Google.
 | Banco SQLite | `/data/data/com.willendary.chaveirocar/databases/chaveirocar.db` |
 | Fotos JPEG | `/data/data/com.willendary.chaveirocar/files/fotos/` |
 | Backup na nuvem | pasta oculta do app no Google Drive (`appDataFolder`) |
+| Dados sincronizados | API ChaveiroCar (`/api/v1`) com banco Turso |
+| Cache do Windows | `%LocalAppData%\ChaveiroCar` |
 
 A pasta é privada do app. Desinstalar apaga tudo — **exporte o backup antes**.
 
@@ -63,6 +70,12 @@ gradlew.bat assembleDebug
 ```
 
 APK gerado em `app/build/outputs/apk/debug/app-debug.apk`.
+
+Windows (requer .NET 10):
+
+```bat
+dotnet publish windows\ChaveiroCar.Windows\ChaveiroCar.Windows.csproj -c Release -r win-x64 --self-contained true -o publish
+```
 
 Testes unitários:
 

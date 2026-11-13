@@ -50,6 +50,8 @@ import com.willendary.chaveirocar.atualizacao.Atualizacoes
 import com.willendary.chaveirocar.dados.BancoDeAtendimentos
 import com.willendary.chaveirocar.dados.Backup
 import com.willendary.chaveirocar.dados.Preferencias
+import com.willendary.chaveirocar.nuvem.ApiChaveiroCar
+import com.willendary.chaveirocar.nuvem.MotorSinc
 import com.willendary.chaveirocar.nuvem.BackupNaNuvem
 import com.willendary.chaveirocar.nuvem.CredencialGoogle
 import com.willendary.chaveirocar.nuvem.GoogleDrive
@@ -330,6 +332,7 @@ fun TelaAjustes(
       }
 
       TituloSecao("Conta e backup")
+      SecaoContaApi(banco = banco)
       Card(modifier = Modifier.fillMaxWidth()) {
         Column(modifier = Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
           if (contaNuvem == null) {
