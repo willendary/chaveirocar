@@ -47,7 +47,13 @@ class VisualSmokeTest {
     banco.salvar(Atendimento(placa = "XYZ9A87", marca = "Chevrolet", modelo = "Onix", ano = "2023",
       tipoServico = TipoServico.TELECOMANDO, solucao = "Telecomando sincronizado.", valorCentavos = 18000))
   }
-  @After fun fechar() { banco.close() }
+  @After fun fechar() {
+    runCatching {
+      compose.setContent {}
+      compose.waitForIdle()
+    }
+    banco.close()
+  }
 
   private fun tela(escuro: Boolean = false, conteudo: @Composable () -> Unit) {
     compose.setContent { ChaveiroCarTheme(escuro) {

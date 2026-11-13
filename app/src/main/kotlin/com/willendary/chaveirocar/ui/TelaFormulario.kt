@@ -154,25 +154,31 @@ fun TelaFormulario(
 
   LaunchedEffect(Unit) {
     withContext(Dispatchers.IO) {
-      sugestoesMarca = banco.valoresUsados("marca")
-      sugestoesDefeito = banco.valoresUsados("defeito")
-      sugestoesSolucaoBase = banco.valoresUsados("solucao")
-      sugestoesTipoLocal = (TIPOS_LOCAL_PADRAO + banco.valoresUsados("tipo_local")).distinct()
-      sugestoesAmbientePorta = (AMBIENTES_PORTA_PADRAO + banco.valoresUsados("ambiente_porta")).distinct()
-      sugestoesMarcaFechadura = (MARCAS_FECHADURA_PADRAO + banco.valoresUsados("marca_fechadura")).distinct()
-      sugestoesModeloFechadura = banco.valoresUsados("modelo_fechadura")
-      sugestoesTipoCilindro = (CILINDROS_PADRAO + banco.valoresUsados("tipo_cilindro")).distinct()
+      runCatching {
+        sugestoesMarca = banco.valoresUsados("marca")
+        sugestoesDefeito = banco.valoresUsados("defeito")
+        sugestoesSolucaoBase = banco.valoresUsados("solucao")
+        sugestoesTipoLocal = (TIPOS_LOCAL_PADRAO + banco.valoresUsados("tipo_local")).distinct()
+        sugestoesAmbientePorta = (AMBIENTES_PORTA_PADRAO + banco.valoresUsados("ambiente_porta")).distinct()
+        sugestoesMarcaFechadura = (MARCAS_FECHADURA_PADRAO + banco.valoresUsados("marca_fechadura")).distinct()
+        sugestoesModeloFechadura = banco.valoresUsados("modelo_fechadura")
+        sugestoesTipoCilindro = (CILINDROS_PADRAO + banco.valoresUsados("tipo_cilindro")).distinct()
+      }
     }
   }
 
   LaunchedEffect(atendimento.marca) {
-    sugestoesModelo = withContext(Dispatchers.IO) { banco.modelosDaMarca(atendimento.marca) }
+    sugestoesModelo = withContext(Dispatchers.IO) {
+      runCatching { banco.modelosDaMarca(atendimento.marca) }.getOrDefault(emptyList())
+    }
   }
 
   val placaParaHistorico = atendimento.placa.trim().uppercase()
   LaunchedEffect(placaParaHistorico) {
     historico = if (placaParaHistorico.length >= 7) {
-      withContext(Dispatchers.IO) { banco.servicosDaPlaca(placaParaHistorico, id) }
+      withContext(Dispatchers.IO) {
+        runCatching { banco.servicosDaPlaca(placaParaHistorico, id) }.getOrDefault(emptyList())
+      }
     } else {
       emptyList()
     }
@@ -183,10 +189,12 @@ fun TelaFormulario(
       emptyList()
     } else {
       withContext(Dispatchers.IO) {
-        banco.servicosDoModelo(atendimento.modelo, id)
-          .mapNotNull { registro -> registro.abertura.takeIf { it.isNotBlank() } }
-          .distinct()
-          .take(4)
+        runCatching {
+          banco.servicosDoModelo(atendimento.modelo, id)
+            .mapNotNull { registro -> registro.abertura.takeIf { it.isNotBlank() } }
+            .distinct()
+            .take(4)
+        }.getOrDefault(emptyList())
       }
     }
   }
@@ -198,7 +206,7 @@ fun TelaFormulario(
     }
     delay(400)
     sugestoesSolucaoDefeito = withContext(Dispatchers.IO) {
-      banco.solucoesPorDefeito(atendimento.defeito)
+      runCatching { banco.solucoesPorDefeito(atendimento.defeito) }.getOrDefault(emptyList())
     }
   }
 
