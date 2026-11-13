@@ -212,6 +212,36 @@
                           "enum": [
                             "Bearer"
                           ]
+                        },
+                        "tokens": {
+                          "type": "object",
+                          "required": [
+                            "acesso",
+                            "expiraEm",
+                            "refresh",
+                            "refreshExpiraEm",
+                            "tipo"
+                          ],
+                          "properties": {
+                            "acesso": {
+                              "type": "string"
+                            },
+                            "expiraEm": {
+                              "type": "integer"
+                            },
+                            "refresh": {
+                              "type": "string"
+                            },
+                            "refreshExpiraEm": {
+                              "type": "integer"
+                            },
+                            "tipo": {
+                              "type": "string",
+                              "enum": [
+                                "Bearer"
+                              ]
+                            }
+                          }
                         }
                       }
                     },
@@ -583,6 +613,36 @@
                           "enum": [
                             "Bearer"
                           ]
+                        },
+                        "tokens": {
+                          "type": "object",
+                          "required": [
+                            "acesso",
+                            "expiraEm",
+                            "refresh",
+                            "refreshExpiraEm",
+                            "tipo"
+                          ],
+                          "properties": {
+                            "acesso": {
+                              "type": "string"
+                            },
+                            "expiraEm": {
+                              "type": "integer"
+                            },
+                            "refresh": {
+                              "type": "string"
+                            },
+                            "refreshExpiraEm": {
+                              "type": "integer"
+                            },
+                            "tipo": {
+                              "type": "string",
+                              "enum": [
+                                "Bearer"
+                              ]
+                            }
+                          }
                         }
                       }
                     },
@@ -954,6 +1014,36 @@
                           "enum": [
                             "Bearer"
                           ]
+                        },
+                        "tokens": {
+                          "type": "object",
+                          "required": [
+                            "acesso",
+                            "expiraEm",
+                            "refresh",
+                            "refreshExpiraEm",
+                            "tipo"
+                          ],
+                          "properties": {
+                            "acesso": {
+                              "type": "string"
+                            },
+                            "expiraEm": {
+                              "type": "integer"
+                            },
+                            "refresh": {
+                              "type": "string"
+                            },
+                            "refreshExpiraEm": {
+                              "type": "integer"
+                            },
+                            "tipo": {
+                              "type": "string",
+                              "enum": [
+                                "Bearer"
+                              ]
+                            }
+                          }
                         }
                       }
                     },
@@ -1538,6 +1628,36 @@
                       "enum": [
                         "Bearer"
                       ]
+                    },
+                    "tokens": {
+                      "type": "object",
+                      "required": [
+                        "acesso",
+                        "expiraEm",
+                        "refresh",
+                        "refreshExpiraEm",
+                        "tipo"
+                      ],
+                      "properties": {
+                        "acesso": {
+                          "type": "string"
+                        },
+                        "expiraEm": {
+                          "type": "integer"
+                        },
+                        "refresh": {
+                          "type": "string"
+                        },
+                        "refreshExpiraEm": {
+                          "type": "integer"
+                        },
+                        "tipo": {
+                          "type": "string",
+                          "enum": [
+                            "Bearer"
+                          ]
+                        }
+                      }
                     }
                   }
                 }
@@ -7548,6 +7668,36 @@
                           "enum": [
                             "Bearer"
                           ]
+                        },
+                        "tokens": {
+                          "type": "object",
+                          "required": [
+                            "acesso",
+                            "expiraEm",
+                            "refresh",
+                            "refreshExpiraEm",
+                            "tipo"
+                          ],
+                          "properties": {
+                            "acesso": {
+                              "type": "string"
+                            },
+                            "expiraEm": {
+                              "type": "integer"
+                            },
+                            "refresh": {
+                              "type": "string"
+                            },
+                            "refreshExpiraEm": {
+                              "type": "integer"
+                            },
+                            "tipo": {
+                              "type": "string",
+                              "enum": [
+                                "Bearer"
+                              ]
+                            }
+                          }
                         }
                       }
                     },
