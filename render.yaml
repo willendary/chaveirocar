@@ -38,3 +38,7 @@ services:
         sync: false
       - key: EXPOR_TOKEN_DEV
         value: "false"
+      - key: GOOGLE_CLIENT_ID
+        sync: false
+      - key: GOOGLE_CLIENT_IDS
+        sync: false

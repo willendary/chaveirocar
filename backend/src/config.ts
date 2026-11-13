@@ -33,6 +33,7 @@ const esquema = z.object({
   EXPOR_TOKEN_DEV: boolean.default(false),
   GOOGLE_ONLY: boolean.default(false),
   GOOGLE_CLIENT_ID: z.string().default(""),
+  GOOGLE_CLIENT_IDS: z.string().default(""),
   LOG_NIVEL: z.string().default("info"),
 });
 
@@ -141,7 +142,10 @@ export function criarConfig(
     },
     exporTokenDev: dados.EXPOR_TOKEN_DEV || !producao,
     googleOnly: dados.GOOGLE_ONLY,
-    googleClientId: dados.GOOGLE_CLIENT_ID.trim(),
+    googleClientId: [dados.GOOGLE_CLIENT_ID, dados.GOOGLE_CLIENT_IDS]
+      .map((s) => s.trim())
+      .filter(Boolean)
+      .join(","),
     logNivel: dados.LOG_NIVEL,
     raiz,
   };
