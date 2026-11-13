@@ -4,6 +4,7 @@ services:
     runtime: docker
     plan: free
     region: oregon
+    branch: main
     dockerfilePath: ./backend/Dockerfile
     dockerContext: ./backend
     healthCheckPath: /pronto
