@@ -50,6 +50,7 @@ import com.willendary.chaveirocar.ui.DialogoNovidades
 import com.willendary.chaveirocar.ui.EstadoConsulta
 import com.willendary.chaveirocar.ui.FiltroLista
 import com.willendary.chaveirocar.ui.TelaAjustes
+import com.willendary.chaveirocar.ui.TelaAutenticacaoObrigatoria
 import com.willendary.chaveirocar.ui.TelaConsultaTecnica
 import com.willendary.chaveirocar.ui.TelaBloqueio
 import com.willendary.chaveirocar.ui.TelaDetalhe
@@ -110,6 +111,9 @@ fun ChaveiroCarApp() {
   var bloqueado by remember { mutableStateOf(preferencias.getBoolean(Preferencias.PIN_ATIVO, false)) }
   var biometriaAtiva by remember {
     mutableStateOf(preferencias.getBoolean(Preferencias.BIOMETRIA_ATIVA, false))
+  }
+  var autenticado by remember {
+    mutableStateOf(!Preferencias.obterApi(contexto).getString(Preferencias.API_ACESSO, "").isNullOrBlank())
   }
 
   var atualizacao by remember { mutableStateOf<AtualizacaoDisponivel?>(null) }
@@ -261,7 +265,12 @@ fun ChaveiroCarApp() {
   }
 
   Box(modifier = Modifier.fillMaxSize()) {
-    when (tela) {
+    if (!autenticado) {
+      TelaAutenticacaoObrigatoria(
+        banco = banco,
+        aoAutenticar = { autenticado = true },
+      )
+    } else when (tela) {
       TELA_FORMULARIO ->
         TelaFormulario(
           banco = banco,
@@ -454,6 +463,11 @@ fun ChaveiroCarApp() {
                   onDadosRestaurados = {
                     aba = Aba.HISTORICO.name
                     filtro = FiltroLista()
+                  },
+                  onSairDaConta = {
+                    autenticado = false
+                    aba = Aba.HISTORICO.name
+                    tela = TELA_PRINCIPAL
                   },
                 )
 

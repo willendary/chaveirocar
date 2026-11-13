@@ -127,6 +127,7 @@ public sealed class ArmazenamentoLocal
         public long RevisaoServidor { get; set; }
         public string Placa { get; set; } = "";
         public bool ServidorExcluido { get; set; }
+        [JsonIgnore] public string SituacaoRemota => ServidorExcluido ? "Excluído no servidor" : $"Revisão #{RevisaoServidor}";
     }
 
     public sealed class Ficha
@@ -150,6 +151,8 @@ public sealed class ArmazenamentoLocal
         public long Revisao { get; set; }
         public long? ExcluidoEm { get; set; }
         [JsonIgnore] public bool Pendente { get; set; }
+        [JsonIgnore] public string ConfirmadoFormatado => Confirmado ? "Sim" : "Não";
+        [JsonIgnore] public string SincroniaFormatada => Pendente ? "Pendente" : "Sincronizado";
     }
 
     public sealed class FotoLocal

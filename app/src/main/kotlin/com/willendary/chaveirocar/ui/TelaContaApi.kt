@@ -8,14 +8,18 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -42,9 +46,47 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
 
+/** Tela de login obrigatório ao abrir o aplicativo sem sessão ativa. */
+@Composable
+fun TelaAutenticacaoObrigatoria(
+  banco: BancoDeAtendimentos,
+  aoAutenticar: () -> Unit,
+) {
+  Scaffold(
+    topBar = {
+      CabecalhoTela("ChaveiroCar", "Entre na sua conta para continuar")
+    },
+    contentWindowInsets = WindowInsets(0, 0, 0, 0),
+    containerColor = MaterialTheme.colorScheme.background,
+  ) { espacamento ->
+    Column(
+      modifier = Modifier
+        .conteudoResponsivo()
+        .padding(espacamento)
+        .verticalScroll(rememberScrollState())
+        .padding(16.dp),
+      verticalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+      PainelDestaque(
+        "Acesso exclusivo.",
+        "Conecte-se com sua conta Google ou e-mail para acessar e sincronizar seus atendimentos, fichas técnicas e fotos.",
+        "CHAVEIROCAR",
+      )
+      SecaoContaApi(
+        banco = banco,
+        aoAutenticar = aoAutenticar,
+      )
+    }
+  }
+}
+
 /** Conta ChaveiroCar (API): login, empresa, sync manual e resolução de conflitos. */
 @Composable
-fun SecaoContaApi(banco: BancoDeAtendimentos) {
+fun SecaoContaApi(
+  banco: BancoDeAtendimentos,
+  aoAutenticar: () -> Unit = {},
+  aoSair: () -> Unit = {},
+) {
   val contexto = LocalContext.current
   val preferencias = remember { Preferencias.obter(contexto) }
   val preferenciasApi = remember { Preferencias.obterApi(contexto) }
@@ -154,11 +196,12 @@ fun SecaoContaApi(banco: BancoDeAtendimentos) {
             .putString(Preferencias.API_EMAIL, email.trim())
             .apply()
           recarregar()
+          aoAutenticar()
           Toast.makeText(contexto, "Conectado à conta ChaveiroCar", Toast.LENGTH_SHORT).show()
         }
         .onFailure {
           Erros.registrar(contexto, "Conta API: login", it)
-          Toast.makeText(contexto, "Não foi possível entrar. Confira e-mail, senha e endereço.", Toast.LENGTH_LONG).show()
+          Toast.makeText(contexto, "Não foi possível entrar. Confira seu e-mail e senha.", Toast.LENGTH_LONG).show()
         }
     }
   }
@@ -196,6 +239,7 @@ fun SecaoContaApi(banco: BancoDeAtendimentos) {
             .apply()
           logado = true
           recarregar()
+          aoAutenticar()
           Toast.makeText(contexto, "Conectado com Google à conta ChaveiroCar", Toast.LENGTH_SHORT).show()
         }
         .onFailure {
@@ -284,6 +328,7 @@ fun SecaoContaApi(banco: BancoDeAtendimentos) {
             .putString(Preferencias.API_EMPRESA_ID, empresaId)
             .apply()
           recarregar()
+          aoAutenticar()
           val mensagem = if (resposta.optBoolean("emailEnviado")) {
             "Conta criada. Verifique seu e-mail."
           } else {
@@ -381,6 +426,7 @@ fun SecaoContaApi(banco: BancoDeAtendimentos) {
           .apply()
         logado = true
         modoConvite = false
+        aoAutenticar()
         Toast.makeText(contexto, "Convite aceito. A empresa foi adicionada à sua conta.", Toast.LENGTH_LONG).show()
       }.onFailure {
         Erros.registrar(contexto, "Conta API: aceitar convite", it)
@@ -515,11 +561,6 @@ fun SecaoContaApi(banco: BancoDeAtendimentos) {
         ) {
           Text(if (entrando) "Conectando..." else "Entrar com Google")
         }
-        OutlinedTextField(
-          value = baseUrl, onValueChange = { baseUrl = it },
-          label = { Text("Endereço da API") }, singleLine = true,
-          modifier = Modifier.fillMaxWidth(),
-        )
         if (modoCadastro || modoConvite) {
           OutlinedTextField(
             value = nome, onValueChange = { nome = it },
@@ -743,6 +784,7 @@ fun SecaoContaApi(banco: BancoDeAtendimentos) {
             logado = false
             empresas = emptyList()
             papeisPorEmpresa = emptyMap()
+            aoSair()
           }
           Toast.makeText(contexto, "Sessão encerrada neste aparelho.", Toast.LENGTH_SHORT).show()
         }) { Text("Sair da conta") }

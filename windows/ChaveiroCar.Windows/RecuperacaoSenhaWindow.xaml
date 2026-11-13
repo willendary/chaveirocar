@@ -1,36 +1,66 @@
 <Window x:Class="ChaveiroCar.Windows.RecuperacaoSenhaWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="Recuperar senha" Height="480" Width="460"
-        WindowStartupLocation="CenterOwner" ResizeMode="NoResize">
-    <Grid Margin="20">
+        Title="ChaveiroCar — Recuperar Senha"
+        Height="560" Width="480"
+        WindowStartupLocation="CenterOwner" ResizeMode="NoResize"
+        Background="{StaticResource CorFundoJanela}">
+    <Grid>
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>
-            <RowDefinition Height="Auto"/>
-            <RowDefinition Height="Auto"/>
-            <RowDefinition Height="Auto"/>
-            <RowDefinition Height="Auto"/>
             <RowDefinition Height="*"/>
-            <RowDefinition Height="Auto"/>
-            <RowDefinition Height="Auto"/>
         </Grid.RowDefinitions>
-        <TextBlock Grid.Row="0" Text="Recuperar senha" FontSize="22" FontWeight="Bold" Margin="0,0,0,10"/>
-        <TextBlock Grid.Row="1" Text="Solicite um código. O link recebido por e-mail mostrará o código para redefinição." TextWrapping="Wrap" Margin="0,0,0,10"/>
-        <StackPanel Grid.Row="2" Margin="0,0,0,8">
-            <TextBlock Text="E-mail da conta"/>
-            <TextBox x:Name="Email"/>
-        </StackPanel>
-        <Button Grid.Row="3" x:Name="Solicitar" Content="Enviar instruções" Click="Solicitar_Click" HorizontalAlignment="Left"/>
-        <StackPanel Grid.Row="4" Margin="0,14,0,8">
-            <TextBlock Text="Código recebido"/>
-            <TextBox x:Name="Token"/>
-            <TextBlock Text="Nova senha" Margin="0,8,0,0"/>
-            <PasswordBox x:Name="NovaSenha"/>
-        </StackPanel>
-        <TextBlock Grid.Row="6" x:Name="Erro" Foreground="DarkRed" TextWrapping="Wrap" Margin="0,0,0,8"/>
-        <StackPanel Grid.Row="7" Orientation="Horizontal" HorizontalAlignment="Right">
-            <Button Content="Fechar" IsCancel="True" Width="100" Margin="0,0,8,0"/>
-            <Button x:Name="Alterar" Content="Alterar senha" Width="110" Click="Alterar_Click"/>
-        </StackPanel>
+
+        <Border Grid.Row="0" Background="{StaticResource CorCabecalho}" Padding="28,20">
+            <StackPanel>
+                <TextBlock Text="Recuperar senha" Foreground="White" FontSize="20" FontWeight="Bold"/>
+                <TextBlock Text="Solicite o código por e-mail e defina uma nova senha para sua conta."
+                           Foreground="#FF94A3B8" FontSize="12.5" Margin="0,4,0,0"/>
+            </StackPanel>
+        </Border>
+
+        <Border Grid.Row="1" Background="{StaticResource CorSuperficie}"
+                BorderBrush="{StaticResource CorBorda}" BorderThickness="1"
+                CornerRadius="12" Margin="20,16,20,20" Padding="24,20">
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="*"/>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                </Grid.RowDefinitions>
+
+                <StackPanel Grid.Row="0" Margin="0,0,0,10">
+                    <TextBlock Text="E-mail da conta" FontSize="12.5" FontWeight="SemiBold"
+                               Foreground="{StaticResource CorTextoSecundario}" Margin="0,0,0,5"/>
+                    <TextBox x:Name="Email"/>
+                </StackPanel>
+
+                <Button Grid.Row="1" x:Name="Solicitar" Content="Enviar código por e-mail"
+                        Click="Solicitar_Click" HorizontalAlignment="Left" Margin="0,0,0,16"/>
+
+                <Border Grid.Row="2" Height="1" Background="{StaticResource CorBorda}" Margin="0,0,0,16"/>
+
+                <StackPanel Grid.Row="3" Margin="0,0,0,12">
+                    <TextBlock Text="Código recebido no e-mail" FontSize="12.5" FontWeight="SemiBold"
+                               Foreground="{StaticResource CorTextoSecundario}" Margin="0,0,0,5"/>
+                    <TextBox x:Name="Token"/>
+                    <TextBlock Text="Nova senha (mínimo 8 caracteres, letras e números)" FontSize="12.5" FontWeight="SemiBold"
+                               Foreground="{StaticResource CorTextoSecundario}" Margin="0,12,0,5"/>
+                    <PasswordBox x:Name="NovaSenha"/>
+                </StackPanel>
+
+                <TextBlock Grid.Row="5" x:Name="Erro" Foreground="{StaticResource CorPerigo}"
+                           FontSize="12.5" TextWrapping="Wrap" Margin="0,0,0,12"/>
+
+                <StackPanel Grid.Row="6" Orientation="Horizontal" HorizontalAlignment="Right">
+                    <Button Content="Fechar" IsCancel="True" Width="110" Margin="0,0,10,0"/>
+                    <Button x:Name="Alterar" Content="Alterar senha" Style="{StaticResource BotaoPrimario}" Width="140" Click="Alterar_Click"/>
+                </StackPanel>
+            </Grid>
+        </Border>
     </Grid>
 </Window>

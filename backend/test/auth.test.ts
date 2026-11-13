@@ -281,4 +281,26 @@ describe("autenticação", () => {
       await restrito.fechar();
     }
   });
+
+  it("serve página OAuth Google no navegador para loopback local e recusa redirect externo", async () => {
+    const ok = await ambiente.app.inject({
+      method: "GET",
+      url: "/api/v1/auth/google/navegador?redirect_uri=" + encodeURIComponent("http://127.0.0.1:54321/callback"),
+    });
+    expect(ok.statusCode).toBe(200);
+    expect(ok.headers["content-type"]).toContain("text/html");
+    expect(ok.body).toContain("Entrar com Google");
+
+    const okIos = await ambiente.app.inject({
+      method: "GET",
+      url: "/api/v1/auth/google/navegador?redirect_uri=" + encodeURIComponent("chaveirocar://callback"),
+    });
+    expect(okIos.statusCode).toBe(200);
+
+    const recusado = await ambiente.app.inject({
+      method: "GET",
+      url: "/api/v1/auth/google/navegador?redirect_uri=" + encodeURIComponent("https://malicioso.exemplo.com/roubo"),
+    });
+    expect(recusado.statusCode).toBe(400);
+  });
 });

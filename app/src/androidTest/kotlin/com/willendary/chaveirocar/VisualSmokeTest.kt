@@ -38,6 +38,7 @@ class VisualSmokeTest {
   @Before fun preparar() {
     contexto.deleteDatabase("chaveirocar.db")
     Preferencias.obter(contexto).edit().clear().commit()
+    Preferencias.obterApi(contexto).edit().clear().commit()
     banco = BancoDeAtendimentos(contexto)
     id = banco.salvar(Atendimento(placa = "ABC1D23", marca = "Volkswagen", modelo = "Polo", ano = "2022",
       defeito = "Chave não reconhecida pelo veículo", solucao = "Transponder programado e testado.",
@@ -155,6 +156,8 @@ class VisualSmokeTest {
     Preferencias.obter(contexto).edit()
       .putString(Preferencias.VERSAO_VISTA, Atualizacoes.versaoInstalada(contexto))
       .putLong(Preferencias.ULTIMO_BACKUP_AUTO, System.currentTimeMillis()).commit()
+    Preferencias.obterApi(contexto).edit()
+      .putString(Preferencias.API_ACESSO, "sessao-teste").commit()
     tela { ChaveiroCarApp() }
     esperar("Acesso rápido"); foto("00-inicio-com-navegacao")
     compose.onNodeWithText("Fichário").performClick()

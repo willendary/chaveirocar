@@ -432,8 +432,26 @@ public sealed class ClienteApi : IDisposable
 
     public sealed record Empresa(string Id, string Nome, string Papel = "");
     public sealed record ConvitePreview(string EmpresaNome, string Email, string Papel, long ExpiraEm);
-    public sealed record Membro(string UsuarioId, string Nome, string Email, string Papel, long Desde);
-    public sealed record Convite(string Id, string Email, string Papel, bool Expirado, bool Aceito, bool Cancelado);
+    public sealed record Membro(string UsuarioId, string Nome, string Email, string Papel, long Desde)
+    {
+        public string PapelFormatado => Papel switch
+        {
+            "dono" => "Dono",
+            "admin" => "Administrador",
+            _ => "Colaborador",
+        };
+        public string DesdeFormatado => DateTimeOffset.FromUnixTimeMilliseconds(Desde).LocalDateTime.ToString("dd/MM/yyyy");
+    }
+    public sealed record Convite(string Id, string Email, string Papel, bool Expirado, bool Aceito, bool Cancelado)
+    {
+        public string PapelFormatado => Papel switch
+        {
+            "dono" => "Dono",
+            "admin" => "Administrador",
+            _ => "Colaborador",
+        };
+        public string SituacaoFormatada => Aceito ? "Aceito" : Cancelado ? "Cancelado" : Expirado ? "Expirado" : "Pendente";
+    }
     public sealed record ResultadoLogin(
         bool Ok,
         string? Email,
@@ -508,6 +526,42 @@ public sealed class Atendimento
     public long? ExcluidoEm { get; set; }
 
     [JsonIgnore] public bool Pendente { get; set; }
+
+    [JsonIgnore]
+    public string DataFormatada =>
+        DateTimeOffset.FromUnixTimeMilliseconds(DataServico).LocalDateTime.ToString("dd/MM/yyyy");
+
+    [JsonIgnore]
+    public string SegmentoFormatado =>
+        Segmento == "RESIDENCIAL" ? "Residencial" : "Automotivo";
+
+    [JsonIgnore]
+    public string IdentificacaoPrincipal =>
+        Segmento == "RESIDENCIAL"
+            ? $"{TipoLocal} {(string.IsNullOrWhiteSpace(AmbientePorta) ? "" : "· " + AmbientePorta)}".Trim()
+            : $"{Marca} {Modelo} {Ano}".Trim();
+
+    [JsonIgnore]
+    public string PlacaOuFechadura =>
+        Segmento == "RESIDENCIAL"
+            ? $"{MarcaFechadura} {ModeloFechadura}".Trim() is { Length: > 0 } f ? f : "—"
+            : string.IsNullOrWhiteSpace(Placa) ? "—" : Placa;
+
+    [JsonIgnore]
+    public string TiposFormatados =>
+        TiposServico.Count > 0
+            ? string.Join(", ", TiposServico.Select(t => t.Replace('_', ' ')))
+            : "—";
+
+    [JsonIgnore]
+    public string ValorFormatado =>
+        (ValorCentavos / 100m).ToString("C2", new System.Globalization.CultureInfo("pt-BR"));
+
+    [JsonIgnore]
+    public string PagoFormatado => Pago ? "Pago" : "A receber";
+
+    [JsonIgnore]
+    public string SincroniaFormatada => Pendente ? "Pendente" : "Sincronizado";
 
     public string Resumo => Segmento == "RESIDENCIAL"
         ? $"[Residencial] {TipoLocal} {AmbientePorta}".Trim() + $" · {MarcaFechadura} {ModeloFechadura}".TrimEnd(' ', '·') + $" · {DateTimeOffset.FromUnixTimeMilliseconds(DataServico):dd/MM/yyyy}"

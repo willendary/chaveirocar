@@ -277,6 +277,126 @@ export const rotasAuth: FastifyPluginAsync<ContextoRotas> = async (app, opcoes) 
     },
   );
 
+  app.get(
+    "/auth/google/navegador",
+    {
+      schema: {
+        tags: ["Autenticação"],
+        summary: "Fluxo de autenticação via navegador para aplicativos Desktop e iOS (loopback OAuth)",
+        querystring: Type.Object({
+          redirect_uri: Type.String({ minLength: 10, maxLength: 500 }),
+          client_id: Type.Optional(Type.String({ maxLength: 300 })),
+        }),
+        response: { 200: Type.String(), ...respostasErro },
+      },
+    },
+    async (request, reply) => {
+      const { redirect_uri: redirectUri, client_id: clientIdQuery } = request.query as {
+        redirect_uri: string;
+        client_id?: string;
+      };
+      const redirectValido =
+        /^http:\/\/(127\.0\.0\.1|localhost)(:\d+)?(\/.*)?$/i.test(redirectUri) ||
+        /^chaveirocar:\/\/callback(\/.*)?$/i.test(redirectUri);
+      if (!redirectValido) {
+        throw erros.validacao("redirect_uri inválido. Use loopback local (127.0.0.1 / localhost) ou chaveirocar://callback.");
+      }
+      const clientId = (
+        clientIdQuery?.trim() ||
+        config.googleClientId.split(",")[0]?.trim() ||
+        ""
+      ).replace(/["'<>]/g, "");
+      const redirectSeguro = JSON.stringify(redirectUri);
+      const clientIdSeguro = JSON.stringify(clientId);
+
+      const html = `<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>ChaveiroCar — Entrar com Google</title>
+  <script src="https://accounts.google.com/gsi/client" async defer></script>
+  <style>
+    :root { color-scheme: dark; }
+    body {
+      margin: 0; min-height: 100vh; display: flex; align-items: center; justify-content: center;
+      background: linear-gradient(135deg, #0b1120 0%, #0f172a 55%, #115e59 100%);
+      font-family: "Segoe UI", system-ui, -apple-system, sans-serif; color: #f8fafc;
+    }
+    .card {
+      width: 100%; max-width: 420px; background: #1e293b; border: 1px solid #334155;
+      border-radius: 16px; padding: 32px; box-shadow: 0 20px 50px rgba(0,0,0,0.45);
+    }
+    .badge {
+      display: inline-block; background: rgba(16, 185, 129, 0.15); color: #34d399;
+      font-size: 12px; font-weight: 700; padding: 4px 10px; border-radius: 999px; letter-spacing: .06em;
+    }
+    h1 { margin: 14px 0 6px; font-size: 24px; }
+    p { margin: 0 0 20px; color: #94a3b8; font-size: 14px; line-height: 1.5; }
+    .gsi-box { display: flex; justify-content: center; margin: 20px 0; min-height: 44px; }
+    .status { margin-top: 14px; font-size: 13px; color: #f87171; min-height: 20px; text-align: center; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <span class="badge">CHAVEIROCAR</span>
+    <h1>Conectar ao aplicativo</h1>
+    <p>Selecione sua conta Google abaixo para concluir o acesso e voltar automaticamente ao ChaveiroCar.</p>
+    <div id="gsi-container" class="gsi-box"></div>
+    <div id="status" class="status"></div>
+  </div>
+  <script>
+    const redirectUri = ${redirectSeguro};
+    const clientId = ${clientIdSeguro};
+    const statusEl = document.getElementById("status");
+
+    async function concluirComIdToken(idToken) {
+      statusEl.style.color = "#34d399";
+      statusEl.textContent = "Autenticando no ChaveiroCar...";
+      try {
+        const resp = await fetch("/api/v1/auth/google-login", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ idToken, empresa: "Minha empresa" })
+        });
+        const dados = await resp.json();
+        if (!resp.ok) throw new Error(dados?.erro?.mensagem || "Falha ao autenticar.");
+        const url = new URL(redirectUri);
+        url.searchParams.set("acesso", dados.tokens?.acesso || "");
+        url.searchParams.set("refresh", dados.tokens?.refresh || "");
+        url.searchParams.set("email", dados.usuario?.email || "");
+        url.searchParams.set("empresaId", dados.empresas?.[0]?.id || "");
+        window.location.href = url.toString();
+      } catch (e) {
+        statusEl.style.color = "#f87171";
+        statusEl.textContent = e.message || "Erro ao autenticar com Google.";
+      }
+    }
+
+    window.onload = function () {
+      if (!clientId) {
+        statusEl.textContent = "Configure GOOGLE_CLIENT_IDS no servidor para habilitar o botão Google OAuth.";
+        return;
+      }
+      if (window.google && window.google.accounts && window.google.accounts.id) {
+        window.google.accounts.id.initialize({
+          client_id: clientId,
+          callback: (resp) => { if (resp.credential) concluirComIdToken(resp.credential); }
+        });
+        window.google.accounts.id.renderButton(
+          document.getElementById("gsi-container"),
+          { theme: "filled_blue", size: "large", width: 340, text: "continue_with" }
+        );
+        window.google.accounts.id.prompt();
+      }
+    };
+  </script>
+</body>
+</html>`;
+      return reply.type("text/html; charset=utf-8").send(html);
+    },
+  );
+
   app.post(
     "/auth/renovar",
     {

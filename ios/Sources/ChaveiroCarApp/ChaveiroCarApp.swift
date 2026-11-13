@@ -112,11 +112,11 @@ struct RaizView: View {
 
 struct LoginContaView: View {
     @EnvironmentObject var estado: EstadoAplicativo
+    @Environment(\.openURL) private var abrirUrl
     @State private var email = ""
     @State private var senha = ""
     @State private var nome = ""
     @State private var empresa = "Minha empresa"
-    @State private var tokenGoogle = ""
     @State private var modoCadastro = false
     @State private var erro = ""
     @State private var carregando = false
@@ -124,20 +124,14 @@ struct LoginContaView: View {
     var body: some View {
         NavigationStack {
             Form {
-                Section("Ambiente da API") {
-                    Picker("Ambiente", selection: $estado.sessao.ambiente) {
-                        ForEach(AmbienteApi.allCases, id: \.self) { amb in
-                            Text(amb.rotulo).tag(amb)
-                        }
+                Section("Acesso rápido") {
+                    Button("Continuar com Google") {
+                        iniciarLoginGoogleNavegador()
                     }
-                    .onChange(of: estado.sessao.ambiente) { novo in
-                        estado.sessao.baseUrl = novo.urlPadrao
-                        estado.api.baseUrl = novo.urlPadrao
-                    }
-                    TextField("URL da API", text: $estado.sessao.baseUrl)
+                    .disabled(carregando)
                 }
 
-                Section(modoCadastro ? "Criar conta ChaveiroCar" : "Entrar na conta") {
+                Section(modoCadastro ? "Criar conta ChaveiroCar" : "Entrar com e-mail e senha") {
                     if modoCadastro {
                         TextField("Seu nome", text: $nome)
                         TextField("Nome da empresa", text: $empresa)
@@ -154,14 +148,6 @@ struct LoginContaView: View {
                     }
                 }
 
-                Section("Login rápido com Google") {
-                    TextField("Token Google OAuth / ID Token", text: $tokenGoogle)
-                    Button("Entrar com Google") {
-                        Task { await autenticarGoogle() }
-                    }
-                    .disabled(carregando || tokenGoogle.trimmingCharacters(in: .whitespaces).isEmpty)
-                }
-
                 if !erro.isEmpty {
                     Section {
                         Text(erro).foregroundStyle(.red)
@@ -169,7 +155,40 @@ struct LoginContaView: View {
                 }
             }
             .navigationTitle("ChaveiroCar")
+            .onOpenURL { url in
+                Task { await processarRetornoGoogle(url) }
+            }
         }
+    }
+
+    private func iniciarLoginGoogleNavegador() {
+        erro = ""
+        let base = estado.sessao.baseUrl.trimmingCharacters(in: CharacterSet(charactersIn: "/"))
+        let redirect = "chaveirocar://callback".addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? "chaveirocar://callback"
+        let emp = empresa.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? ""
+        if let url = URL(string: "\(base)/api/v1/auth/google/navegador?redirect_uri=\(redirect)&empresa=\(emp)") {
+            abrirUrl(url)
+        }
+    }
+
+    private func processarRetornoGoogle(_ url: URL) async {
+        guard url.scheme == "chaveirocar",
+              let componentes = URLComponents(url: url, resolvingAgainstBaseURL: false) else { return }
+        let itens = Dictionary(uniqueKeysWithValues: (componentes.queryItems ?? []).map { ($0.name, $0.value ?? "") })
+        if let msgErro = itens["erro"], !msgErro.isEmpty {
+            self.erro = msgErro
+            return
+        }
+        guard let acesso = itens["acesso"], !acesso.isEmpty,
+              let refresh = itens["refresh"], !refresh.isEmpty else { return }
+        estado.api.tokenAcesso = acesso
+        estado.api.tokenRefresh = refresh
+        estado.sessao.email = itens["email"] ?? ""
+        estado.sessao.emailVerificado = true
+        estado.sessao.empresaId = itens["empresaId"] ?? ""
+        estado.salvarSessao()
+        estado.logado = true
+        await estado.sincronizarAgora()
     }
 
     private func autenticarEmail() async {
@@ -184,31 +203,6 @@ struct LoginContaView: View {
             estado.empresas = res.empresas
             estado.sessao.email = email
             estado.sessao.emailVerificado = res.emailVerificado
-            estado.sessao.empresaId = res.empresas.first?.id ?? ""
-            estado.salvarSessao()
-            estado.logado = true
-            await estado.sincronizarAgora()
-        } catch {
-            self.erro = error.localizedDescription
-        }
-    }
-
-    private func autenticarGoogle() async {
-        carregando = true
-        erro = ""
-        defer { carregando = false }
-        do {
-            estado.api.baseUrl = estado.sessao.baseUrl
-            let token = tokenGoogle.trimmingCharacters(in: .whitespacesAndNewlines)
-            let ehJwt = token.split(separator: ".").count == 3
-            let res = try await estado.api.entrarComGoogle(
-                idToken: ehJwt ? token : "",
-                accessToken: ehJwt ? "" : token,
-                empresa: empresa
-            )
-            estado.empresas = res.empresas
-            estado.sessao.email = res.email
-            estado.sessao.emailVerificado = true
             estado.sessao.empresaId = res.empresas.first?.id ?? ""
             estado.salvarSessao()
             estado.logado = true

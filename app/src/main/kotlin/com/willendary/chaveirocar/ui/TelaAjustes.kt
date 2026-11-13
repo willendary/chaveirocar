@@ -64,6 +64,7 @@ fun TelaAjustes(
   onProcurarAtualizacao: () -> Unit,
   onVerNovidades: () -> Unit,
   onDadosRestaurados: () -> Unit,
+  onSairDaConta: () -> Unit = {},
 ) {
   val contexto = LocalContext.current
   val atividade = contexto as? FragmentActivity
@@ -207,7 +208,7 @@ fun TelaAjustes(
       }
 
       TituloSecao("Conta e backup")
-      SecaoContaApi(banco = banco)
+      SecaoContaApi(banco = banco, aoSair = onSairDaConta)
       Card(modifier = Modifier.fillMaxWidth()) {
         Column(modifier = Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
           Text("Cópia de segurança em arquivo (.zip)", style = MaterialTheme.typography.titleSmall)

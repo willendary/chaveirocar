@@ -8,35 +8,39 @@ namespace ChaveiroCar.Windows;
 
 public partial class MainWindow : Window
 {
-    private readonly ArmazenamentoLocal _local = new();
+    private readonly ArmazenamentoLocal _local;
     private ClienteApi? _api;
     private List<ClienteApi.Empresa> _empresas = [];
 
-    public MainWindow()
+    public bool SaiuDaConta { get; private set; }
+
+    public MainWindow() : this(new ArmazenamentoLocal())
     {
+    }
+
+    public MainWindow(ArmazenamentoLocal local)
+    {
+        _local = local;
         InitializeComponent();
         Loaded += MainWindow_Loaded;
     }
 
     private async void MainWindow_Loaded(object sender, RoutedEventArgs e)
     {
-        RecarregarGrade();
-        AtualizarStatus();
         if (string.IsNullOrWhiteSpace(_local.Estado.Acesso))
         {
-            if (new LoginWindow(_local).ShowDialog() == true)
+            var login = new LoginWindow(_local) { Owner = this };
+            if (login.ShowDialog() != true || string.IsNullOrWhiteSpace(_local.Estado.Acesso))
             {
-                await Inicializar();
-            }
-            else
-            {
-                Status.Text = "Offline: entre para sincronizar.";
+                SaiuDaConta = true;
+                Close();
+                return;
             }
         }
-        else
-        {
-            await Inicializar();
-        }
+
+        RecarregarGrade();
+        AtualizarStatus();
+        await Inicializar();
         await VerificarAtualizacao();
     }
 
@@ -73,18 +77,19 @@ public partial class MainWindow : Window
         }
         catch
         {
-            Status.Text = "Offline: usando cache local.";
+            Status.Text = "Modo offline ativo: exibindo dados sincronizados neste computador.";
         }
         RecarregarGrade();
         AtualizarStatus();
     }
 
-    private async Task SalvarTokens()
+    private Task SalvarTokens()
     {
-        if (_api is null) return;
+        if (_api is null) return Task.CompletedTask;
         if (_api.Acesso is not null) _local.Estado.Acesso = _api.Acesso;
         if (_api.Refresh is not null) _local.Estado.Refresh = _api.Refresh;
         _local.Salvar();
+        return Task.CompletedTask;
     }
 
     private string SegmentoSelecionado() =>
@@ -162,11 +167,12 @@ public partial class MainWindow : Window
     {
         var pendentes = _local.Estado.Outbox.Count;
         var conflitos = _local.Estado.Conflitos.Count;
-        var cursor = _local.Estado.CursoresPorEmpresa.GetValueOrDefault(
-            _local.Estado.EmpresaId, _local.Estado.Cursor);
+        var total = _local.Estado.Atendimentos.Count;
+        EmailUsuario.Text = string.IsNullOrWhiteSpace(_local.Estado.Email)
+            ? "Sessão ativa"
+            : _local.Estado.Email;
         Status.Text =
-            $"Cursor {cursor} · {pendentes} na fila · {conflitos} conflito(s)" +
-            (string.IsNullOrWhiteSpace(_local.Estado.Email) ? "" : $" · {_local.Estado.Email}");
+            $"{total} atendimento(s) · {pendentes} pendência(s) de envio · {conflitos} conflito(s)";
     }
 
     private async Task Sincronizar()
@@ -177,21 +183,21 @@ public partial class MainWindow : Window
             var resumo = await MotorSincronia.SincronizarAsync(_local, _api, _local.Estado.EmpresaId);
             await SalvarTokens();
             Status.Text =
-                $"Sincronizado: {resumo.Enviadas} enviadas, {resumo.Recebidas} recebidas" +
-                (resumo.Conflitos > 0 ? $", {resumo.Conflitos} conflito(s) — resolva na aba Conflitos" : "") +
-                (resumo.Falhas > 0 ? $", {resumo.Falhas} pendência(s) para tentar de novo" : "");
+                $"Sincronizado com sucesso ({resumo.Enviadas} enviada(s), {resumo.Recebidas} recebida(s))" +
+                (resumo.Conflitos > 0 ? $" · {resumo.Conflitos} conflito(s) na aba Conflitos" : "") +
+                (resumo.Falhas > 0 ? $" · {resumo.Falhas} pendência(s) aguardando nova tentativa" : "");
             if (resumo.Conflitos > 0)
             {
                 var detalhe = string.Join(", ", _local.Estado.Conflitos.Select(c =>
                     c.Placa.Length > 0 ? c.Placa : c.Uuid));
-                MessageBox.Show($"Conflitos: {detalhe}. Nada foi descartado.",
-                    "ChaveiroCar", MessageBoxButton.OK);
+                MessageBox.Show($"Conflitos detectados: {detalhe}. Nenhum registro foi descartado.",
+                    "ChaveiroCar", MessageBoxButton.OK, MessageBoxImage.Warning);
                 AbasPrincipal.SelectedIndex = 3;
             }
         }
         catch
         {
-            Status.Text = "Sem conexão: fila guardada no aparelho.";
+            Status.Text = "Sem conexão no momento: alterações permanecem salvas neste computador.";
         }
         finally
         {
@@ -208,17 +214,28 @@ public partial class MainWindow : Window
         if (e.Key == Key.Enter) RecarregarGrade();
     }
 
-    private void Empresa_Mudou(object sender, System.Windows.Controls.SelectionChangedEventArgs e)
+    private async void Empresa_Mudou(object sender, SelectionChangedEventArgs e)
     {
         if (Empresas.SelectedItem is ClienteApi.Empresa empresa)
         {
             _local.Estado.EmpresaId = empresa.Id;
             _local.Salvar();
+            await Sincronizar();
         }
     }
 
     private Atendimento? Selecionado() => Grade.SelectedItem as Atendimento;
     private ArmazenamentoLocal.Ficha? FichaSelecionada() => GradeFichas.SelectedItem as ArmazenamentoLocal.Ficha;
+
+    private void Grade_DoubleClick(object sender, MouseButtonEventArgs e)
+    {
+        if (Selecionado() is not null) Editar_Click(sender, e);
+    }
+
+    private void GradeFichas_DoubleClick(object sender, MouseButtonEventArgs e)
+    {
+        if (FichaSelecionada() is not null) EditarFicha_Click(sender, e);
+    }
 
     private void Novo_Click(object sender, RoutedEventArgs e)
     {
@@ -244,7 +261,7 @@ public partial class MainWindow : Window
         var item = Selecionado();
         if (item is null)
         {
-            Status.Text = "Selecione um registro.";
+            Status.Text = "Selecione um atendimento na tabela para editar.";
             return;
         }
         var fotos = _local.Estado.Fotos.Where(f => f.AtendimentoUuid == item.Uuid).ToList();
@@ -271,12 +288,16 @@ public partial class MainWindow : Window
     private void Excluir_Click(object sender, RoutedEventArgs e)
     {
         var item = Selecionado();
-        if (item is null) return;
+        if (item is null)
+        {
+            Status.Text = "Selecione um atendimento na tabela para excluir.";
+            return;
+        }
         var nome = !string.IsNullOrWhiteSpace(item.Placa)
             ? item.Placa
             : (!string.IsNullOrWhiteSpace(item.Modelo) ? item.Modelo : item.TipoLocal);
-        if (MessageBox.Show($"Excluir {nome}?", "ChaveiroCar",
-                MessageBoxButton.YesNo) != MessageBoxResult.Yes) return;
+        if (MessageBox.Show($"Excluir o atendimento \"{nome}\"?", "ChaveiroCar",
+                MessageBoxButton.YesNo, MessageBoxImage.Question) != MessageBoxResult.Yes) return;
         MotorSincronia.EnfileirarExclusao(_local, item.Uuid, item.Revisao);
         RecarregarGrade();
         AtualizarStatus();
@@ -288,7 +309,7 @@ public partial class MainWindow : Window
         var atendimento = Selecionado();
         if (atendimento is null)
         {
-            Status.Text = "Selecione um atendimento para gerar o relatório.";
+            Status.Text = "Selecione um atendimento para gerar o relatório em PDF.";
             return;
         }
         var documento = new FlowDocument
@@ -375,7 +396,7 @@ public partial class MainWindow : Window
         var ficha = FichaSelecionada();
         if (ficha is null)
         {
-            Status.Text = "Selecione uma ficha técnica.";
+            Status.Text = "Selecione uma ficha técnica para editar.";
             return;
         }
         var fotos = _local.Estado.Fotos.Where(f => f.FichaUuid == ficha.Uuid).ToList();
@@ -393,7 +414,7 @@ public partial class MainWindow : Window
         var ficha = FichaSelecionada();
         if (ficha is null) return;
         if (MessageBox.Show($"Excluir ficha {ficha.Marca} {ficha.Modelo}?", "ChaveiroCar",
-                MessageBoxButton.YesNo) != MessageBoxResult.Yes) return;
+                MessageBoxButton.YesNo, MessageBoxImage.Question) != MessageBoxResult.Yes) return;
         MotorSincronia.EnfileirarExclusao(_local, ficha.Uuid, ficha.Revisao, "ficha");
         RecarregarGrade();
         AtualizarStatus();
@@ -404,10 +425,10 @@ public partial class MainWindow : Window
     {
         if (_api is null || Empresas.SelectedItem is not ClienteApi.Empresa empresa)
         {
-            Status.Text = "Entre e selecione uma empresa para gerenciar a equipe.";
+            Status.Text = "Selecione uma empresa ativa para gerenciar a equipe.";
             return;
         }
-        var podeGerenciar = empresa.Papel is "proprietario" or "administrador";
+        var podeGerenciar = empresa.Papel is "proprietario" or "administrador" or "dono" or "admin";
         new EquipeWindow(_api, empresa.Id, podeGerenciar) { Owner = this }.ShowDialog();
         _ = SalvarTokens();
     }
@@ -453,6 +474,7 @@ public partial class MainWindow : Window
         _local.Estado.Acesso = null;
         _local.Estado.Refresh = null;
         _local.Salvar();
+        SaiuDaConta = true;
         Close();
     }
 }

@@ -1,45 +1,85 @@
 <Window x:Class="ChaveiroCar.Windows.ConviteWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="Aceitar convite" Height="540" Width="500" MinHeight="460"
-        WindowStartupLocation="CenterOwner" ResizeMode="NoResize">
-    <Grid Margin="20">
+        Title="ChaveiroCar — Aceitar Convite da Equipe"
+        Height="600" Width="520"
+        WindowStartupLocation="CenterOwner" ResizeMode="NoResize"
+        Background="{StaticResource CorFundoJanela}">
+    <Grid>
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>
-            <RowDefinition Height="Auto"/>
-            <RowDefinition Height="Auto"/>
-            <RowDefinition Height="Auto"/>
-            <RowDefinition Height="Auto"/>
             <RowDefinition Height="*"/>
-            <RowDefinition Height="Auto"/>
-            <RowDefinition Height="Auto"/>
         </Grid.RowDefinitions>
-        <TextBlock Grid.Row="0" Text="Aceitar convite" FontSize="22" FontWeight="Bold" Margin="0,0,0,10"/>
-        <StackPanel Grid.Row="1" Orientation="Horizontal" Margin="0,0,0,8">
-            <TextBox x:Name="Token" MinWidth="330" VerticalContentAlignment="Center"/>
-            <Button x:Name="Verificar" Content="Verificar" Click="Verificar_Click" Margin="8,0,0,0"/>
-        </StackPanel>
-        <TextBlock Grid.Row="2" x:Name="ConviteInfo" TextWrapping="Wrap" Margin="0,0,0,10"/>
-        <StackPanel Grid.Row="3" x:Name="Modos" Visibility="Collapsed">
-            <RadioButton x:Name="CriarConta" Content="Ainda não tenho conta" GroupName="conta" IsChecked="True" Checked="Modo_Checked"/>
-            <RadioButton x:Name="UsarConta" Content="Já tenho conta" GroupName="conta" Checked="Modo_Checked"/>
-        </StackPanel>
-        <StackPanel Grid.Row="4" x:Name="DadosContaNova" Visibility="Collapsed" Margin="0,8,0,0">
-            <TextBlock Text="Seu nome"/>
-            <TextBox x:Name="Nome"/>
-            <TextBlock Text="Crie uma senha (mínimo 8 caracteres, com letras e números)" Margin="0,8,0,0"/>
-            <PasswordBox x:Name="SenhaNova"/>
-        </StackPanel>
-        <StackPanel Grid.Row="4" x:Name="DadosContaExistente" Visibility="Collapsed" Margin="0,8,0,0">
-            <TextBlock Text="E-mail da conta"/>
-            <TextBox x:Name="Email"/>
-            <TextBlock Text="Senha" Margin="0,8,0,0"/>
-            <PasswordBox x:Name="SenhaExistente"/>
-        </StackPanel>
-        <TextBlock Grid.Row="6" x:Name="Erro" Foreground="DarkRed" TextWrapping="Wrap" Margin="0,0,0,8"/>
-        <StackPanel Grid.Row="7" Orientation="Horizontal" HorizontalAlignment="Right">
-            <Button Content="Fechar" IsCancel="True" Width="100" Margin="0,0,8,0"/>
-            <Button x:Name="Aceitar" Content="Aceitar convite" Width="120" Click="Aceitar_Click" IsEnabled="False"/>
-        </StackPanel>
+
+        <Border Grid.Row="0" Background="{StaticResource CorCabecalho}" Padding="28,20">
+            <StackPanel>
+                <TextBlock Text="Aceitar convite de equipe" Foreground="White" FontSize="20" FontWeight="Bold"/>
+                <TextBlock Text="Informe o código enviado pelo administrador da empresa."
+                           Foreground="#FF94A3B8" FontSize="12.5" Margin="0,4,0,0"/>
+            </StackPanel>
+        </Border>
+
+        <Border Grid.Row="1" Background="{StaticResource CorSuperficie}"
+                BorderBrush="{StaticResource CorBorda}" BorderThickness="1"
+                CornerRadius="12" Margin="20,16,20,20" Padding="24,20">
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="*"/>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                </Grid.RowDefinitions>
+
+                <StackPanel Grid.Row="0" Margin="0,0,0,12">
+                    <TextBlock Text="Código do convite" FontSize="12.5" FontWeight="SemiBold"
+                               Foreground="{StaticResource CorTextoSecundario}" Margin="0,0,0,5"/>
+                    <DockPanel LastChildFill="True">
+                        <Button DockPanel.Dock="Right" x:Name="Verificar" Content="Verificar código"
+                                Click="Verificar_Click" Margin="8,0,0,0"/>
+                        <TextBox x:Name="Token"/>
+                    </DockPanel>
+                </StackPanel>
+
+                <TextBlock Grid.Row="1" x:Name="ConviteInfo" Foreground="{StaticResource CorPrimariaEscura}"
+                           FontWeight="SemiBold" TextWrapping="Wrap" Margin="0,0,0,12"/>
+
+                <StackPanel Grid.Row="2" x:Name="Modos" Visibility="Collapsed" Orientation="Horizontal" Margin="0,0,0,12">
+                    <RadioButton x:Name="CriarConta" Content="Criar minha conta agora" GroupName="conta"
+                                 IsChecked="True" Checked="Modo_Checked" Margin="0,0,20,0"/>
+                    <RadioButton x:Name="UsarConta" Content="Já tenho uma conta" GroupName="conta"
+                                 Checked="Modo_Checked"/>
+                </StackPanel>
+
+                <StackPanel Grid.Row="3" x:Name="DadosContaNova" Visibility="Collapsed" Margin="0,4,0,0">
+                    <TextBlock Text="Seu nome completo" FontSize="12.5" FontWeight="SemiBold"
+                               Foreground="{StaticResource CorTextoSecundario}" Margin="0,0,0,5"/>
+                    <TextBox x:Name="Nome"/>
+                    <TextBlock Text="Crie uma senha (mínimo 8 caracteres, letras e números)" FontSize="12.5" FontWeight="SemiBold"
+                               Foreground="{StaticResource CorTextoSecundario}" Margin="0,12,0,5"/>
+                    <PasswordBox x:Name="SenhaNova"/>
+                </StackPanel>
+
+                <StackPanel Grid.Row="3" x:Name="DadosContaExistente" Visibility="Collapsed" Margin="0,4,0,0">
+                    <TextBlock Text="E-mail da sua conta" FontSize="12.5" FontWeight="SemiBold"
+                               Foreground="{StaticResource CorTextoSecundario}" Margin="0,0,0,5"/>
+                    <TextBox x:Name="Email"/>
+                    <TextBlock Text="Senha" FontSize="12.5" FontWeight="SemiBold"
+                               Foreground="{StaticResource CorTextoSecundario}" Margin="0,12,0,5"/>
+                    <PasswordBox x:Name="SenhaExistente"/>
+                </StackPanel>
+
+                <TextBlock Grid.Row="5" x:Name="Erro" Foreground="{StaticResource CorPerigo}"
+                           FontSize="12.5" TextWrapping="Wrap" Margin="0,0,0,12"/>
+
+                <StackPanel Grid.Row="6" Orientation="Horizontal" HorizontalAlignment="Right">
+                    <Button Content="Fechar" IsCancel="True" Width="110" Margin="0,0,10,0"/>
+                    <Button x:Name="Aceitar" Content="Aceitar convite" Style="{StaticResource BotaoPrimario}"
+                            Width="140" Click="Aceitar_Click" IsEnabled="False"/>
+                </StackPanel>
+            </Grid>
+        </Border>
     </Grid>
 </Window>

@@ -1,81 +1,209 @@
 ﻿<Window x:Class="ChaveiroCar.Windows.MainWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="ChaveiroCar" Height="600" Width="920"
-        WindowStartupLocation="CenterScreen">
-    <Grid Margin="12">
+        Title="ChaveiroCar — Sistema de Gestão"
+        Height="740" Width="1200" MinHeight="600" MinWidth="960"
+        WindowStartupLocation="CenterScreen"
+        Background="{StaticResource CorFundoJanela}">
+    <Grid>
         <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="*"/>
             <RowDefinition Height="Auto"/>
         </Grid.RowDefinitions>
 
-        <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="0,0,0,8">
-            <ComboBox x:Name="Empresas" Width="180" Margin="0,0,8,0" SelectionChanged="Empresa_Mudou"/>
-            <ComboBox x:Name="FiltroSegmento" Width="130" Margin="0,0,8,0" SelectedIndex="0" SelectionChanged="FiltroSegmento_Mudou">
-                <ComboBoxItem Content="Todos" Tag=""/>
-                <ComboBoxItem Content="Automotivo" Tag="AUTOMOTIVO"/>
-                <ComboBoxItem Content="Residencial" Tag="RESIDENCIAL"/>
-            </ComboBox>
-            <TextBox x:Name="Busca" Width="200" Margin="0,0,8,0" KeyDown="Busca_KeyDown"/>
-            <Button Content="Pesquisar" Click="Pesquisar_Click"/>
-            <Button Content="Sincronizar" Click="Sincronizar_Click" Margin="8,0,0,0"/>
-            <Button Content="Novo" Click="Novo_Click" Margin="8,0,0,0"/>
-            <Button Content="Editar" Click="Editar_Click" Margin="8,0,0,0"/>
-            <Button Content="Excluir" Click="Excluir_Click" Margin="8,0,0,0"/>
-            <Button Content="PDF" Click="ExportarPdf_Click" Margin="8,0,0,0"/>
-            <Button Content="Equipe" Click="Equipe_Click" Margin="8,0,0,0"/>
-        </StackPanel>
-
-        <TabControl Grid.Row="1" x:Name="AbasPrincipal">
-            <TabItem Header="Atendimentos">
-                <DataGrid x:Name="Grade" AutoGenerateColumns="True"
-                          IsReadOnly="True" CanUserAddRows="False" SelectionMode="Single"/>
-            </TabItem>
-            <TabItem Header="Fichário">
-                <Grid Margin="4">
-                    <Grid.RowDefinitions>
-                        <RowDefinition Height="Auto"/>
-                        <RowDefinition Height="*"/>
-                        <RowDefinition Height="Auto"/>
-                        <RowDefinition Height="*"/>
-                    </Grid.RowDefinitions>
-                    <TextBlock Grid.Row="0" Text="Fichário de veículos (por modelo)" FontWeight="SemiBold" Margin="0,4,0,4"/>
-                    <DataGrid Grid.Row="1" x:Name="GradeFicharioVeiculos" AutoGenerateColumns="True"
-                              IsReadOnly="True" CanUserAddRows="False" SelectionMode="Single"/>
-                    <TextBlock Grid.Row="2" Text="Fichário residencial (por local e fechadura)" FontWeight="SemiBold" Margin="0,8,0,4"/>
-                    <DataGrid Grid.Row="3" x:Name="GradeFicharioResidencial" AutoGenerateColumns="True"
-                              IsReadOnly="True" CanUserAddRows="False" SelectionMode="Single"/>
-                </Grid>
-            </TabItem>
-            <TabItem Header="Fichas técnicas">
-                <DockPanel>
-                    <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Margin="0,0,0,8">
-                        <Button Content="Nova ficha" Click="NovaFicha_Click"/>
-                        <Button Content="Editar ficha" Click="EditarFicha_Click" Margin="8,0,0,0"/>
-                        <Button Content="Excluir ficha" Click="ExcluirFicha_Click" Margin="8,0,0,0"/>
+        <!-- Barra Superior Institucional (Dark Navy) -->
+        <Border Grid.Row="0" Background="{StaticResource CorCabecalho}" Padding="24,14">
+            <DockPanel LastChildFill="False">
+                <StackPanel DockPanel.Dock="Left" Orientation="Horizontal" VerticalAlignment="Center">
+                    <Border Width="38" Height="38" CornerRadius="10" Background="{StaticResource CorPrimaria}" Margin="0,0,12,0">
+                        <TextBlock Text="CC" Foreground="White" FontWeight="Bold" FontSize="15"
+                                   HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                    </Border>
+                    <StackPanel VerticalAlignment="Center" Margin="0,0,24,0">
+                        <TextBlock Text="ChaveiroCar" Foreground="White" FontSize="18" FontWeight="Bold"/>
+                        <TextBlock Text="Gestão Automotiva e Residencial" Foreground="#FF94A3B8" FontSize="11"/>
                     </StackPanel>
-                    <DataGrid x:Name="GradeFichas" AutoGenerateColumns="True"
-                              IsReadOnly="True" CanUserAddRows="False" SelectionMode="Single"/>
-                </DockPanel>
-            </TabItem>
-            <TabItem Header="Conflitos">
-                <DockPanel>
-                    <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Margin="0,0,0,8">
-                        <TextBlock Text="Escolha qual versão manter. Se o servidor excluiu o registro, manter o PC cria um novo registro."
-                                   VerticalAlignment="Center" Margin="0,0,12,0"/>
-                        <Button Content="Manter este PC" Click="ManterConflito_Click"/>
-                        <Button Content="Usar servidor" Click="AceitarConflito_Click" Margin="8,0,0,0"/>
+                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                        <TextBlock Text="Empresa:" Foreground="#FFCBD5E1" VerticalAlignment="Center" Margin="0,0,8,0" FontSize="12.5"/>
+                        <ComboBox x:Name="Empresas" Width="220" Margin="0" SelectionChanged="Empresa_Mudou"/>
                     </StackPanel>
-                    <DataGrid x:Name="GradeConflitos" AutoGenerateColumns="True" IsReadOnly="True"
-                              CanUserAddRows="False" SelectionMode="Single"/>
-                </DockPanel>
-            </TabItem>
-        </TabControl>
+                </StackPanel>
 
-        <DockPanel Grid.Row="2" Margin="0,8,0,0">
-            <TextBlock x:Name="Status" VerticalAlignment="Center"/>
-            <Button Content="Sair" Click="Sair_Click" HorizontalAlignment="Right"/>
-        </DockPanel>
+                <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center">
+                    <Border Background="#FF1E293B" CornerRadius="6" Padding="10,6" Margin="0,0,10,0" VerticalAlignment="Center">
+                        <TextBlock x:Name="EmailUsuario" Text="" Foreground="#FFE2E8F0" FontSize="12" VerticalAlignment="Center"/>
+                    </Border>
+                    <Button Content="Equipe e acessos" Click="Equipe_Click" Margin="0,0,8,0"/>
+                    <Button Content="Sincronizar" Click="Sincronizar_Click" Style="{StaticResource BotaoPrimario}" Margin="0,0,8,0"/>
+                    <Button Content="Sair da conta" Click="Sair_Click"/>
+                </StackPanel>
+            </DockPanel>
+        </Border>
+
+        <!-- Barra de Ferramentas e Filtros -->
+        <Border Grid.Row="1" Background="{StaticResource CorSuperficie}"
+                BorderBrush="{StaticResource CorBorda}" BorderThickness="1"
+                CornerRadius="10" Margin="20,16,20,12" Padding="16,12">
+            <DockPanel LastChildFill="False">
+                <StackPanel DockPanel.Dock="Left" Orientation="Horizontal" VerticalAlignment="Center">
+                    <TextBlock Text="Segmento:" VerticalAlignment="Center" Margin="0,0,8,0"
+                               Foreground="{StaticResource CorTextoSecundario}" FontWeight="SemiBold" FontSize="12.5"/>
+                    <ComboBox x:Name="FiltroSegmento" Width="150" Margin="0,0,12,0" SelectedIndex="0" SelectionChanged="FiltroSegmento_Mudou">
+                        <ComboBoxItem Content="Todos os serviços" Tag=""/>
+                        <ComboBoxItem Content="Automotivo" Tag="AUTOMOTIVO"/>
+                        <ComboBoxItem Content="Residencial" Tag="RESIDENCIAL"/>
+                    </ComboBox>
+                    <TextBox x:Name="Busca" Width="280" Margin="0,0,8,0" KeyDown="Busca_KeyDown"
+                             ToolTip="Pesquisar por placa, veículo, cliente, fechadura ou endereço"/>
+                    <Button Content="Pesquisar" Click="Pesquisar_Click"/>
+                </StackPanel>
+
+                <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center">
+                    <Button Content="+ Novo atendimento" Click="Novo_Click" Style="{StaticResource BotaoPrimario}" Margin="0,0,8,0"/>
+                    <Button Content="Editar" Click="Editar_Click" Margin="0,0,8,0"/>
+                    <Button Content="Exportar PDF" Click="ExportarPdf_Click" Margin="0,0,8,0"/>
+                    <Button Content="Excluir" Click="Excluir_Click" Style="{StaticResource BotaoPerigo}"/>
+                </StackPanel>
+            </DockPanel>
+        </Border>
+
+        <!-- Área Principal com Abas e Tabelas Formatadas -->
+        <Border Grid.Row="2" Background="{StaticResource CorSuperficie}"
+                BorderBrush="{StaticResource CorBorda}" BorderThickness="1"
+                CornerRadius="10" Margin="20,0,20,14" Padding="12">
+            <TabControl x:Name="AbasPrincipal" BorderThickness="0" Background="Transparent">
+                <TabItem Header="  Atendimentos  " Padding="12,6" FontWeight="SemiBold">
+                    <DataGrid x:Name="Grade" AutoGenerateColumns="False" Margin="0,8,0,0"
+                              IsReadOnly="True" CanUserAddRows="False" SelectionMode="Single"
+                              MouseDoubleClick="Grade_DoubleClick">
+                        <DataGrid.Columns>
+                            <DataGridTextColumn Header="Data" Binding="{Binding DataFormatada}" Width="100"/>
+                            <DataGridTextColumn Header="Segmento" Binding="{Binding SegmentoFormatado}" Width="110"/>
+                            <DataGridTextColumn Header="Placa / Fechadura" Binding="{Binding PlacaOuFechadura}" Width="140"/>
+                            <DataGridTextColumn Header="Veículo / Local" Binding="{Binding IdentificacaoPrincipal}" Width="210"/>
+                            <DataGridTextColumn Header="Cliente" Binding="{Binding ClienteNome}" Width="150"/>
+                            <DataGridTextColumn Header="Telefone" Binding="{Binding ClienteTelefone}" Width="120"/>
+                            <DataGridTextColumn Header="Serviços" Binding="{Binding TiposFormatados}" Width="*"/>
+                            <DataGridTextColumn Header="Cód. Chave" Binding="{Binding CodigoChave}" Width="105"/>
+                            <DataGridTextColumn Header="Valor" Binding="{Binding ValorFormatado}" Width="105"/>
+                            <DataGridTextColumn Header="Pagamento" Binding="{Binding PagoFormatado}" Width="95"/>
+                            <DataGridTextColumn Header="Nuvem" Binding="{Binding SincroniaFormatada}" Width="105"/>
+                        </DataGrid.Columns>
+                    </DataGrid>
+                </TabItem>
+
+                <TabItem Header="  Fichário Inteligente  " Padding="12,6" FontWeight="SemiBold">
+                    <Grid Margin="0,8,0,0">
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="*"/>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="*"/>
+                        </Grid.RowDefinitions>
+                        <TextBlock Grid.Row="0" Text="Histórico consolidado de veículos (por marca e modelo)"
+                                   FontWeight="SemiBold" Foreground="{StaticResource CorTextoPrimario}" Margin="2,0,0,6"/>
+                        <DataGrid Grid.Row="1" x:Name="GradeFicharioVeiculos" AutoGenerateColumns="False"
+                                  IsReadOnly="True" CanUserAddRows="False" SelectionMode="Single">
+                            <DataGrid.Columns>
+                                <DataGridTextColumn Header="Marca" Binding="{Binding Marca}" Width="140"/>
+                                <DataGridTextColumn Header="Modelo" Binding="{Binding Modelo}" Width="180"/>
+                                <DataGridTextColumn Header="Ano" Binding="{Binding Ano}" Width="90"/>
+                                <DataGridTextColumn Header="Atendimentos" Binding="{Binding Servicos}" Width="110"/>
+                                <DataGridTextColumn Header="Último serviço" Binding="{Binding Ultimo}" Width="120"/>
+                                <DataGridTextColumn Header="Código da chave" Binding="{Binding CodigoChave}" Width="140"/>
+                                <DataGridTextColumn Header="Chip / Transponder" Binding="{Binding Chip}" Width="150"/>
+                                <DataGridTextColumn Header="Abertura / Observações" Binding="{Binding Abertura}" Width="*"/>
+                            </DataGrid.Columns>
+                        </DataGrid>
+
+                        <TextBlock Grid.Row="2" Text="Histórico consolidado residencial (por local e fechadura)"
+                                   FontWeight="SemiBold" Foreground="{StaticResource CorTextoPrimario}" Margin="2,12,0,6"/>
+                        <DataGrid Grid.Row="3" x:Name="GradeFicharioResidencial" AutoGenerateColumns="False"
+                                  IsReadOnly="True" CanUserAddRows="False" SelectionMode="Single">
+                            <DataGrid.Columns>
+                                <DataGridTextColumn Header="Tipo de local" Binding="{Binding TipoLocal}" Width="140"/>
+                                <DataGridTextColumn Header="Ambiente / Porta" Binding="{Binding Ambiente}" Width="150"/>
+                                <DataGridTextColumn Header="Marca fechadura" Binding="{Binding MarcaFechadura}" Width="140"/>
+                                <DataGridTextColumn Header="Modelo fechadura" Binding="{Binding ModeloFechadura}" Width="150"/>
+                                <DataGridTextColumn Header="Cilindro / Chave" Binding="{Binding Cilindro}" Width="140"/>
+                                <DataGridTextColumn Header="Atendimentos" Binding="{Binding Servicos}" Width="110"/>
+                                <DataGridTextColumn Header="Último serviço" Binding="{Binding Ultimo}" Width="120"/>
+                                <DataGridTextColumn Header="Código da chave" Binding="{Binding CodigoChave}" Width="130"/>
+                                <DataGridTextColumn Header="Abertura / Observações" Binding="{Binding Abertura}" Width="*"/>
+                            </DataGrid.Columns>
+                        </DataGrid>
+                    </Grid>
+                </TabItem>
+
+                <TabItem Header="  Fichas Técnicas  " Padding="12,6" FontWeight="SemiBold">
+                    <DockPanel Margin="0,8,0,0">
+                        <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Margin="0,0,0,10">
+                            <Button Content="+ Nova ficha técnica" Click="NovaFicha_Click" Style="{StaticResource BotaoPrimario}"/>
+                            <Button Content="Editar ficha" Click="EditarFicha_Click" Margin="8,0,0,0"/>
+                            <Button Content="Excluir ficha" Click="ExcluirFicha_Click" Style="{StaticResource BotaoPerigo}" Margin="8,0,0,0"/>
+                        </StackPanel>
+                        <DataGrid x:Name="GradeFichas" AutoGenerateColumns="False"
+                                  IsReadOnly="True" CanUserAddRows="False" SelectionMode="Single"
+                                  MouseDoubleClick="GradeFichas_DoubleClick">
+                            <DataGrid.Columns>
+                                <DataGridTextColumn Header="Marca" Binding="{Binding Marca}" Width="130"/>
+                                <DataGridTextColumn Header="Modelo" Binding="{Binding Modelo}" Width="160"/>
+                                <DataGridTextColumn Header="Ano" Binding="{Binding Ano}" Width="90"/>
+                                <DataGridTextColumn Header="Equipamento" Binding="{Binding Equipamento}" Width="140"/>
+                                <DataGridTextColumn Header="Sistema" Binding="{Binding Sistema}" Width="140"/>
+                                <DataGridTextColumn Header="Chip" Binding="{Binding Chip}" Width="120"/>
+                                <DataGridTextColumn Header="Chave" Binding="{Binding Chave}" Width="120"/>
+                                <DataGridTextColumn Header="Telecomando" Binding="{Binding Telecomando}" Width="130"/>
+                                <DataGridTextColumn Header="Frequência" Binding="{Binding Frequencia}" Width="100"/>
+                                <DataGridTextColumn Header="Confirmado" Binding="{Binding ConfirmadoFormatado}" Width="95"/>
+                                <DataGridTextColumn Header="Nuvem" Binding="{Binding SincroniaFormatada}" Width="*"/>
+                            </DataGrid.Columns>
+                        </DataGrid>
+                    </DockPanel>
+                </TabItem>
+
+                <TabItem Header="  Conflitos de Sincronia  " Padding="12,6" FontWeight="SemiBold">
+                    <DockPanel Margin="0,8,0,0">
+                        <Border DockPanel.Dock="Top" Background="#FFFFFBEB" BorderBrush="#FFFDE68A" BorderThickness="1"
+                                CornerRadius="8" Padding="12,10" Margin="0,0,0,10">
+                            <DockPanel LastChildFill="False">
+                                <TextBlock DockPanel.Dock="Left"
+                                           Text="Escolha qual versão manter para cada conflito. Se o servidor excluiu o registro, manter a versão deste PC recriará o registro."
+                                           Foreground="#FF92400E" VerticalAlignment="Center" TextWrapping="Wrap" MaxWidth="680"/>
+                                <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center">
+                                    <Button Content="Manter versão deste PC" Click="ManterConflito_Click" Style="{StaticResource BotaoPrimario}"/>
+                                    <Button Content="Aceitar versão do servidor" Click="AceitarConflito_Click" Margin="8,0,0,0"/>
+                                </StackPanel>
+                            </DockPanel>
+                        </Border>
+                        <DataGrid x:Name="GradeConflitos" AutoGenerateColumns="False" IsReadOnly="True"
+                                  CanUserAddRows="False" SelectionMode="Single">
+                            <DataGrid.Columns>
+                                <DataGridTextColumn Header="Tipo" Binding="{Binding Entidade}" Width="140"/>
+                                <DataGridTextColumn Header="Identificação / Placa" Binding="{Binding Placa}" Width="200"/>
+                                <DataGridTextColumn Header="Situação no servidor" Binding="{Binding SituacaoRemota}" Width="220"/>
+                                <DataGridTextColumn Header="Código do registro" Binding="{Binding Uuid}" Width="*"/>
+                            </DataGrid.Columns>
+                        </DataGrid>
+                    </DockPanel>
+                </TabItem>
+            </TabControl>
+        </Border>
+
+        <!-- Barra de Status Inferior -->
+        <Border Grid.Row="3" Background="{StaticResource CorSuperficie}"
+                BorderBrush="{StaticResource CorBorda}" BorderThickness="0,1,0,0"
+                Padding="24,10">
+            <DockPanel LastChildFill="False">
+                <StackPanel DockPanel.Dock="Left" Orientation="Horizontal" VerticalAlignment="Center">
+                    <Ellipse Width="8" Height="8" Fill="{StaticResource CorPrimaria}" Margin="0,0,8,0" VerticalAlignment="Center"/>
+                    <TextBlock x:Name="Status" VerticalAlignment="Center" Foreground="{StaticResource CorTextoSecundario}" FontSize="12.5"/>
+                </StackPanel>
+                <TextBlock DockPanel.Dock="Right" Text="ChaveiroCar Desktop v1.9.0"
+                           Foreground="#FF94A3B8" FontSize="12" VerticalAlignment="Center"/>
+            </DockPanel>
+        </Border>
     </Grid>
 </Window>
