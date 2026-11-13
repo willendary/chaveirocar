@@ -5,13 +5,16 @@
     <Application.Resources>
         <!-- Paleta ChaveiroCar (Azul Petróleo + Jade) -->
         <SolidColorBrush x:Key="CorFundoApp" Color="#F1F5F9"/>
+        <SolidColorBrush x:Key="CorFundoJanela" Color="#F1F5F9"/>
         <SolidColorBrush x:Key="CorSuperficie" Color="#FFFFFF"/>
         <SolidColorBrush x:Key="CorCabecalho" Color="#0F172A"/>
         <SolidColorBrush x:Key="CorCabecalhoSecundario" Color="#1E293B"/>
         <SolidColorBrush x:Key="CorPrimaria" Color="#0D9488"/>
         <SolidColorBrush x:Key="CorPrimariaHover" Color="#0F766E"/>
+        <SolidColorBrush x:Key="CorPrimariaEscura" Color="#0F766E"/>
         <SolidColorBrush x:Key="CorPrimariaSuave" Color="#CCFBF1"/>
         <SolidColorBrush x:Key="CorTexto" Color="#0F172A"/>
+        <SolidColorBrush x:Key="CorTextoPrimario" Color="#0F172A"/>
         <SolidColorBrush x:Key="CorTextoSecundario" Color="#475569"/>
         <SolidColorBrush x:Key="CorBorda" Color="#CBD5E1"/>
         <SolidColorBrush x:Key="CorBordaSuave" Color="#E2E8F0"/>

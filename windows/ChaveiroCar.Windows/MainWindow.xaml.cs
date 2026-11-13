@@ -97,7 +97,8 @@ public partial class MainWindow : Window
 
     private void RecarregarGrade()
     {
-        if (Grade is null) return;
+        if (Grade is null || Busca is null || GradeFicharioVeiculos is null ||
+            GradeFicharioResidencial is null || GradeFichas is null || GradeConflitos is null) return;
         var termo = normalizar(Busca.Text);
         var seg = SegmentoSelecionado();
         var itens = _local.Estado.Atendimentos

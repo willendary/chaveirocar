@@ -84,7 +84,9 @@ public static class AutenticadorGoogleDesktop
             contexto.Response.ContentType = "text/html; charset=utf-8";
             contexto.Response.ContentLength64 = buffer.Length;
             await contexto.Response.OutputStream.WriteAsync(buffer, CancellationToken.None);
+            await contexto.Response.OutputStream.FlushAsync(CancellationToken.None);
             contexto.Response.Close();
+            await Task.Delay(200, CancellationToken.None);
 
             return new ResultadoOAuthDesktop(sucesso, acesso, refresh, email, empresaId, idToken, erro);
         }
