@@ -107,18 +107,21 @@ Backlog: `https://github.com/willendary/chaveirocar/issues`
 
 O GitHub Actions compila, testa, assina e publica sozinho quando você cria uma tag.
 
-1. Suba o `versionCode` e o `versionName` em `app/build.gradle.kts`.
-2. Faça o commit na `main`.
-3. Crie e envie a tag:
+1. Suba o `versionCode` e o `versionName` em `app/build.gradle.kts` e a versão em
+   `windows/ChaveiroCar.Windows/ChaveiroCar.Windows.csproj`.
+2. Escreva as notas em `release/v<versão>.md` (o workflow usa esse arquivo como
+   corpo da release).
+3. Faça o commit na `main`.
+4. Crie e envie a tag:
 
 ```bat
 git tag -a v1.2 -m "ChaveiroCar 1.2"
 git push origin v1.2
 ```
 
-Em alguns minutos a release aparece em `releases`. Quem já tem o app instalado
-vê o aviso de atualização em até um dia (ou na hora, em Ajustes → Verificar
-atualização).
+Em alguns minutos a release aparece em `releases` com o APK Android e o ZIP
+Windows. Quem já tem o app instalado vê o aviso de atualização em até um dia
+(ou na hora, em Ajustes → Verificar atualização).
 
 Segredos usados pelo workflow (já configurados no repositório): `CHAVEIRO_KEYSTORE_BASE64`,
 `CHAVEIRO_KEYSTORE_SENHA`, `CHAVEIRO_KEY_ALIAS`, `CHAVEIRO_KEY_SENHA`.
