@@ -32,8 +32,10 @@ public static class VerificadorAtualizacao
             var tag = raiz.GetProperty("tag_name").GetString()?.TrimStart('v');
             if (!Version.TryParse(tag, out var versaoNova)) return null;
 
-            var instalada = Assembly.GetEntryAssembly()?.GetName().Version ?? new Version(0, 0);
-            if (versaoNova <= instalada) return null;
+            var completa = Assembly.GetEntryAssembly()?.GetName().Version ?? new Version(0, 0);
+            var instalada = new Version(completa.Major, completa.Minor, Math.Max(completa.Build, 0));
+            var publicada = new Version(versaoNova.Major, versaoNova.Minor, Math.Max(versaoNova.Build, 0));
+            if (publicada <= instalada) return null;
 
             if (!raiz.TryGetProperty("assets", out var ativos)) return null;
             foreach (var ativo in ativos.EnumerateArray())
