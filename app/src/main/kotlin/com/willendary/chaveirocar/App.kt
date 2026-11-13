@@ -106,7 +106,10 @@ fun ChaveiroCarApp() {
   }
 
   var loginNuvemObrigatorio by remember {
-    mutableStateOf(preferencias.getString(Preferencias.CONTA_NUVEM, null).isNullOrBlank())
+    mutableStateOf(
+      preferencias.getString(Preferencias.CONTA_NUVEM, null).isNullOrBlank() &&
+        !preferencias.getBoolean(Preferencias.DRIVE_IGNORADO, false),
+    )
   }
 
   var atualizacao by remember { mutableStateOf<AtualizacaoDisponivel?>(null) }
@@ -179,7 +182,8 @@ fun ChaveiroCarApp() {
   LaunchedEffect(Unit) {
     withContext(Dispatchers.IO) {
       val arquivo = runCatching { BackupAutomatico.executarSeNecessario(banco, contexto) }.getOrNull()
-      if (arquivo != null) {
+      val driveConectado = !preferencias.getString(Preferencias.CONTA_NUVEM, null).isNullOrBlank()
+      if (arquivo != null && driveConectado) {
         runCatching { GoogleDrive.enviarAutomatico(contexto, arquivo) }
           .onFailure { Erros.registrar(contexto, "Envio automático para o Google Drive", it) }
       }
@@ -504,6 +508,7 @@ fun ChaveiroCarApp() {
         aoConectar = { email ->
           preferencias.edit()
             .putString(Preferencias.CONTA_NUVEM, email.orEmpty())
+            .putBoolean(Preferencias.DRIVE_IGNORADO, email.isNullOrBlank())
             .apply()
           loginNuvemObrigatorio = false
         },
