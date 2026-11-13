@@ -107,7 +107,7 @@ class VisualSmokeTest {
     esperar("Acesso rápido"); foto("04-servicos-escuro")
   }
   @Test fun ficharioFavorito() {
-    tela { TelaFichario(banco) {} }
+    tela { TelaFichario(banco, onAbrirModelo = {}) }
     esperar("Polo")
     compose.onAllNodesWithContentDescription("Fixar modelo")[0].performScrollTo().performClick()
     compose.onNodeWithContentDescription("Desafixar modelo").assertExists()
@@ -123,8 +123,8 @@ class VisualSmokeTest {
   @Test fun formularioSalvaEdicao() {
     var salvo = 0L
     tela { TelaFormulario(banco, id, onSalvo = { salvo = it }, onVoltar = {}) }
-    esperar("Placa *"); foto("08-formulario")
-    compose.onNodeWithText("Modelo").performScrollTo().performTextReplacement("Polo revisado")
+    esperar("Modelo *"); foto("08-formulario")
+    compose.onNodeWithText("Modelo *").performScrollTo().performTextReplacement("Polo revisado")
     compose.onNodeWithText("Salvar").performClick()
     compose.waitUntil(15000) { salvo > 0 }
     assertEquals("Polo revisado", banco.obter(id)?.modelo)
@@ -170,7 +170,7 @@ class VisualSmokeTest {
     compose.onNode(hasText("Serviços") and hasClickAction()).performClick()
     esperar("Acesso rápido")
     compose.onNodeWithTag("acao_novo_servico").assertExists().performClick()
-    esperar("Placa *")
+    esperar("Modelo *")
     compose.onNodeWithContentDescription("Voltar").performClick()
     esperar("Acesso rápido")
   }

@@ -87,15 +87,66 @@ public partial class MainWindow : Window
         _local.Salvar();
     }
 
+    private string SegmentoSelecionado() =>
+        (FiltroSegmento?.SelectedItem as ComboBoxItem)?.Tag?.ToString() ?? "";
+
     private void RecarregarGrade()
     {
+        if (Grade is null) return;
         var termo = normalizar(Busca.Text);
+        var seg = SegmentoSelecionado();
         var itens = _local.Estado.Atendimentos
-            .Where(a => termo.Length == 0 ||
-                normalizar($"{a.Placa} {a.Marca} {a.Modelo} {a.ClienteNome}").Contains(termo))
+            .Where(a => (string.IsNullOrEmpty(seg) || a.Segmento == seg) &&
+                (termo.Length == 0 ||
+                normalizar($"{a.Placa} {a.Marca} {a.Modelo} {a.TipoLocal} {a.AmbientePorta} {a.MarcaFechadura} {a.ModeloFechadura} {a.TipoCilindro} {a.EnderecoLocal} {a.ClienteNome}").Contains(termo)))
             .OrderByDescending(a => a.DataServico)
             .ToList();
         Grade.ItemsSource = itens;
+
+        GradeFicharioVeiculos.ItemsSource = _local.Estado.Atendimentos
+            .Where(a => a.Segmento != "RESIDENCIAL" && (!string.IsNullOrWhiteSpace(a.Marca) || !string.IsNullOrWhiteSpace(a.Modelo)))
+            .GroupBy(a => new { Marca = a.Marca.Trim(), Modelo = a.Modelo.Trim(), Ano = a.Ano.Trim() })
+            .Select(g => new
+            {
+                g.Key.Marca,
+                g.Key.Modelo,
+                g.Key.Ano,
+                Servicos = g.Count(),
+                Ultimo = DateTimeOffset.FromUnixTimeMilliseconds(g.Max(x => x.DataServico)).ToLocalTime().ToString("dd/MM/yyyy"),
+                Abertura = g.Select(x => x.Abertura).FirstOrDefault(x => !string.IsNullOrWhiteSpace(x)) ?? "",
+                CodigoChave = g.Select(x => x.CodigoChave).FirstOrDefault(x => !string.IsNullOrWhiteSpace(x)) ?? "",
+                Chip = g.Select(x => x.ChipTransponder).FirstOrDefault(x => !string.IsNullOrWhiteSpace(x)) ?? "",
+            })
+            .Where(f => termo.Length == 0 || normalizar($"{f.Marca} {f.Modelo} {f.Ano}").Contains(termo))
+            .OrderByDescending(f => f.Servicos)
+            .ToList();
+
+        GradeFicharioResidencial.ItemsSource = _local.Estado.Atendimentos
+            .Where(a => a.Segmento == "RESIDENCIAL")
+            .GroupBy(a => new
+            {
+                TipoLocal = a.TipoLocal.Trim(),
+                Ambiente = a.AmbientePorta.Trim(),
+                MarcaFechadura = a.MarcaFechadura.Trim(),
+                ModeloFechadura = a.ModeloFechadura.Trim(),
+                Cilindro = a.TipoCilindro.Trim(),
+            })
+            .Select(g => new
+            {
+                g.Key.TipoLocal,
+                g.Key.Ambiente,
+                g.Key.MarcaFechadura,
+                g.Key.ModeloFechadura,
+                g.Key.Cilindro,
+                Servicos = g.Count(),
+                Ultimo = DateTimeOffset.FromUnixTimeMilliseconds(g.Max(x => x.DataServico)).ToLocalTime().ToString("dd/MM/yyyy"),
+                Abertura = g.Select(x => x.Abertura).FirstOrDefault(x => !string.IsNullOrWhiteSpace(x)) ?? "",
+                CodigoChave = g.Select(x => x.CodigoChave).FirstOrDefault(x => !string.IsNullOrWhiteSpace(x)) ?? "",
+            })
+            .Where(f => termo.Length == 0 || normalizar($"{f.TipoLocal} {f.Ambiente} {f.MarcaFechadura} {f.ModeloFechadura} {f.Cilindro}").Contains(termo))
+            .OrderByDescending(f => f.Servicos)
+            .ToList();
+
         GradeFichas.ItemsSource = _local.Estado.Fichas
             .Where(f => termo.Length == 0 ||
                 normalizar($"{f.Equipamento} {f.Marca} {f.Modelo} {f.Ano} {f.Chip}").Contains(termo))
@@ -135,7 +186,7 @@ public partial class MainWindow : Window
                     c.Placa.Length > 0 ? c.Placa : c.Uuid));
                 MessageBox.Show($"Conflitos: {detalhe}. Nada foi descartado.",
                     "ChaveiroCar", MessageBoxButton.OK);
-                AbasPrincipal.SelectedIndex = 2;
+                AbasPrincipal.SelectedIndex = 3;
             }
         }
         catch
@@ -151,6 +202,7 @@ public partial class MainWindow : Window
 
     private async void Sincronizar_Click(object sender, RoutedEventArgs e) => await Sincronizar();
     private void Pesquisar_Click(object sender, RoutedEventArgs e) => RecarregarGrade();
+    private void FiltroSegmento_Mudou(object sender, SelectionChangedEventArgs e) => RecarregarGrade();
     private void Busca_KeyDown(object sender, KeyEventArgs e)
     {
         if (e.Key == Key.Enter) RecarregarGrade();
@@ -170,11 +222,13 @@ public partial class MainWindow : Window
 
     private void Novo_Click(object sender, RoutedEventArgs e)
     {
+        var seg = SegmentoSelecionado() == "RESIDENCIAL" ? "RESIDENCIAL" : "AUTOMOTIVO";
         var item = new Atendimento
         {
             Uuid = Guid.NewGuid().ToString(),
+            Segmento = seg,
             DataServico = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(),
-            TiposServico = ["OUTRO"],
+            TiposServico = [seg == "RESIDENCIAL" ? "ABERTURA_RESIDENCIAL" : "CHAVE_CODIFICADA"],
         };
         var editor = new AtendimentoEditorWindow(item, []) { Owner = this };
         if (editor.ShowDialog() != true || editor.Resultado is null) return;
@@ -207,8 +261,9 @@ public partial class MainWindow : Window
     {
         foreach (var foto in fotos)
         {
-            if (_local.Estado.Fotos.All(atual => atual.Uuid != foto.Uuid))
-                _local.Estado.Fotos.Add(foto);
+            var indice = _local.Estado.Fotos.FindIndex(atual => atual.Uuid == foto.Uuid);
+            if (indice < 0) _local.Estado.Fotos.Add(foto);
+            else _local.Estado.Fotos[indice] = foto;
         }
         _local.Salvar();
     }
@@ -217,7 +272,10 @@ public partial class MainWindow : Window
     {
         var item = Selecionado();
         if (item is null) return;
-        if (MessageBox.Show($"Excluir {item.Placa}?", "ChaveiroCar",
+        var nome = !string.IsNullOrWhiteSpace(item.Placa)
+            ? item.Placa
+            : (!string.IsNullOrWhiteSpace(item.Modelo) ? item.Modelo : item.TipoLocal);
+        if (MessageBox.Show($"Excluir {nome}?", "ChaveiroCar",
                 MessageBoxButton.YesNo) != MessageBoxResult.Yes) return;
         MotorSincronia.EnfileirarExclusao(_local, item.Uuid, item.Revisao);
         RecarregarGrade();
@@ -246,9 +304,21 @@ public partial class MainWindow : Window
         });
         var data = DateTimeOffset.FromUnixTimeMilliseconds(atendimento.DataServico).ToLocalTime();
         AdicionarLinha(documento, "Data", data.ToString("dd/MM/yyyy"));
-        AdicionarLinha(documento, "Placa", atendimento.Placa);
-        AdicionarLinha(documento, "Veículo", $"{atendimento.Marca} {atendimento.Modelo} {atendimento.Ano}".Trim());
-        AdicionarLinha(documento, "Chassi", atendimento.Chassi);
+        AdicionarLinha(documento, "Segmento", atendimento.Segmento == "RESIDENCIAL" ? "Residencial" : "Automotivo");
+        if (atendimento.Segmento == "RESIDENCIAL")
+        {
+            AdicionarLinha(documento, "Tipo de local", atendimento.TipoLocal);
+            AdicionarLinha(documento, "Ambiente / porta", atendimento.AmbientePorta);
+            AdicionarLinha(documento, "Fechadura", $"{atendimento.MarcaFechadura} {atendimento.ModeloFechadura}".Trim());
+            AdicionarLinha(documento, "Cilindro / chave", atendimento.TipoCilindro);
+            AdicionarLinha(documento, "Endereço / referência", atendimento.EnderecoLocal);
+        }
+        else
+        {
+            AdicionarLinha(documento, "Placa", string.IsNullOrWhiteSpace(atendimento.Placa) ? "Sem placa" : atendimento.Placa);
+            AdicionarLinha(documento, "Veículo", $"{atendimento.Marca} {atendimento.Modelo} {atendimento.Ano}".Trim());
+            AdicionarLinha(documento, "Chassi", atendimento.Chassi);
+        }
         AdicionarLinha(documento, "Cliente", atendimento.ClienteNome);
         AdicionarLinha(documento, "Telefone", atendimento.ClienteTelefone);
         AdicionarLinha(documento, "Serviço", string.Join(", ", atendimento.TiposServico));
@@ -257,7 +327,8 @@ public partial class MainWindow : Window
         AdicionarLinha(documento, "Observações", atendimento.Abertura);
         AdicionarLinha(documento, "Código da chave", atendimento.CodigoChave);
         AdicionarLinha(documento, "Código de configuração", atendimento.CodigoConfiguracao);
-        AdicionarLinha(documento, "Chip / transponder", atendimento.ChipTransponder);
+        if (atendimento.Segmento != "RESIDENCIAL")
+            AdicionarLinha(documento, "Chip / transponder", atendimento.ChipTransponder);
         AdicionarLinha(documento, "Ferramenta", atendimento.Ferramenta);
         AdicionarLinha(documento, "Valor", (atendimento.ValorCentavos / 100m).ToString("C"));
         AdicionarLinha(documento, "Pagamento", atendimento.Pago ? "Pago" : "Pendente");
@@ -265,9 +336,12 @@ public partial class MainWindow : Window
         var impressora = new PrintDialog();
         if (impressora.ShowDialog() == true)
         {
+            var sufixo = !string.IsNullOrWhiteSpace(atendimento.Placa)
+                ? atendimento.Placa
+                : (!string.IsNullOrWhiteSpace(atendimento.Modelo) ? atendimento.Modelo : atendimento.TipoLocal);
             impressora.PrintDocument(
                 ((IDocumentPaginatorSource)documento).DocumentPaginator,
-                $"ChaveiroCar - {atendimento.Placa}");
+                $"ChaveiroCar - {sufixo}");
         }
     }
 

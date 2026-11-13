@@ -50,8 +50,9 @@ fun ImagemLocal(
   ladoMaximo: Int = 600,
 ) {
   val contexto = LocalContext.current
-  var bitmap by remember(caminho) { mutableStateOf<ImageBitmap?>(null) }
-  LaunchedEffect(caminho, ladoMaximo) {
+  val modificadoEm = Fotos.arquivo(contexto, caminho).lastModified()
+  var bitmap by remember(caminho, modificadoEm) { mutableStateOf<ImageBitmap?>(null) }
+  LaunchedEffect(caminho, ladoMaximo, modificadoEm) {
     bitmap = withContext(Dispatchers.IO) { Fotos.carregar(contexto, caminho, ladoMaximo)?.asImageBitmap() }
   }
   val atual = bitmap

@@ -11,10 +11,35 @@ namespace ChaveiroCar.Windows;
 
 public partial class AtendimentoEditorWindow : Window
 {
+    private static readonly (string Rotulo, string Tag)[] TiposAutomotivos =
+    [
+        ("Chave codificada", "CHAVE_CODIFICADA"),
+        ("Transponder", "TRANSPONDER"),
+        ("Telecomando", "TELECOMANDO"),
+        ("Abertura", "ABERTURA"),
+        ("Ignição", "IGNICAO"),
+        ("Conserto", "CONSERTO"),
+        ("Programação de chave", "PROGRAMACAO_CHAVE"),
+        ("Outro", "OUTRO"),
+    ];
+
+    private static readonly (string Rotulo, string Tag)[] TiposResidenciais =
+    [
+        ("Abertura residencial", "ABERTURA_RESIDENCIAL"),
+        ("Cópia de chave", "COPIA_CHAVE"),
+        ("Troca de segredo", "TROCA_SEGREDO"),
+        ("Instalação de fechadura", "INSTALACAO_FECHADURA"),
+        ("Cilindro / fechadura", "TROCA_CILINDRO"),
+        ("Fechadura digital", "FECHADURA_DIGITAL"),
+        ("Reparo de fechadura", "REPARO_FECHADURA"),
+        ("Outro", "OUTRO"),
+    ];
+
     private readonly Atendimento _original;
     private readonly List<ArmazenamentoLocal.FotoLocal> _fotosExistentes;
     private readonly List<string> _novasCopias = [];
     private readonly ObservableCollection<ArmazenamentoLocal.FotoLocal> _fotosNovas = [];
+    private bool _carregando;
 
     public Atendimento? Resultado { get; private set; }
     public IReadOnlyList<ArmazenamentoLocal.FotoLocal> ResultadoFotos { get; private set; } = [];
@@ -32,17 +57,35 @@ public partial class AtendimentoEditorWindow : Window
         Closed += (_, _) =>
         {
             if (DialogResult == true) return;
-            foreach (var caminho in _novasCopias) File.Delete(caminho);
+            foreach (var caminho in _novasCopias)
+            {
+                File.Delete(caminho);
+                var orig = FotosLocais.CaminhoOriginal(caminho);
+                if (File.Exists(orig)) File.Delete(orig);
+            }
         };
     }
 
+    private string SegmentoAtual() =>
+        (Segmento.SelectedItem as ComboBoxItem)?.Tag?.ToString() == "RESIDENCIAL"
+            ? "RESIDENCIAL"
+            : "AUTOMOTIVO";
+
     private void Preencher()
     {
+        _carregando = true;
+        Segmento.SelectedIndex = _original.Segmento == "RESIDENCIAL" ? 1 : 0;
         Placa.Text = _original.Placa;
         Marca.Text = _original.Marca;
         Modelo.Text = _original.Modelo;
         Ano.Text = _original.Ano;
         Chassi.Text = _original.Chassi;
+        TipoLocal.Text = _original.TipoLocal;
+        AmbientePorta.Text = _original.AmbientePorta;
+        MarcaFechadura.Text = _original.MarcaFechadura;
+        ModeloFechadura.Text = _original.ModeloFechadura;
+        TipoCilindro.Text = _original.TipoCilindro;
+        EnderecoLocal.Text = _original.EnderecoLocal;
         ClienteNome.Text = _original.ClienteNome;
         ClienteTelefone.Text = _original.ClienteTelefone;
         DataServico.SelectedDate = DateTimeOffset.FromUnixTimeMilliseconds(_original.DataServico).LocalDateTime.Date;
@@ -55,9 +98,52 @@ public partial class AtendimentoEditorWindow : Window
         Ferramenta.Text = _original.Ferramenta;
         Valor.Text = (_original.ValorCentavos / 100m).ToString("N2", CultureInfo.CurrentCulture);
         Pago.IsChecked = _original.Pago;
-        foreach (var item in TiposServico.Items.OfType<ListBoxItem>())
+        AtualizarCamposPorSegmento(_original.TiposServico);
+        _carregando = false;
+    }
+
+    private void Segmento_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (_carregando || PainelAutomotivo is null || PainelResidencial is null || TiposServico is null) return;
+        var selecionados = TiposServico.SelectedItems.OfType<ListBoxItem>()
+            .Select(item => item.Tag?.ToString() ?? "")
+            .Where(s => s.Length > 0)
+            .ToList();
+        AtualizarCamposPorSegmento(selecionados);
+    }
+
+    private void AtualizarCamposPorSegmento(IReadOnlyCollection<string> selecionadosAtuais)
+    {
+        var residencial = SegmentoAtual() == "RESIDENCIAL";
+        PainelAutomotivo.Visibility = residencial ? Visibility.Collapsed : Visibility.Visible;
+        PainelResidencial.Visibility = residencial ? Visibility.Visible : Visibility.Collapsed;
+        PainelChipTransponder.Visibility = residencial ? Visibility.Collapsed : Visibility.Visible;
+
+        var opcoes = residencial ? TiposResidenciais : TiposAutomotivos;
+        var padrao = residencial ? "ABERTURA_RESIDENCIAL" : "CHAVE_CODIFICADA";
+        TiposServico.Items.Clear();
+        var marcouAlgum = false;
+        foreach (var (rotulo, tag) in opcoes)
         {
-            item.IsSelected = _original.TiposServico.Contains(item.Tag?.ToString() ?? "");
+            var item = new ListBoxItem
+            {
+                Content = rotulo,
+                Tag = tag,
+                IsSelected = selecionadosAtuais.Contains(tag),
+            };
+            if (item.IsSelected) marcouAlgum = true;
+            TiposServico.Items.Add(item);
+        }
+        if (!marcouAlgum && TiposServico.Items.Count > 0)
+        {
+            foreach (var item in TiposServico.Items.OfType<ListBoxItem>())
+            {
+                if (item.Tag?.ToString() == padrao)
+                {
+                    item.IsSelected = true;
+                    break;
+                }
+            }
         }
     }
 
@@ -99,6 +185,8 @@ public partial class AtendimentoEditorWindow : Window
         _fotosNovas.Remove(foto);
         _novasCopias.Remove(foto.CaminhoLocal);
         File.Delete(foto.CaminhoLocal);
+        var orig = FotosLocais.CaminhoOriginal(foto.CaminhoLocal);
+        if (File.Exists(orig)) File.Delete(orig);
     }
 
     private void AbrirFoto_Click(object sender, RoutedEventArgs e)
@@ -112,15 +200,71 @@ public partial class AtendimentoEditorWindow : Window
         Process.Start(new ProcessStartInfo(foto.CaminhoLocal) { UseShellExecute = true });
     }
 
-    private void Salvar_Click(object sender, RoutedEventArgs e)
+    private void AnotarFotoExistente_Click(object sender, RoutedEventArgs e)
     {
-        var placa = Placa.Text.Trim().ToUpperInvariant();
-        if (placa.Length == 0)
+        if (FotosExistentes.SelectedItem is not ArmazenamentoLocal.FotoLocal foto)
         {
-            Erro.Text = "Informe a placa.";
-            Placa.Focus();
+            Erro.Text = "Selecione uma foto sincronizada para anotar.";
             return;
         }
+        AnotarFoto(foto);
+    }
+
+    private void AnotarFotoNova_Click(object sender, RoutedEventArgs e)
+    {
+        if (FotosNovas.SelectedItem is not ArmazenamentoLocal.FotoLocal foto)
+        {
+            Erro.Text = "Selecione uma foto nova para anotar.";
+            return;
+        }
+        AnotarFoto(foto);
+    }
+
+    private void AnotarFoto(ArmazenamentoLocal.FotoLocal foto)
+    {
+        if (!File.Exists(foto.CaminhoLocal))
+        {
+            Erro.Text = "Foto indisponível localmente.";
+            return;
+        }
+        var editor = new FotoAnotadorWindow(foto.CaminhoLocal, foto.Anotacoes) { Owner = this };
+        if (editor.ShowDialog() == true)
+        {
+            foto.Anotacoes = editor.ResultadoAnotacoes;
+            foto.Pendente = true;
+            Erro.Text = "";
+        }
+    }
+
+    private void Salvar_Click(object sender, RoutedEventArgs e)
+    {
+        var segmento = SegmentoAtual();
+        var placa = Placa.Text.Trim().ToUpperInvariant();
+        var modelo = Modelo.Text.Trim();
+        var tipoLocal = TipoLocal.Text.Trim();
+        var ambientePorta = AmbientePorta.Text.Trim();
+        var marcaFechadura = MarcaFechadura.Text.Trim();
+        var modeloFechadura = ModeloFechadura.Text.Trim();
+
+        if (segmento == "AUTOMOTIVO")
+        {
+            if (modelo.Length == 0)
+            {
+                Erro.Text = "Informe o modelo do veículo (a placa é opcional).";
+                Modelo.Focus();
+                return;
+            }
+        }
+        else
+        {
+            if (tipoLocal.Length == 0 && ambientePorta.Length == 0 && marcaFechadura.Length == 0 && modeloFechadura.Length == 0)
+            {
+                Erro.Text = "Informe ao menos o tipo de local ou fechadura.";
+                TipoLocal.Focus();
+                return;
+            }
+        }
+
         var tipos = TiposServico.SelectedItems.OfType<ListBoxItem>()
             .Select(item => item.Tag?.ToString() ?? "")
             .Where(tipo => tipo.Length > 0)
@@ -141,11 +285,18 @@ public partial class AtendimentoEditorWindow : Window
         Resultado = new Atendimento
         {
             Uuid = _original.Uuid,
+            Segmento = segmento,
             Placa = placa,
             Marca = Marca.Text.Trim(),
-            Modelo = Modelo.Text.Trim(),
+            Modelo = modelo,
             Ano = Ano.Text.Trim(),
             Chassi = Chassi.Text.Trim(),
+            TipoLocal = tipoLocal,
+            AmbientePorta = ambientePorta,
+            MarcaFechadura = marcaFechadura,
+            ModeloFechadura = modeloFechadura,
+            TipoCilindro = TipoCilindro.Text.Trim(),
+            EnderecoLocal = EnderecoLocal.Text.Trim(),
             DataServico = new DateTimeOffset(data).ToUnixTimeMilliseconds(),
             TiposServico = tipos,
             Defeito = Defeito.Text.Trim(),
@@ -153,7 +304,7 @@ public partial class AtendimentoEditorWindow : Window
             Abertura = Abertura.Text.Trim(),
             CodigoChave = CodigoChave.Text.Trim(),
             CodigoConfiguracao = CodigoConfiguracao.Text.Trim(),
-            ChipTransponder = ChipTransponder.Text.Trim(),
+            ChipTransponder = segmento == "RESIDENCIAL" ? "" : ChipTransponder.Text.Trim(),
             Ferramenta = Ferramenta.Text.Trim(),
             ValorCentavos = decimal.ToInt64(decimal.Round(valor * 100m, 0, MidpointRounding.AwayFromZero)),
             ClienteNome = ClienteNome.Text.Trim(),
@@ -169,11 +320,18 @@ public partial class AtendimentoEditorWindow : Window
     private static Atendimento Copiar(Atendimento item) => new()
     {
         Uuid = item.Uuid,
+        Segmento = item.Segmento,
         Placa = item.Placa,
         Marca = item.Marca,
         Modelo = item.Modelo,
         Ano = item.Ano,
         Chassi = item.Chassi,
+        TipoLocal = item.TipoLocal,
+        AmbientePorta = item.AmbientePorta,
+        MarcaFechadura = item.MarcaFechadura,
+        ModeloFechadura = item.ModeloFechadura,
+        TipoCilindro = item.TipoCilindro,
+        EnderecoLocal = item.EnderecoLocal,
         DataServico = item.DataServico,
         TiposServico = [.. item.TiposServico],
         Defeito = item.Defeito,
@@ -198,6 +356,7 @@ public partial class AtendimentoEditorWindow : Window
         FichaUuid = foto.FichaUuid,
         Categoria = foto.Categoria,
         Legenda = foto.Legenda,
+        Anotacoes = foto.Anotacoes,
         Ordem = foto.Ordem,
         Revisao = foto.Revisao,
         CaminhoLocal = foto.CaminhoLocal,

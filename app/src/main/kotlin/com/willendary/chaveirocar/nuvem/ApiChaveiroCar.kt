@@ -37,6 +37,17 @@ class ApiChaveiroCar(baseUrl: String = URL_PADRAO) {
     return resposta
   }
 
+  fun entrarComGoogle(accessToken: String = "", idToken: String = "", empresa: String = ""): JSONObject {
+    val corpo = JSONObject().apply {
+      if (accessToken.isNotBlank()) put("accessToken", accessToken)
+      if (idToken.isNotBlank()) put("idToken", idToken)
+      if (empresa.isNotBlank()) put("empresa", empresa)
+    }
+    val resposta = post("/api/v1/auth/google-login", corpo)
+    guardarTokens(resposta)
+    return resposta
+  }
+
   fun solicitarRedefinicao(email: String): JSONObject =
     post("/api/v1/auth/esqueci-senha", JSONObject().put("email", email))
 
@@ -122,8 +133,9 @@ class ApiChaveiroCar(baseUrl: String = URL_PADRAO) {
     legenda: String,
     ordem: Long,
     bytes: ByteArray,
+    anotacoes: String = "[]",
   ): JSONObject = enviarFotoTentativa(
-    empresaId, atendimentoUuid, fotoUuid, categoria, legenda, ordem, bytes, tentouRenovar = false,
+    empresaId, atendimentoUuid, fotoUuid, categoria, legenda, ordem, bytes, anotacoes, tentouRenovar = false,
   )
 
   private fun enviarFotoTentativa(
@@ -134,6 +146,7 @@ class ApiChaveiroCar(baseUrl: String = URL_PADRAO) {
     legenda: String,
     ordem: Long,
     bytes: ByteArray,
+    anotacoes: String,
     tentouRenovar: Boolean,
   ): JSONObject {
     val fronteira = "----chaveirocar${java.util.UUID.randomUUID()}"
@@ -145,6 +158,7 @@ class ApiChaveiroCar(baseUrl: String = URL_PADRAO) {
     parte("categoria", categoria)
     parte("legenda", legenda)
     parte("ordem", ordem.toString())
+    parte("anotacoes", anotacoes.ifBlank { "[]" })
     saida.write(
       ("--$fronteira\r\nContent-Disposition: form-data; name=\"arquivo\"; filename=\"foto.jpg\"\r\n" +
         "Content-Type: image/jpeg\r\n\r\n").toByteArray(Charsets.UTF_8),
@@ -165,7 +179,7 @@ class ApiChaveiroCar(baseUrl: String = URL_PADRAO) {
     val texto = fluxo.bufferedReader().use { it.readText() }
     if (conexao.responseCode == 401 && !tentouRenovar && renovar()) {
       return enviarFotoTentativa(
-        empresaId, atendimentoUuid, fotoUuid, categoria, legenda, ordem, bytes, tentouRenovar = true,
+        empresaId, atendimentoUuid, fotoUuid, categoria, legenda, ordem, bytes, anotacoes, tentouRenovar = true,
       )
     }
     if (conexao.responseCode !in 200..299) error("API ${conexao.responseCode}: $texto")
@@ -221,7 +235,12 @@ class ApiChaveiroCar(baseUrl: String = URL_PADRAO) {
       }
       val texto = lerTexto(conexao)
       if (conexao.responseCode !in 200..299) {
-        if (conexao.responseCode == 401 && caminho != "/api/v1/auth/renovar" && caminho != "/api/v1/auth/login") {
+        if (
+          conexao.responseCode == 401 &&
+          caminho != "/api/v1/auth/renovar" &&
+          caminho != "/api/v1/auth/login" &&
+          caminho != "/api/v1/auth/google-login"
+        ) {
           throw ExpiradoException(texto)
         }
         error("API ${conexao.responseCode}: $texto")

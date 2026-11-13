@@ -1,7 +1,7 @@
 <Window x:Class="ChaveiroCar.Windows.LoginWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="ChaveiroCar — Entrar" Height="430" Width="440"
+        Title="ChaveiroCar — Entrar" Height="495" Width="440"
         WindowStartupLocation="CenterScreen" ResizeMode="NoResize">
     <Grid Margin="20">
         <Grid.RowDefinitions>
@@ -11,7 +11,9 @@
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
             <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="Auto"/>
         </Grid.RowDefinitions>
@@ -28,10 +30,14 @@
         <TextBlock Grid.Row="4" Text="Senha"/>
         <PasswordBox Grid.Row="4" x:Name="Senha" Margin="0,16,0,8"/>
 
-        <TextBlock Grid.Row="5" x:Name="Erro" Foreground="DarkRed" TextWrapping="Wrap" Margin="0,4,0,0"/>
+        <TextBlock Grid.Row="5" Text="Token Google (opcional — para Entrar com Google)"/>
+        <TextBox Grid.Row="5" x:Name="TokenGoogle" Margin="0,16,0,8"/>
 
-        <Button Grid.Row="7" Content="Entrar" Height="36" Click="Entrar_Click"/>
-        <StackPanel Grid.Row="8" Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,8,0,0">
+        <TextBlock Grid.Row="6" x:Name="Erro" Foreground="DarkRed" TextWrapping="Wrap" Margin="0,4,0,0"/>
+
+        <Button Grid.Row="8" Content="Entrar" Height="34" Click="Entrar_Click"/>
+        <Button Grid.Row="9" Content="Entrar com Google" Height="34" Margin="0,6,0,0" Click="EntrarGoogle_Click"/>
+        <StackPanel Grid.Row="10" Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,8,0,0">
             <Button Content="Criar conta" Click="CriarConta_Click" Margin="0,0,8,0"/>
             <Button Content="Esqueci a senha" Click="RecuperarSenha_Click" Margin="0,0,8,0"/>
             <Button Content="Aceitar convite" Click="AceitarConvite_Click"/>

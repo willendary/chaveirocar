@@ -9,6 +9,7 @@ import {
   AtendimentoRespostaSchema,
   ID,
   ListaAtendimentosSchema,
+  SegmentoAtendimentoSchema,
 } from "../esquemas.js";
 import {
   excluirAtendimento,
@@ -22,6 +23,7 @@ const EmpresaParams = Type.Object({ empresaId: ID });
 const AtendimentoParams = Type.Object({ empresaId: ID, atendimentoId: ID });
 const ListaQuery = Type.Object({
   busca: Type.Optional(Type.String({ maxLength: 200 })),
+  segmento: Type.Optional(SegmentoAtendimentoSchema),
   de: Type.Optional(Type.Integer({ minimum: 0 })),
   ate: Type.Optional(Type.Integer({ minimum: 0 })),
   pagina: Type.Optional(Type.Integer({ minimum: 1 })),
@@ -51,6 +53,7 @@ export const rotasAtendimentos: FastifyPluginAsync<ContextoRotas> = async (app, 
       await exigirMembro(banco, empresaId, usuario.usuarioId);
       const filtros = request.query as {
         busca?: string;
+        segmento?: string;
         de?: number;
         ate?: number;
         pagina?: number;

@@ -202,6 +202,11 @@ escuro, telas renovadas para celular e tablet.
 pela câmera, catálogo de veículos, campo chip/transponder, múltiplos tipos
 de serviço e seleção de várias fotos.
 
+1.7.0 — login com Google no Android e Windows, escolha de segmento Automotivo
+ou Residencial, fluxo completo de chaveiro residencial com fichário separado,
+placa opcional (com modelo obrigatório) no automotivo e editor de fotos com
+setas indicativas sincronizadas.
+
 
 ## Visual 1.4.0
 

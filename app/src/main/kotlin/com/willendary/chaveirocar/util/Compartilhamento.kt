@@ -9,6 +9,7 @@ import androidx.core.content.FileProvider
 import com.willendary.chaveirocar.dados.Fotos
 import com.willendary.chaveirocar.modelo.Atendimento
 import com.willendary.chaveirocar.modelo.Foto
+import com.willendary.chaveirocar.modelo.SegmentoAtendimento
 import java.io.File
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -17,17 +18,36 @@ import java.util.Locale
 object Compartilhamento {
 
   fun textoDoAtendimento(atendimento: Atendimento): String = buildString {
-    val carro = listOf(atendimento.marca, atendimento.modelo, atendimento.ano)
-      .filter { it.isNotBlank() }
-      .joinToString(" ")
-    appendLine("*${atendimento.placa}* ${carro}".trim())
+    if (atendimento.segmento == SegmentoAtendimento.RESIDENCIAL) {
+      val local = listOf(atendimento.tipoLocal, atendimento.ambientePorta)
+        .filter { it.isNotBlank() }
+        .joinToString(" · ")
+        .ifBlank { "Serviço residencial" }
+      appendLine("*$local*")
+      val fechadura = listOf(atendimento.marcaFechadura, atendimento.modeloFechadura, atendimento.tipoCilindro)
+        .filter { it.isNotBlank() }
+        .joinToString(" · ")
+      if (fechadura.isNotBlank()) appendLine("Fechadura: $fechadura")
+      if (atendimento.enderecoLocal.isNotBlank()) appendLine("Endereço: ${atendimento.enderecoLocal}")
+    } else {
+      val carro = listOf(atendimento.marca, atendimento.modelo, atendimento.ano)
+        .filter { it.isNotBlank() }
+        .joinToString(" ")
+      if (atendimento.placa.isNotBlank()) {
+        appendLine("*${atendimento.placa}* $carro".trim())
+      } else {
+        appendLine("*${carro.ifBlank { "Veículo sem placa" }}*")
+      }
+    }
     appendLine("${formatarData(atendimento.dataServico)} · ${atendimento.tiposEmTexto}")
     if (atendimento.defeito.isNotBlank()) appendLine("Defeito: ${atendimento.defeito}")
     if (atendimento.solucao.isNotBlank()) appendLine("Solução: ${atendimento.solucao}")
     if (atendimento.abertura.isNotBlank()) appendLine("Abertura: ${atendimento.abertura}")
     if (atendimento.codigoChave.isNotBlank()) appendLine("Código de chave: ${atendimento.codigoChave}")
     if (atendimento.codigoConfiguracao.isNotBlank()) appendLine("Código de configuração: ${atendimento.codigoConfiguracao}")
-    if (atendimento.chipTransponder.isNotBlank()) appendLine("Chip / Transponder: ${atendimento.chipTransponder}")
+    if (atendimento.segmento == SegmentoAtendimento.AUTOMOTIVO && atendimento.chipTransponder.isNotBlank()) {
+      appendLine("Chip / Transponder: ${atendimento.chipTransponder}")
+    }
     if (atendimento.ferramenta.isNotBlank()) appendLine("Ferramenta: ${atendimento.ferramenta}")
     if (atendimento.clienteNome.isNotBlank()) appendLine("Cliente: ${atendimento.clienteNome}")
     if (atendimento.valorCentavos > 0) appendLine("Valor: ${formatarValor(atendimento.valorCentavos)}")
@@ -67,15 +87,39 @@ object Compartilhamento {
     }
 
     var y = 56f
-    tela.drawText(atendimento.placa, 40f, y, titulo)
-    y += 24f
-    val carro = listOf(atendimento.marca, atendimento.modelo, atendimento.ano)
-      .filter { it.isNotBlank() }
-      .joinToString(" ")
-    tela.drawText(carro, 40f, y, texto)
-    y += 18f
+    if (atendimento.segmento == SegmentoAtendimento.RESIDENCIAL) {
+      val tituloPrincipal = listOf(atendimento.tipoLocal, atendimento.ambientePorta)
+        .filter { it.isNotBlank() }
+        .joinToString(" · ")
+        .ifBlank { "Serviço residencial" }
+      tela.drawText(tituloPrincipal, 40f, y, titulo)
+      y += 24f
+      val subtitulo = listOf(atendimento.marcaFechadura, atendimento.modeloFechadura, atendimento.tipoCilindro)
+        .filter { it.isNotBlank() }
+        .joinToString(" · ")
+      if (subtitulo.isNotBlank()) {
+        tela.drawText(subtitulo, 40f, y, texto)
+        y += 18f
+      }
+      if (atendimento.enderecoLocal.isNotBlank()) {
+        y = escreverQuebrado(tela, "Endereço: ${atendimento.enderecoLocal}", texto, 40f, y, largura - 80f)
+        y += 6f
+      }
+    } else {
+      val carro = listOf(atendimento.marca, atendimento.modelo, atendimento.ano)
+        .filter { it.isNotBlank() }
+        .joinToString(" ")
+      val cabecalho = atendimento.placa.ifBlank { carro.ifBlank { "Veículo sem placa" } }
+      tela.drawText(cabecalho, 40f, y, titulo)
+      y += 24f
+      val subtitulo = if (atendimento.placa.isNotBlank()) carro else "Sem placa informada"
+      if (subtitulo.isNotBlank()) {
+        tela.drawText(subtitulo, 40f, y, texto)
+        y += 18f
+      }
+    }
     y = escreverQuebrado(tela,
-      "${formatarData(atendimento.dataServico)} · ${atendimento.tiposEmTexto}",
+      "${atendimento.segmento.rotulo} · ${formatarData(atendimento.dataServico)} · ${atendimento.tiposEmTexto}",
       texto, 40f, y, largura - 80f)
     y += 12f
 
@@ -92,7 +136,9 @@ object Compartilhamento {
     paragrafo("Abertura", atendimento.abertura)
     paragrafo("Código de chave", atendimento.codigoChave)
     paragrafo("Código de configuração", atendimento.codigoConfiguracao)
-    paragrafo("Chip / Transponder", atendimento.chipTransponder)
+    if (atendimento.segmento == SegmentoAtendimento.AUTOMOTIVO) {
+      paragrafo("Chip / Transponder", atendimento.chipTransponder)
+    }
     paragrafo("Ferramenta", atendimento.ferramenta)
     if (atendimento.valorCentavos > 0) paragrafo("Valor", formatarValor(atendimento.valorCentavos))
 

@@ -20,15 +20,23 @@ interface FotoBackup {
   categoria?: unknown;
   legenda?: unknown;
   ordem?: unknown;
+  anotacoes?: unknown;
 }
 
 interface AtendimentoBackup {
   id?: unknown;
+  segmento?: unknown;
   placa?: unknown;
   marca?: unknown;
   modelo?: unknown;
   ano?: unknown;
   chassi?: unknown;
+  tipoLocal?: unknown;
+  ambientePorta?: unknown;
+  marcaFechadura?: unknown;
+  modeloFechadura?: unknown;
+  tipoCilindro?: unknown;
+  enderecoLocal?: unknown;
   dataServico?: unknown;
   tipoServico?: unknown;
   tiposServico?: unknown;
@@ -235,13 +243,26 @@ export async function importarBackupAndroid(
     const tipos = tiposBrutos.length > 0
       ? tiposBrutos.filter((tipo): tipo is string => typeof tipo === "string")
       : [texto(item.tipoServico, 40) || "OUTRO"];
+    const segmento = texto(item.segmento, 20) === "RESIDENCIAL" ? "RESIDENCIAL" : "AUTOMOTIVO";
+    const placaBackup = texto(item.placa, 10);
+    const marcaBackup = texto(item.marca, 120);
+    const modeloBackup =
+      texto(item.modelo, 120) ||
+      (segmento === "AUTOMOTIVO" ? marcaBackup || placaBackup || "Modelo não informado" : "");
     const atendimento = await salvarAtendimento(banco, contexto, {
       id: idNovo,
-      placa: texto(item.placa, 10),
-      marca: texto(item.marca, 120),
-      modelo: texto(item.modelo, 120),
+      segmento,
+      placa: placaBackup,
+      marca: marcaBackup,
+      modelo: modeloBackup,
       ano: texto(item.ano, 30),
       chassi: texto(item.chassi, 60),
+      tipoLocal: texto(item.tipoLocal, 120),
+      ambientePorta: texto(item.ambientePorta, 200),
+      marcaFechadura: texto(item.marcaFechadura, 120),
+      modeloFechadura: texto(item.modeloFechadura, 120),
+      tipoCilindro: texto(item.tipoCilindro, 200),
+      enderecoLocal: texto(item.enderecoLocal, 500),
       dataServico: inteiro(item.dataServico, Date.now()),
       tiposServico: tipos as DadosAtendimento["tiposServico"],
       defeito: texto(item.defeito, 20_000),
@@ -284,6 +305,7 @@ export async function importarBackupAndroid(
           categoria: texto(meta.categoria, 20),
           legenda: texto(meta.legenda, 500),
           ordem: inteiro(meta.ordem, 0),
+          anotacoes: texto(meta.anotacoes, 100_000) || "[]",
           bytes: conteudo,
         },
         limiteFotos,

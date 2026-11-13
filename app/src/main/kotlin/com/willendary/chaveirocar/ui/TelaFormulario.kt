@@ -68,6 +68,7 @@ import com.willendary.chaveirocar.dados.Fotos
 import com.willendary.chaveirocar.modelo.Atendimento
 import com.willendary.chaveirocar.modelo.CategoriaFoto
 import com.willendary.chaveirocar.modelo.Foto
+import com.willendary.chaveirocar.modelo.SegmentoAtendimento
 import com.willendary.chaveirocar.modelo.TipoServico
 import com.willendary.chaveirocar.util.Erros
 import com.willendary.chaveirocar.util.OcrPlaca
@@ -86,7 +87,13 @@ private data class FotoNova(
   val nome: String,
   val categoria: CategoriaFoto,
   val legenda: String = "",
+  val anotacoes: String = "[]",
 )
+
+private val TIPOS_LOCAL_PADRAO = listOf("Casa", "Apartamento", "Comércio", "Condomínio", "Portão", "Outro")
+private val AMBIENTES_PORTA_PADRAO = listOf("Porta principal", "Porta social", "Portão", "Quarto", "Banheiro", "Escritório", "Gaveta / armário")
+private val MARCAS_FECHADURA_PADRAO = listOf("Papaiz", "Pado", "Stam", "La Fonte", "Intelbras", "Yale", "Arouca", "Aliança", "3F", "Soprano")
+private val CILINDROS_PADRAO = listOf("Yale / simples", "Tetra", "Multiponto", "Gorje", "Fechadura digital", "Tubular")
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
@@ -112,6 +119,9 @@ fun TelaFormulario(
   var importandoFotos by remember { mutableStateOf(false) }
   var fotoEditando by remember { mutableStateOf<Foto?>(null) }
   var novaEditando by remember { mutableStateOf<FotoNova?>(null) }
+  var fotoAnotandoSalva by remember { mutableStateOf<Foto?>(null) }
+  var fotoAnotandoNova by remember { mutableStateOf<FotoNova?>(null) }
+  var segmentoPendenteTroca by remember { mutableStateOf<SegmentoAtendimento?>(null) }
   var mostrarCatalogo by remember { mutableStateOf(false) }
   var arquivoPlaca by remember { mutableStateOf<File?>(null) }
   var lendoPlaca by remember { mutableStateOf(false) }
@@ -124,6 +134,11 @@ fun TelaFormulario(
   var sugestoesSolucaoBase by remember { mutableStateOf<List<String>>(emptyList()) }
   var sugestoesSolucaoDefeito by remember { mutableStateOf<List<String>>(emptyList()) }
   var sugestoesAbertura by remember { mutableStateOf<List<String>>(emptyList()) }
+  var sugestoesTipoLocal by remember { mutableStateOf(TIPOS_LOCAL_PADRAO) }
+  var sugestoesAmbientePorta by remember { mutableStateOf(AMBIENTES_PORTA_PADRAO) }
+  var sugestoesMarcaFechadura by remember { mutableStateOf(MARCAS_FECHADURA_PADRAO) }
+  var sugestoesModeloFechadura by remember { mutableStateOf<List<String>>(emptyList()) }
+  var sugestoesTipoCilindro by remember { mutableStateOf(CILINDROS_PADRAO) }
 
   LaunchedEffect(id) {
     if (id > 0) {
@@ -142,6 +157,11 @@ fun TelaFormulario(
       sugestoesMarca = banco.valoresUsados("marca")
       sugestoesDefeito = banco.valoresUsados("defeito")
       sugestoesSolucaoBase = banco.valoresUsados("solucao")
+      sugestoesTipoLocal = (TIPOS_LOCAL_PADRAO + banco.valoresUsados("tipo_local")).distinct()
+      sugestoesAmbientePorta = (AMBIENTES_PORTA_PADRAO + banco.valoresUsados("ambiente_porta")).distinct()
+      sugestoesMarcaFechadura = (MARCAS_FECHADURA_PADRAO + banco.valoresUsados("marca_fechadura")).distinct()
+      sugestoesModeloFechadura = banco.valoresUsados("modelo_fechadura")
+      sugestoesTipoCilindro = (CILINDROS_PADRAO + banco.valoresUsados("tipo_cilindro")).distinct()
     }
   }
 
@@ -396,20 +416,58 @@ fun TelaFormulario(
       return
     }
     val placa = atendimento.placa.trim().uppercase()
-    if (placa.isBlank()) {
-      Toast.makeText(contexto, "Informe a placa do carro", Toast.LENGTH_SHORT).show()
-      return
+    if (atendimento.segmento == SegmentoAtendimento.AUTOMOTIVO) {
+      if (atendimento.modelo.trim().isBlank()) {
+        Toast.makeText(contexto, "Informe o modelo do veículo", Toast.LENGTH_SHORT).show()
+        return
+      }
+    } else {
+      val temDadosResidenciais = listOf(
+        atendimento.tipoLocal,
+        atendimento.ambientePorta,
+        atendimento.marcaFechadura,
+        atendimento.modeloFechadura,
+      ).any { it.trim().isNotBlank() }
+      if (!temDadosResidenciais) {
+        Toast.makeText(contexto, "Informe o tipo de local ou fechadura", Toast.LENGTH_SHORT).show()
+        return
+      }
     }
     if (salvando) return
     salvando = true
     escopo.launch {
       val idSalvo = withContext(Dispatchers.IO) {
-        val idGravado = banco.salvar(atendimento.copy(placa = placa))
-        fotosNovas.forEach { banco.adicionarFoto(idGravado, it.nome, it.categoria, it.legenda) }
+        val idGravado = banco.salvar(atendimento.copy(placa = placa, modelo = atendimento.modelo.trim()))
+        fotosNovas.forEach { banco.adicionarFoto(idGravado, it.nome, it.categoria, it.legenda, it.anotacoes) }
         idGravado
       }
       salvando = false
       onSalvo(idSalvo)
+    }
+  }
+
+  fun aplicarTrocaDeSegmento(novo: SegmentoAtendimento) {
+    val tipoPadrao = TipoServico.padraoDoSegmento(novo)
+    val tiposFiltrados = atendimento.tiposServico.filter { it in TipoServico.doSegmento(novo) }.toSet()
+    val novosTipos = tiposFiltrados.ifEmpty { setOf(tipoPadrao) }
+    atendimento = atendimento.copy(
+      segmento = novo,
+      tipoServico = TipoServico.entries.first { it in novosTipos },
+      tiposServico = novosTipos,
+    )
+  }
+
+  fun solicitarTrocaSegmento(novo: SegmentoAtendimento) {
+    if (novo == atendimento.segmento) return
+    val preenchidoAtual = if (atendimento.segmento == SegmentoAtendimento.AUTOMOTIVO) {
+      listOf(atendimento.placa, atendimento.marca, atendimento.modelo, atendimento.ano, atendimento.chassi).any { it.isNotBlank() }
+    } else {
+      listOf(atendimento.tipoLocal, atendimento.ambientePorta, atendimento.marcaFechadura, atendimento.modeloFechadura, atendimento.tipoCilindro, atendimento.enderecoLocal).any { it.isNotBlank() }
+    }
+    if (preenchidoAtual) {
+      segmentoPendenteTroca = novo
+    } else {
+      aplicarTrocaDeSegmento(novo)
     }
   }
 
@@ -444,6 +502,8 @@ fun TelaFormulario(
       return@Scaffold
     }
 
+    val residencial = atendimento.segmento == SegmentoAtendimento.RESIDENCIAL
+
     Column(
       modifier = Modifier
         .conteudoResponsivo().imePadding()
@@ -452,86 +512,154 @@ fun TelaFormulario(
         .padding(horizontal = 16.dp, vertical = 8.dp),
       verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-      SecaoFormulario("01", "Veículo", "Comece pela placa para consultar o histórico.")
-      CampoTexto(
-        rotulo = "Placa *",
-        valor = atendimento.placa,
-        aoMudar = { texto ->
-          atendimento = atendimento.copy(placa = texto.uppercase().filter { it.isLetterOrDigit() }.take(10))
-        },
-        dica = "ABC1D23",
-        estiloTexto = MaterialTheme.typography.titleLarge.copy(fontFamily = FontFamily.Monospace),
-        modificador = Modifier.fillMaxWidth(),
-      )
-      OutlinedButton(onClick = { lerPlaca() }, enabled = !lendoPlaca) {
-        Text(if (lendoPlaca) "Lendo placa…" else "Ler placa pela câmera")
-      }
-
-      if (historico.isNotEmpty()) {
-        Card(modifier = Modifier.fillMaxWidth()) {
-          Column(modifier = Modifier.padding(12.dp)) {
-            Text(
-              text = "Você já trabalhou neste carro: ${historico.size} serviço(s)",
-              style = MaterialTheme.typography.titleSmall,
-              fontWeight = FontWeight.Bold,
-            )
-            historico.take(3).forEach { anterior ->
-              Spacer(Modifier.height(6.dp))
-              Text(
-                text = "${formatarData(anterior.dataServico)} · ${anterior.tiposEmTexto}",
-                style = MaterialTheme.typography.bodySmall,
+      Card(modifier = Modifier.fillMaxWidth()) {
+        Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+          Text("Tipo de atendimento", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
+          Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            SegmentoAtendimento.entries.forEach { seg ->
+              FilterChip(
+                selected = atendimento.segmento == seg,
+                onClick = { solicitarTrocaSegmento(seg) },
+                label = { Text(seg.rotulo) },
               )
-              if (anterior.solucao.isNotBlank()) {
-                Text(text = anterior.solucao, style = MaterialTheme.typography.bodySmall, maxLines = 2)
-              }
             }
           }
         }
       }
 
-      Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+      if (!residencial) {
+        SecaoFormulario("01", "Veículo", "Informe o modelo do carro; a placa é opcional.")
         CampoTexto(
-          rotulo = "Marca",
-          valor = atendimento.marca,
-          aoMudar = { atendimento = atendimento.copy(marca = it) },
-          sugestoes = sugestoesMarca,
-          dica = "Volkswagen",
-          modificador = Modifier.weight(1f),
+          rotulo = "Modelo *",
+          valor = atendimento.modelo,
+          aoMudar = { atendimento = atendimento.copy(modelo = it) },
+          sugestoes = sugestoesModelo,
+          dica = "Gol 1.6",
+          modificador = Modifier.fillMaxWidth(),
         )
+
+        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+          CampoTexto(
+            rotulo = "Marca",
+            valor = atendimento.marca,
+            aoMudar = { atendimento = atendimento.copy(marca = it) },
+            sugestoes = sugestoesMarca,
+            dica = "Volkswagen",
+            modificador = Modifier.weight(1f),
+          )
+          OutlinedTextField(
+            value = atendimento.ano,
+            onValueChange = { atendimento = atendimento.copy(ano = it.filter { letra -> letra.isDigit() || letra == '/' }) },
+            shape = MaterialTheme.shapes.medium,
+            label = { Text("Ano") },
+            placeholder = { Text("2018") },
+            singleLine = true,
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+            modifier = Modifier.width(110.dp),
+          )
+        }
+
+        OutlinedButton(onClick = { mostrarCatalogo = true }, modifier = Modifier.fillMaxWidth()) {
+          Text("Buscar marca, modelo e ano no catálogo")
+        }
+
+        CampoTexto(
+          rotulo = "Placa (opcional)",
+          valor = atendimento.placa,
+          aoMudar = { texto ->
+            atendimento = atendimento.copy(placa = texto.uppercase().filter { it.isLetterOrDigit() }.take(10))
+          },
+          dica = "ABC1D23",
+          estiloTexto = MaterialTheme.typography.titleLarge.copy(fontFamily = FontFamily.Monospace),
+          modificador = Modifier.fillMaxWidth(),
+        )
+        OutlinedButton(onClick = { lerPlaca() }, enabled = !lendoPlaca) {
+          Text(if (lendoPlaca) "Lendo placa…" else "Ler placa pela câmera")
+        }
+
+        if (historico.isNotEmpty()) {
+          Card(modifier = Modifier.fillMaxWidth()) {
+            Column(modifier = Modifier.padding(12.dp)) {
+              Text(
+                text = "Você já trabalhou neste carro: ${historico.size} serviço(s)",
+                style = MaterialTheme.typography.titleSmall,
+                fontWeight = FontWeight.Bold,
+              )
+              historico.take(3).forEach { anterior ->
+                Spacer(Modifier.height(6.dp))
+                Text(
+                  text = "${formatarData(anterior.dataServico)} · ${anterior.tiposEmTexto}",
+                  style = MaterialTheme.typography.bodySmall,
+                )
+                if (anterior.solucao.isNotBlank()) {
+                  Text(text = anterior.solucao, style = MaterialTheme.typography.bodySmall, maxLines = 2)
+                }
+              }
+            }
+          }
+        }
+
         OutlinedTextField(
-          value = atendimento.ano,
-          onValueChange = { atendimento = atendimento.copy(ano = it.filter { letra -> letra.isDigit() || letra == '/' }) },
+          value = atendimento.chassi,
+          onValueChange = { atendimento = atendimento.copy(chassi = it.uppercase().take(17)) },
           shape = MaterialTheme.shapes.medium,
-          label = { Text("Ano") },
-          placeholder = { Text("2018") },
+          label = { Text("Chassi (opcional)") },
           singleLine = true,
-          keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-          modifier = Modifier.width(110.dp),
+          textStyle = MaterialTheme.typography.bodyLarge.copy(fontFamily = FontFamily.Monospace),
+          modifier = Modifier.fillMaxWidth(),
+        )
+      } else {
+        SecaoFormulario("01", "Local e fechadura", "Identifique o imóvel, o acesso e a fechadura atendida.")
+        CampoTexto(
+          rotulo = "Tipo de local *",
+          valor = atendimento.tipoLocal,
+          aoMudar = { atendimento = atendimento.copy(tipoLocal = it) },
+          sugestoes = sugestoesTipoLocal,
+          dica = "Casa, Apartamento, Comércio, Portão...",
+          modificador = Modifier.fillMaxWidth(),
+        )
+        CampoTexto(
+          rotulo = "Ambiente / porta",
+          valor = atendimento.ambientePorta,
+          aoMudar = { atendimento = atendimento.copy(ambientePorta = it) },
+          sugestoes = sugestoesAmbientePorta,
+          dica = "Porta principal, Portão, Quarto...",
+          modificador = Modifier.fillMaxWidth(),
+        )
+        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+          CampoTexto(
+            rotulo = "Marca da fechadura",
+            valor = atendimento.marcaFechadura,
+            aoMudar = { atendimento = atendimento.copy(marcaFechadura = it) },
+            sugestoes = sugestoesMarcaFechadura,
+            dica = "Papaiz, Pado, Stam...",
+            modificador = Modifier.weight(1f),
+          )
+          CampoTexto(
+            rotulo = "Modelo da fechadura",
+            valor = atendimento.modeloFechadura,
+            aoMudar = { atendimento = atendimento.copy(modeloFechadura = it) },
+            sugestoes = sugestoesModeloFechadura,
+            dica = "Tetra 1000, Rolete...",
+            modificador = Modifier.weight(1f),
+          )
+        }
+        CampoTexto(
+          rotulo = "Cilindro / tipo de chave",
+          valor = atendimento.tipoCilindro,
+          aoMudar = { atendimento = atendimento.copy(tipoCilindro = it) },
+          sugestoes = sugestoesTipoCilindro,
+          dica = "Yale / simples, Tetra, Multiponto, Gorje...",
+          modificador = Modifier.fillMaxWidth(),
+        )
+        CampoTexto(
+          rotulo = "Endereço / referência (opcional)",
+          valor = atendimento.enderecoLocal,
+          aoMudar = { atendimento = atendimento.copy(enderecoLocal = it) },
+          dica = "Rua, condomínio ou ponto de referência",
+          modificador = Modifier.fillMaxWidth(),
         )
       }
-
-      CampoTexto(
-        rotulo = "Modelo",
-        valor = atendimento.modelo,
-        aoMudar = { atendimento = atendimento.copy(modelo = it) },
-        sugestoes = sugestoesModelo,
-        dica = "Gol 1.6",
-        modificador = Modifier.fillMaxWidth(),
-      )
-
-      OutlinedButton(onClick = { mostrarCatalogo = true }, modifier = Modifier.fillMaxWidth()) {
-        Text("Buscar marca, modelo e ano no catálogo")
-      }
-
-      OutlinedTextField(
-        value = atendimento.chassi,
-        onValueChange = { atendimento = atendimento.copy(chassi = it.uppercase().take(17)) },
-        shape = MaterialTheme.shapes.medium,
-        label = { Text("Chassi (opcional)") },
-        singleLine = true,
-        textStyle = MaterialTheme.typography.bodyLarge.copy(fontFamily = FontFamily.Monospace),
-        modifier = Modifier.fillMaxWidth(),
-      )
 
       OutlinedButton(onClick = {
         val calendario = Calendar.getInstance().apply { timeInMillis = atendimento.dataServico }
@@ -557,7 +685,7 @@ fun TelaFormulario(
       Text("Marque todas as atividades realizadas neste atendimento.",
         style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
       FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        TipoServico.entries.forEach { tipo ->
+        TipoServico.doSegmento(atendimento.segmento).forEach { tipo ->
           FilterChip(
             selected = tipo in atendimento.tiposServico,
             onClick = {
@@ -585,7 +713,7 @@ fun TelaFormulario(
         valor = atendimento.defeito,
         aoMudar = { atendimento = atendimento.copy(defeito = it) },
         sugestoes = sugestoesDefeito,
-        dica = "Ex.: chave não reconhecida, imobilizador travado",
+        dica = if (residencial) "Ex.: chave quebrada no cilindro, lingueta emperrada" else "Ex.: chave não reconhecida, imobilizador travado",
         linhaUnica = false,
         minimoLinhas = 3,
         teclado = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences),
@@ -597,7 +725,7 @@ fun TelaFormulario(
         valor = atendimento.solucao,
         aoMudar = { atendimento = atendimento.copy(solucao = it) },
         sugestoes = (sugestoesSolucaoDefeito + sugestoesSolucaoBase).distinct(),
-        dica = "Ex.: reprogramei o transponder e sincronizei o telecomando",
+        dica = if (residencial) "Ex.: extração do fragmento, troca do segredo e 2 cópias" else "Ex.: reprogramei o transponder e sincronizei o telecomando",
         linhaUnica = false,
         minimoLinhas = 3,
         teclado = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences),
@@ -608,7 +736,7 @@ fun TelaFormulario(
         rotulo = "Ferramenta / equipamento usado",
         valor = atendimento.ferramenta,
         aoMudar = { atendimento = atendimento.copy(ferramenta = it) },
-        dica = "VVDI, KD-X2, Autel...",
+        dica = if (residencial) "Micha, extrator, máquina copiadora..." else "VVDI, KD-X2, Autel...",
         modificador = Modifier.fillMaxWidth(),
       )
 
@@ -629,7 +757,7 @@ fun TelaFormulario(
         rotulo = "Cliente",
         valor = atendimento.clienteNome,
         aoMudar = { atendimento = atendimento.copy(clienteNome = it) },
-        dica = "Nome do dono do carro",
+        dica = if (residencial) "Nome do morador ou responsável" else "Nome do dono do carro",
         modificador = Modifier.fillMaxWidth(),
       )
 
@@ -659,11 +787,11 @@ fun TelaFormulario(
       SecaoFormulario("04", "Memória técnica", "Guarde os detalhes para o próximo atendimento.")
       TituloSecao("Abertura")
       CampoTexto(
-        rotulo = "Como se abre este carro",
+        rotulo = if (residencial) "Como se abre esta fechadura / observações" else "Como se abre este carro",
         valor = atendimento.abertura,
         aoMudar = { atendimento = atendimento.copy(abertura = it) },
         sugestoes = sugestoesAbertura,
-        dica = "Ex.: puxar a maçaneta e usar cunha no canto superior",
+        dica = if (residencial) "Ex.: micha multiponto sentido anti-horário" else "Ex.: puxar a maçaneta e usar cunha no canto superior",
         linhaUnica = false,
         minimoLinhas = 2,
         teclado = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences),
@@ -677,7 +805,7 @@ fun TelaFormulario(
         aoMudar = {
           atendimento = atendimento.copy(codigoChave = it.uppercase().filter { letra -> letra.isLetterOrDigit() || letra == '-' })
         },
-        dica = "Corte / key code",
+        dica = "Corte / segredo / referência",
         estiloTexto = MaterialTheme.typography.bodyLarge.copy(fontFamily = FontFamily.Monospace),
         modificador = Modifier.fillMaxWidth(),
       )
@@ -688,10 +816,10 @@ fun TelaFormulario(
         ) { Text("Copiar código de chave") }
       }
       CampoTexto(
-        rotulo = "Código de configuração",
+        rotulo = if (residencial) "Senha / configuração digital" else "Código de configuração",
         valor = atendimento.codigoConfiguracao,
         aoMudar = { atendimento = atendimento.copy(codigoConfiguracao = it) },
-        dica = "Imobilizador / PIN",
+        dica = if (residencial) "Código mestre / TAG / observação" else "Imobilizador / PIN",
         estiloTexto = MaterialTheme.typography.bodyLarge.copy(fontFamily = FontFamily.Monospace),
         modificador = Modifier.fillMaxWidth(),
       )
@@ -702,25 +830,27 @@ fun TelaFormulario(
         ) { Text("Copiar código de configuração") }
       }
 
-      CampoTexto(
-        rotulo = "Chip / Transponder",
-        valor = atendimento.chipTransponder,
-        aoMudar = { atendimento = atendimento.copy(chipTransponder = it) },
-        dica = "Ex.: ID46, PCF7936, 4D-63",
-        estiloTexto = MaterialTheme.typography.bodyLarge.copy(fontFamily = FontFamily.Monospace),
-        modificador = Modifier.fillMaxWidth(),
-      )
-      Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        TextButton(
-          onClick = { copiarTexto(contexto, "Chip / Transponder", atendimento.chipTransponder) },
-          enabled = atendimento.chipTransponder.isNotBlank(),
-        ) { Text("Copiar chip / transponder") }
+      if (!residencial) {
+        CampoTexto(
+          rotulo = "Chip / Transponder",
+          valor = atendimento.chipTransponder,
+          aoMudar = { atendimento = atendimento.copy(chipTransponder = it) },
+          dica = "Ex.: ID46, PCF7936, 4D-63",
+          estiloTexto = MaterialTheme.typography.bodyLarge.copy(fontFamily = FontFamily.Monospace),
+          modificador = Modifier.fillMaxWidth(),
+        )
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+          TextButton(
+            onClick = { copiarTexto(contexto, "Chip / Transponder", atendimento.chipTransponder) },
+            enabled = atendimento.chipTransponder.isNotBlank(),
+          ) { Text("Copiar chip / transponder") }
+        }
       }
 
-      SecaoFormulario("05", "Registro em fotos", "Documente o veículo e o passo a passo.")
-      TituloSecao("Fotos do carro")
+      SecaoFormulario("05", "Registro em fotos", "Documente o serviço e o passo a passo (toque em Setas para indicar componentes).")
+      TituloSecao(if (residencial) "Fotos do local e fechadura" else "Fotos do carro")
       SecaoDeFotos(
-        descricao = "Fotos do veículo, do painel, do defeito.",
+        descricao = if (residencial) "Fotos da porta, fechadura, cilindro ou defeito." else "Fotos do veículo, do painel, do defeito.",
         categoria = CategoriaFoto.CARRO,
         fotosSalvas = fotosSalvas.filter { it.categoria == CategoriaFoto.CARRO },
         fotosNovas = fotosNovas.filter { it.categoria == CategoriaFoto.CARRO },
@@ -731,13 +861,15 @@ fun TelaFormulario(
         onRemoverNova = { removerFotoNova(it) },
         onEditarLegendaSalva = { fotoEditando = it },
         onEditarLegendaNova = { novaEditando = it },
+        onAnotarSalva = { fotoAnotandoSalva = it },
+        onAnotarNova = { fotoAnotandoNova = it },
         onMoverSalva = { foto, passo -> moverFotoSalva(foto, passo) },
         onMoverNova = { foto, passo -> moverFotoNova(foto, passo) },
       )
 
       TituloSecao("Como se faz")
       SecaoDeFotos(
-        descricao = "Passo a passo do serviço. Use as setas para ordenar.",
+        descricao = "Passo a passo do serviço. Use as setas para ordenar ou anotar na imagem.",
         categoria = CategoriaFoto.PROCEDIMENTO,
         fotosSalvas = fotosSalvas.filter { it.categoria == CategoriaFoto.PROCEDIMENTO },
         fotosNovas = fotosNovas.filter { it.categoria == CategoriaFoto.PROCEDIMENTO },
@@ -748,6 +880,8 @@ fun TelaFormulario(
         onRemoverNova = { removerFotoNova(it) },
         onEditarLegendaSalva = { fotoEditando = it },
         onEditarLegendaNova = { novaEditando = it },
+        onAnotarSalva = { fotoAnotandoSalva = it },
+        onAnotarNova = { fotoAnotandoNova = it },
         onMoverSalva = { foto, passo -> moverFotoSalva(foto, passo) },
         onMoverNova = { foto, passo -> moverFotoNova(foto, passo) },
       )
@@ -758,6 +892,25 @@ fun TelaFormulario(
       }
       Spacer(Modifier.height(24.dp))
     }
+  }
+
+  segmentoPendenteTroca?.let { novoSegmento ->
+    AlertDialog(
+      onDismissRequest = { segmentoPendenteTroca = null },
+      title = { Text("Mudar para ${novoSegmento.rotulo}?") },
+      text = {
+        Text("Os tipos de serviço selecionados serão ajustados para o segmento ${novoSegmento.rotulo.lowercase()}.")
+      },
+      confirmButton = {
+        TextButton(onClick = {
+          segmentoPendenteTroca = null
+          aplicarTrocaDeSegmento(novoSegmento)
+        }) { Text("Mudar") }
+      },
+      dismissButton = {
+        TextButton(onClick = { segmentoPendenteTroca = null }) { Text("Cancelar") }
+      },
+    )
   }
 
   fotoEditando?.let { foto ->
@@ -784,6 +937,33 @@ fun TelaFormulario(
         novaEditando = null
       },
       onCancelar = { novaEditando = null },
+    )
+  }
+
+  fotoAnotandoSalva?.let { foto ->
+    EditorFotoDialog(
+      caminho = foto.caminho,
+      anotacoesIniciais = foto.anotacoes,
+      onSalvar = { jsonAnotacoes ->
+        fotoAnotandoSalva = null
+        escopo.launch {
+          withContext(Dispatchers.IO) { banco.atualizarFoto(foto.copy(anotacoes = jsonAnotacoes)) }
+          fotosSalvas = withContext(Dispatchers.IO) { banco.listarFotos(id) }
+        }
+      },
+      onCancelar = { fotoAnotandoSalva = null },
+    )
+  }
+
+  fotoAnotandoNova?.let { foto ->
+    EditorFotoDialog(
+      caminho = foto.nome,
+      anotacoesIniciais = foto.anotacoes,
+      onSalvar = { jsonAnotacoes ->
+        fotosNovas = fotosNovas.map { if (it.nome == foto.nome) it.copy(anotacoes = jsonAnotacoes) else it }
+        fotoAnotandoNova = null
+      },
+      onCancelar = { fotoAnotandoNova = null },
     )
   }
 
@@ -857,6 +1037,8 @@ private fun SecaoDeFotos(
   onRemoverNova: (FotoNova) -> Unit,
   onEditarLegendaSalva: (Foto) -> Unit,
   onEditarLegendaNova: (FotoNova) -> Unit,
+  onAnotarSalva: (Foto) -> Unit,
+  onAnotarNova: (FotoNova) -> Unit,
   onMoverSalva: (Foto, Int) -> Unit,
   onMoverNova: (FotoNova, Int) -> Unit,
 ) {
@@ -864,7 +1046,7 @@ private fun SecaoDeFotos(
     Text(descricao, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
     if (fotosSalvas.isEmpty() && fotosNovas.isEmpty()) {
       Text(
-        text = if (categoria == CategoriaFoto.CARRO) "Nenhuma foto do carro ainda."
+        text = if (categoria == CategoriaFoto.CARRO) "Nenhuma foto adicionada ainda."
         else "Nenhuma foto de procedimento ainda.",
         style = MaterialTheme.typography.bodySmall,
         color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -880,6 +1062,7 @@ private fun SecaoDeFotos(
             legenda = foto.legenda,
             indice = fotosSalvas.indexOf(foto) + 1,
             onEditarLegenda = { onEditarLegendaSalva(foto) },
+            onAnotar = { onAnotarSalva(foto) },
             onEsquerda = { onMoverSalva(foto, -1) },
             onDireita = { onMoverSalva(foto, 1) },
             onRemover = { onRemoverSalva(foto) },
@@ -891,6 +1074,7 @@ private fun SecaoDeFotos(
             legenda = foto.legenda,
             indice = fotosNovas.indexOf(foto) + 1,
             onEditarLegenda = { onEditarLegendaNova(foto) },
+            onAnotar = { onAnotarNova(foto) },
             onEsquerda = { onMoverNova(foto, -1) },
             onDireita = { onMoverNova(foto, 1) },
             onRemover = { onRemoverNova(foto) },
@@ -917,12 +1101,13 @@ private fun CartaoFotoLegenda(
   legenda: String,
   indice: Int,
   onEditarLegenda: () -> Unit,
+  onAnotar: () -> Unit,
   onEsquerda: () -> Unit,
   onDireita: () -> Unit,
   onRemover: () -> Unit,
 ) {
   Column(
-    modifier = Modifier.width(150.dp),
+    modifier = Modifier.width(156.dp),
     horizontalAlignment = Alignment.CenterHorizontally,
   ) {
     Box(
@@ -954,6 +1139,7 @@ private fun CartaoFotoLegenda(
       modifier = Modifier.height(32.dp).clickable(onClick = onEditarLegenda),
     )
     Row(horizontalArrangement = Arrangement.spacedBy(2.dp)) {
+      TextButton(onClick = onAnotar, contentPadding = PaddingValues(4.dp)) { Text("↗ Setas", fontSize = 12.sp) }
       TextButton(onClick = onEsquerda, contentPadding = PaddingValues(4.dp)) { Text("←", fontSize = 14.sp) }
       TextButton(onClick = onDireita, contentPadding = PaddingValues(4.dp)) { Text("→", fontSize = 14.sp) }
       TextButton(onClick = onRemover, contentPadding = PaddingValues(4.dp)) {

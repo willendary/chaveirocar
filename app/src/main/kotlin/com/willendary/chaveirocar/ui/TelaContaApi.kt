@@ -1,6 +1,10 @@
 package com.willendary.chaveirocar.ui
 
+import android.app.Activity
 import android.widget.Toast
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.IntentSenderRequest
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -28,6 +32,8 @@ import androidx.compose.ui.unit.dp
 import com.willendary.chaveirocar.dados.BancoDeAtendimentos
 import com.willendary.chaveirocar.dados.Preferencias
 import com.willendary.chaveirocar.nuvem.ApiChaveiroCar
+import com.willendary.chaveirocar.nuvem.CredencialGoogle
+import com.willendary.chaveirocar.nuvem.GoogleDrive
 import com.willendary.chaveirocar.nuvem.MotorSinc
 import com.willendary.chaveirocar.util.Erros
 import kotlinx.coroutines.Dispatchers
@@ -152,6 +158,104 @@ fun SecaoContaApi(banco: BancoDeAtendimentos) {
           Erros.registrar(contexto, "Conta API: login", it)
           Toast.makeText(contexto, "Não foi possível entrar. Confira e-mail, senha e endereço.", Toast.LENGTH_LONG).show()
         }
+    }
+  }
+
+  fun concluirLoginGoogle(credencial: CredencialGoogle) {
+    escopo.launch {
+      val cliente = api()
+      val resultado = runCatching {
+        withContext(Dispatchers.IO) {
+          cliente.entrarComGoogle(
+            accessToken = credencial.token,
+            empresa = empresaNova.trim().ifBlank { "Minha empresa" },
+          )
+        }
+      }
+      entrando = false
+      resultado
+        .onSuccess { resposta ->
+          guardarTokens(cliente)
+          val emailConta = resposta.optJSONObject("usuario")?.optString("email")
+            ?.ifBlank { credencial.email.orEmpty() }
+            ?: credencial.email.orEmpty()
+          email = emailConta
+          emailVerificado = true
+          val primeiraEmpresa = resposta.optJSONArray("empresas")?.optJSONObject(0)?.optString("id").orEmpty()
+          if (primeiraEmpresa.isNotBlank()) {
+            empresaId = primeiraEmpresa
+          }
+          preferencias.edit()
+            .putString(Preferencias.API_BASE_URL, baseUrl.trim())
+            .putString(Preferencias.API_EMAIL, emailConta)
+            .apply {
+              if (empresaId.isNotBlank()) putString(Preferencias.API_EMPRESA_ID, empresaId)
+            }
+            .apply()
+          logado = true
+          recarregar()
+          Toast.makeText(contexto, "Conectado com Google à conta ChaveiroCar", Toast.LENGTH_SHORT).show()
+        }
+        .onFailure {
+          Erros.registrar(contexto, "Conta API: login Google", it)
+          Toast.makeText(contexto, "Não foi possível autenticar na API com a conta Google.", Toast.LENGTH_LONG).show()
+        }
+    }
+  }
+
+  val autorizadorGoogle = rememberLauncherForActivityResult(
+    ActivityResultContracts.StartIntentSenderForResult(),
+  ) { retorno ->
+    val dados = retorno.data
+    if (retorno.resultCode != Activity.RESULT_OK || dados == null) {
+      entrando = false
+      return@rememberLauncherForActivityResult
+    }
+    escopo.launch {
+      runCatching {
+        withContext(Dispatchers.IO) { GoogleDrive.concluirAutorizacao(contexto, dados) }
+      }.onSuccess { autorizacao ->
+        val credencial = autorizacao.credencial
+        if (credencial != null) {
+          concluirLoginGoogle(credencial)
+        } else {
+          entrando = false
+          Toast.makeText(contexto, "Não foi possível obter a conta Google.", Toast.LENGTH_LONG).show()
+        }
+      }.onFailure { erro ->
+        entrando = false
+        Erros.registrar(contexto, "Conta API: consentimento Google", erro)
+        Toast.makeText(contexto, "Falha ao conectar conta Google.", Toast.LENGTH_LONG).show()
+      }
+    }
+  }
+
+  fun entrarComGoogle() {
+    if (entrando) return
+    entrando = true
+    escopo.launch {
+      runCatching {
+        withContext(Dispatchers.IO) { GoogleDrive.autenticarConta(contexto) }
+      }.onSuccess { autorizacao ->
+        when {
+          autorizacao.pendente != null ->
+            autorizadorGoogle.launch(IntentSenderRequest.Builder(autorizacao.pendente).build())
+          autorizacao.credencial != null ->
+            concluirLoginGoogle(autorizacao.credencial)
+          else -> {
+            entrando = false
+            Toast.makeText(contexto, "Não foi possível conectar com o Google.", Toast.LENGTH_LONG).show()
+          }
+        }
+      }.onFailure { erro ->
+        entrando = false
+        Erros.registrar(contexto, "Conta API: iniciar Google", erro)
+        Toast.makeText(
+          contexto,
+          "Google Play Services indisponível ou sem conta Google no aparelho.",
+          Toast.LENGTH_LONG,
+        ).show()
+      }
     }
   }
 
@@ -355,6 +459,13 @@ fun SecaoContaApi(banco: BancoDeAtendimentos) {
       )
 
       if (!logado) {
+        Button(
+          onClick = { entrarComGoogle() },
+          enabled = !entrando,
+          modifier = Modifier.fillMaxWidth(),
+        ) {
+          Text(if (entrando) "Conectando..." else "Entrar com Google")
+        }
         OutlinedTextField(
           value = baseUrl, onValueChange = { baseUrl = it },
           label = { Text("Endereço da API") }, singleLine = true,

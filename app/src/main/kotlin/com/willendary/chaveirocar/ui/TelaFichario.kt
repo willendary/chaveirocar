@@ -57,28 +57,34 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
+import androidx.compose.material3.FilterChip
 import com.willendary.chaveirocar.dados.BancoDeAtendimentos
 import com.willendary.chaveirocar.dados.Preferencias
 import com.willendary.chaveirocar.modelo.Atendimento
 import com.willendary.chaveirocar.modelo.CategoriaFoto
 import com.willendary.chaveirocar.modelo.Foto
 import com.willendary.chaveirocar.modelo.ResumoModelo
+import com.willendary.chaveirocar.modelo.ResumoResidencial
+import com.willendary.chaveirocar.modelo.SegmentoAtendimento
 import com.willendary.chaveirocar.util.formatarData
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
 /**
- * Fichário: o chaveiro pensa por carro, não por serviço.
+ * Fichário: o chaveiro pensa por carro ou por fechadura/local residencial, não por serviço avulso.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun TelaFichario(
   banco: BancoDeAtendimentos,
   onAbrirModelo: (ResumoModelo) -> Unit,
+  onAbrirResidencial: (ResumoResidencial) -> Unit = {},
 ) {
   val contexto = LocalContext.current
   var busca by remember { mutableStateOf("") }
+  var segmento by remember { mutableStateOf(SegmentoAtendimento.AUTOMOTIVO) }
   var modelos by remember { mutableStateOf<List<ResumoModelo>>(emptyList()) }
+  var residenciais by remember { mutableStateOf<List<ResumoResidencial>>(emptyList()) }
   var carregado by remember { mutableStateOf(false) }
   val preferencias = remember { Preferencias.obter(contexto) }
   var favoritos by remember {
@@ -96,7 +102,10 @@ fun TelaFichario(
   }
 
   LaunchedEffect(Unit) {
-    modelos = withContext(Dispatchers.IO) { banco.resumoPorModelo() }
+    withContext(Dispatchers.IO) {
+      modelos = banco.resumoPorModelo()
+      residenciais = banco.resumoResidencial()
+    }
     carregado = true
   }
 
@@ -108,6 +117,15 @@ fun TelaFichario(
     }
     if (termo.isNotBlank() || favoritos.isEmpty()) filtrados
     else filtrados.sortedByDescending { chave(it) in favoritos }
+  }
+
+  val residenciaisVisiveis = remember(busca, residenciais) {
+    val termo = busca.trim()
+    if (termo.isBlank()) residenciais
+    else residenciais.filter { item ->
+      "${item.tipoLocal} ${item.marcaFechadura} ${item.modeloFechadura}"
+        .contains(termo, ignoreCase = true)
+    }
   }
 
   Scaffold(
@@ -122,7 +140,9 @@ fun TelaFichario(
         value = busca,
         onValueChange = { busca = it },
         modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
-        placeholder = { Text("Buscar marca ou modelo") },
+        placeholder = {
+          Text(if (segmento == SegmentoAtendimento.RESIDENCIAL) "Buscar local, porta ou fechadura" else "Buscar marca ou modelo")
+        },
         leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
         singleLine = true,
         shape = MaterialTheme.shapes.medium,
@@ -133,9 +153,54 @@ fun TelaFichario(
         ),
       )
 
+      Row(
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+      ) {
+        FilterChip(
+          selected = segmento == SegmentoAtendimento.AUTOMOTIVO,
+          onClick = { segmento = SegmentoAtendimento.AUTOMOTIVO },
+          label = { Text("Veículos (${modelos.size})") },
+        )
+        FilterChip(
+          selected = segmento == SegmentoAtendimento.RESIDENCIAL,
+          onClick = { segmento = SegmentoAtendimento.RESIDENCIAL },
+          label = { Text("Residencial (${residenciais.size})") },
+        )
+      }
+
       when {
         !carregado -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
           CircularProgressIndicator()
+        }
+
+        segmento == SegmentoAtendimento.RESIDENCIAL && residenciaisVisiveis.isEmpty() -> Box(
+          Modifier.fillMaxSize().padding(32.dp),
+          contentAlignment = Alignment.Center,
+        ) {
+          EstadoVazio(
+            if (busca.isBlank()) "Fichário residencial vazio" else "Nenhuma fechadura ou local encontrado",
+            if (busca.isBlank()) "Os serviços de chaveiro residencial aparecem organizados aqui por tipo de local e fechadura."
+            else "Tente buscar por outra marca de fechadura ou ambiente.",
+          )
+        }
+
+        segmento == SegmentoAtendimento.RESIDENCIAL -> LazyColumn(
+          modifier = Modifier.fillMaxSize(),
+          verticalArrangement = Arrangement.spacedBy(10.dp),
+          contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 4.dp, bottom = 24.dp),
+        ) {
+          item {
+            PainelDestaque(
+              "Memória residencial.",
+              "Aberturas, cilindros e procedimentos organizados por local e fechadura.",
+              "${residenciais.size} ITEM(NS) RESIDENCIAIS",
+            )
+          }
+          item { TituloSecao("Locais e fechaduras") }
+          items(residenciaisVisiveis) { item ->
+            CartaoResidencial(item = item, onAbrir = { onAbrirResidencial(item) })
+          }
         }
 
         visiveis.isEmpty() -> Box(
@@ -150,7 +215,7 @@ fun TelaFichario(
         else -> LazyColumn(
           modifier = Modifier.fillMaxSize(),
           verticalArrangement = Arrangement.spacedBy(10.dp),
-          contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 10.dp, bottom = 24.dp),
+          contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 4.dp, bottom = 24.dp),
         ) {
           item {
             PainelDestaque("Conhecimento que fica.", "Aberturas, códigos e procedimentos organizados por veículo.", "${modelos.size} MODELO(S) NA BIBLIOTECA")
@@ -166,6 +231,33 @@ fun TelaFichario(
           }
         }
       }
+    }
+  }
+}
+
+@Composable
+private fun CartaoResidencial(item: ResumoResidencial, onAbrir: () -> Unit) {
+  val titulo = item.tipoLocal.ifBlank { "Serviço residencial" }
+  val fechadura = listOf(item.marcaFechadura, item.modeloFechadura).filter { it.isNotBlank() }.joinToString(" ").ifBlank { "Fechadura não informada" }
+  Card(
+    onClick = onAbrir,
+    modifier = Modifier.fillMaxWidth(),
+    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+    border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+  ) {
+    Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+      Text(titulo, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
+      Text(fechadura, style = MaterialTheme.typography.titleLarge)
+      Text(
+        "${item.quantidade} serviço(s) · último em ${formatarData(item.ultimaData)}",
+        style = MaterialTheme.typography.bodySmall,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+      )
+      Text(
+        if (item.temProcedimento) "Procedimentos disponíveis" else "Adicione técnicas de abertura ou fotos no próximo serviço",
+        style = MaterialTheme.typography.bodySmall,
+        color = if (item.temProcedimento) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+      )
     }
   }
 }
@@ -361,6 +453,229 @@ fun TelaFicharioModelo(
       }
 
       TituloSecao("Serviços deste carro")
+      servicos.forEach { servico ->
+        Card(
+          modifier = Modifier.fillMaxWidth().clickable { onAbrirServico(servico.id) },
+        ) {
+          Column(Modifier.padding(14.dp)) {
+            FlowRow(
+              horizontalArrangement = Arrangement.spacedBy(6.dp),
+              verticalArrangement = Arrangement.spacedBy(6.dp),
+            ) {
+              servico.tiposOrdenados.forEach { Selo(it.rotulo) }
+            }
+            Row(verticalAlignment = Alignment.CenterVertically) {
+              Text(
+                text = formatarData(servico.dataServico),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+              )
+              if (servico.quantidadeFotos > 0) {
+                Spacer(Modifier.width(8.dp))
+                Text(
+                  text = "${servico.quantidadeFotos} foto(s)",
+                  style = MaterialTheme.typography.bodySmall,
+                  color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+              }
+            }
+            val resumo = servico.solucao.ifBlank { servico.defeito }.ifBlank { servico.abertura }
+            if (resumo.isNotBlank()) {
+              Spacer(Modifier.height(4.dp))
+              Text(
+                text = resumo,
+                style = MaterialTheme.typography.bodyMedium,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
+              )
+            }
+          }
+        }
+      }
+      Spacer(Modifier.height(24.dp))
+    }
+  }
+
+  val foto = fotoAberta
+  if (foto != null) {
+    Dialog(onDismissRequest = { fotoAberta = null }) {
+      Card {
+        Column {
+          ImagemLocal(
+            caminho = foto,
+            ladoMaximo = 2000,
+            modificador = Modifier
+              .fillMaxWidth()
+              .heightIn(max = 520.dp)
+              .clickable { fotoAberta = null },
+          )
+          TextButton(onClick = { fotoAberta = null }, modifier = Modifier.fillMaxWidth()) {
+            Text("Fechar")
+          }
+        }
+      }
+    }
+  }
+}
+
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
+@Composable
+fun TelaFicharioResidencial(
+  banco: BancoDeAtendimentos,
+  tipoLocal: String,
+  marcaFechadura: String,
+  modeloFechadura: String,
+  onAbrirServico: (Long) -> Unit,
+  onVoltar: () -> Unit,
+) {
+  val contexto = LocalContext.current
+  var servicos by remember { mutableStateOf<List<Atendimento>>(emptyList()) }
+  var procedimentos by remember { mutableStateOf<List<Foto>>(emptyList()) }
+  var carregado by remember { mutableStateOf(false) }
+  var fotoAberta by remember { mutableStateOf<String?>(null) }
+
+  LaunchedEffect(tipoLocal, marcaFechadura, modeloFechadura) {
+    withContext(Dispatchers.IO) {
+      val encontrados = banco.servicosResidenciais(tipoLocal, marcaFechadura, modeloFechadura)
+      servicos = encontrados
+      procedimentos = encontrados.flatMap { servico ->
+        banco.listarFotos(servico.id).filter { it.categoria == CategoriaFoto.PROCEDIMENTO }
+      }
+    }
+    carregado = true
+  }
+
+  val abertura = servicos.firstOrNull { it.abertura.isNotBlank() }?.abertura
+  val codigoChave = servicos.firstOrNull { it.codigoChave.isNotBlank() }?.codigoChave
+  val codigoConfiguracao = servicos.firstOrNull { it.codigoConfiguracao.isNotBlank() }?.codigoConfiguracao
+
+  val titulo = listOf(tipoLocal, marcaFechadura, modeloFechadura)
+    .filter { it.isNotBlank() }
+    .joinToString(" · ")
+    .ifBlank { "Serviços residenciais" }
+
+  Scaffold(
+    topBar = {
+      TopAppBar(
+        title = {
+          Column {
+            Text(
+              titulo,
+              style = MaterialTheme.typography.titleMedium,
+              maxLines = 1,
+              overflow = TextOverflow.Ellipsis,
+            )
+            Text(
+              text = "${servicos.size} serviço(s)",
+              style = MaterialTheme.typography.bodySmall,
+              color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+          }
+        },
+        navigationIcon = { BotaoVoltar(onVoltar) },
+      )
+    },
+  ) { espacamento ->
+    if (!carregado) {
+      Box(Modifier.fillMaxSize().padding(espacamento), contentAlignment = Alignment.Center) {
+        CircularProgressIndicator()
+      }
+      return@Scaffold
+    }
+
+    Column(
+      modifier = Modifier
+        .conteudoResponsivo()
+        .padding(espacamento)
+        .verticalScroll(rememberScrollState())
+        .padding(16.dp),
+      verticalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+      if (abertura.isNullOrBlank() && codigoChave.isNullOrBlank() && codigoConfiguracao.isNullOrBlank() && procedimentos.isEmpty()) {
+        Card(modifier = Modifier.fillMaxWidth()) {
+          Column(Modifier.padding(14.dp)) {
+            Text("Sem procedimento registrado", style = MaterialTheme.typography.titleSmall)
+            Text(
+              text = "Na próxima vez, preencha a técnica de abertura, códigos ou fotos de passo a passo.",
+              style = MaterialTheme.typography.bodySmall,
+              color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+          }
+        }
+      }
+
+      if (!abertura.isNullOrBlank()) {
+        Card(
+          modifier = Modifier.fillMaxWidth(),
+          colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer),
+        ) {
+          Column(Modifier.padding(14.dp)) {
+            Text("Técnica de abertura / observações", style = MaterialTheme.typography.labelLarge)
+            Spacer(Modifier.height(4.dp))
+            Text(abertura, style = MaterialTheme.typography.bodyLarge)
+          }
+        }
+      }
+
+      if (!codigoChave.isNullOrBlank()) {
+        Card(modifier = Modifier.fillMaxWidth()) {
+          Row(modifier = Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
+            Column(modifier = Modifier.weight(1f)) {
+              Text("Código de chave", style = MaterialTheme.typography.labelMedium)
+              Text(codigoChave, fontFamily = FontFamily.Monospace, fontWeight = FontWeight.Bold, fontSize = 20.sp)
+            }
+            TextButton(onClick = { copiarTexto(contexto, "Código de chave", codigoChave) }) {
+              Text("Copiar")
+            }
+          }
+        }
+      }
+
+      if (!codigoConfiguracao.isNullOrBlank()) {
+        Card(modifier = Modifier.fillMaxWidth()) {
+          Row(modifier = Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
+            Column(modifier = Modifier.weight(1f)) {
+              Text("Senha / configuração", style = MaterialTheme.typography.labelMedium)
+              Text(codigoConfiguracao, fontFamily = FontFamily.Monospace, fontWeight = FontWeight.Bold, fontSize = 20.sp)
+            }
+            TextButton(onClick = { copiarTexto(contexto, "Senha / configuração", codigoConfiguracao) }) {
+              Text("Copiar")
+            }
+          }
+        }
+      }
+
+      if (procedimentos.isNotEmpty()) {
+        TituloSecao("Como se faz")
+        FlowRow(
+          horizontalArrangement = Arrangement.spacedBy(8.dp),
+          verticalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+          procedimentos.forEach { foto ->
+            Column(modifier = Modifier.width(140.dp)) {
+              ImagemLocal(
+                caminho = foto.caminho,
+                ladoMaximo = 800,
+                modificador = Modifier
+                  .width(140.dp)
+                  .height(140.dp)
+                  .clip(RoundedCornerShape(12.dp))
+                  .clickable { fotoAberta = foto.caminho },
+              )
+              if (foto.legenda.isNotBlank()) {
+                Text(
+                  text = foto.legenda,
+                  style = MaterialTheme.typography.bodySmall,
+                  maxLines = 2,
+                  overflow = TextOverflow.Ellipsis,
+                )
+              }
+            }
+          }
+        }
+      }
+
+      TituloSecao("Serviços realizados")
       servicos.forEach { servico ->
         Card(
           modifier = Modifier.fillMaxWidth().clickable { onAbrirServico(servico.id) },

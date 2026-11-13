@@ -57,6 +57,17 @@ object GoogleDrive {
     return converter(autorizacaoDe(contexto, pedido))
   }
 
+  /**
+   * Autorização mínima de identidade Google (e-mail + perfil), sem escopo de Drive,
+   * usada para login/cadastro rápido na conta da API ChaveiroCar.
+   */
+  fun autenticarConta(contexto: Context): AutorizacaoGoogle {
+    val pedido = AuthorizationRequest.builder()
+      .setRequestedScopes(listOf(Scope(ESCOPO_EMAIL), Scope(ESCOPO_PERFIL), Scope(ESCOPO_ABERTO)))
+      .build()
+    return converter(autorizacaoDe(contexto, pedido))
+  }
+
   fun concluirAutorizacao(contexto: Context, dados: Intent): AutorizacaoGoogle =
     converter(Identity.getAuthorizationClient(contexto).getAuthorizationResultFromIntent(dados))
 

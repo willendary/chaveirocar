@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "ChaveiroCar API",
-    "version": "1.6.2",
+    "version": "1.7.0",
     "description": "API única dos aplicativos Android, iOS e Windows do ChaveiroCar. Autenticação por Bearer token; dados isolados por empresa."
   },
   "components": {
@@ -511,6 +511,377 @@
                   },
                   "senha": {
                     "maxLength": 128,
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "usuario",
+                    "tokens",
+                    "empresas"
+                  ],
+                  "properties": {
+                    "usuario": {
+                      "type": "object",
+                      "required": [
+                        "id",
+                        "nome",
+                        "email",
+                        "emailVerificado"
+                      ],
+                      "properties": {
+                        "id": {
+                          "pattern": "^[0-9a-fA-F-]{36}$",
+                          "description": "UUID estável gerado pelo cliente ou pelo servidor.",
+                          "type": "string"
+                        },
+                        "nome": {
+                          "type": "string"
+                        },
+                        "email": {
+                          "type": "string"
+                        },
+                        "emailVerificado": {
+                          "type": "boolean"
+                        }
+                      }
+                    },
+                    "tokens": {
+                      "type": "object",
+                      "required": [
+                        "acesso",
+                        "expiraEm",
+                        "refresh",
+                        "refreshExpiraEm",
+                        "tipo"
+                      ],
+                      "properties": {
+                        "acesso": {
+                          "type": "string"
+                        },
+                        "expiraEm": {
+                          "type": "integer"
+                        },
+                        "refresh": {
+                          "type": "string"
+                        },
+                        "refreshExpiraEm": {
+                          "type": "integer"
+                        },
+                        "tipo": {
+                          "type": "string",
+                          "enum": [
+                            "Bearer"
+                          ]
+                        }
+                      }
+                    },
+                    "empresas": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "required": [
+                          "id",
+                          "nome",
+                          "papel"
+                        ],
+                        "properties": {
+                          "id": {
+                            "pattern": "^[0-9a-fA-F-]{36}$",
+                            "description": "UUID estável gerado pelo cliente ou pelo servidor.",
+                            "type": "string"
+                          },
+                          "nome": {
+                            "type": "string"
+                          },
+                          "papel": {
+                            "anyOf": [
+                              {
+                                "type": "string",
+                                "enum": [
+                                  "proprietario"
+                                ]
+                              },
+                              {
+                                "type": "string",
+                                "enum": [
+                                  "administrador"
+                                ]
+                              },
+                              {
+                                "type": "string",
+                                "enum": [
+                                  "colaborador"
+                                ]
+                              },
+                              {
+                                "type": "string",
+                                "enum": [
+                                  "leitor"
+                                ]
+                              }
+                            ]
+                          }
+                        }
+                      }
+                    },
+                    "emailEnviado": {
+                      "type": "boolean"
+                    },
+                    "verificacaoToken": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "erro",
+                    "requisicaoId"
+                  ],
+                  "properties": {
+                    "erro": {
+                      "type": "object",
+                      "required": [
+                        "codigo",
+                        "mensagem"
+                      ],
+                      "properties": {
+                        "codigo": {
+                          "type": "string"
+                        },
+                        "mensagem": {
+                          "type": "string"
+                        },
+                        "detalhes": {}
+                      }
+                    },
+                    "requisicaoId": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "erro",
+                    "requisicaoId"
+                  ],
+                  "properties": {
+                    "erro": {
+                      "type": "object",
+                      "required": [
+                        "codigo",
+                        "mensagem"
+                      ],
+                      "properties": {
+                        "codigo": {
+                          "type": "string"
+                        },
+                        "mensagem": {
+                          "type": "string"
+                        },
+                        "detalhes": {}
+                      }
+                    },
+                    "requisicaoId": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "erro",
+                    "requisicaoId"
+                  ],
+                  "properties": {
+                    "erro": {
+                      "type": "object",
+                      "required": [
+                        "codigo",
+                        "mensagem"
+                      ],
+                      "properties": {
+                        "codigo": {
+                          "type": "string"
+                        },
+                        "mensagem": {
+                          "type": "string"
+                        },
+                        "detalhes": {}
+                      }
+                    },
+                    "requisicaoId": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "erro",
+                    "requisicaoId"
+                  ],
+                  "properties": {
+                    "erro": {
+                      "type": "object",
+                      "required": [
+                        "codigo",
+                        "mensagem"
+                      ],
+                      "properties": {
+                        "codigo": {
+                          "type": "string"
+                        },
+                        "mensagem": {
+                          "type": "string"
+                        },
+                        "detalhes": {}
+                      }
+                    },
+                    "requisicaoId": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "erro",
+                    "requisicaoId"
+                  ],
+                  "properties": {
+                    "erro": {
+                      "type": "object",
+                      "required": [
+                        "codigo",
+                        "mensagem"
+                      ],
+                      "properties": {
+                        "codigo": {
+                          "type": "string"
+                        },
+                        "mensagem": {
+                          "type": "string"
+                        },
+                        "detalhes": {}
+                      }
+                    },
+                    "requisicaoId": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "erro",
+                    "requisicaoId"
+                  ],
+                  "properties": {
+                    "erro": {
+                      "type": "object",
+                      "required": [
+                        "codigo",
+                        "mensagem"
+                      ],
+                      "properties": {
+                        "codigo": {
+                          "type": "string"
+                        },
+                        "mensagem": {
+                          "type": "string"
+                        },
+                        "detalhes": {}
+                      }
+                    },
+                    "requisicaoId": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/auth/google-login": {
+      "post": {
+        "summary": "Entra ou cria conta usando autenticação Google",
+        "tags": [
+          "Autenticação"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "idToken": {
+                    "minLength": 10,
+                    "type": "string"
+                  },
+                  "accessToken": {
+                    "minLength": 10,
+                    "type": "string"
+                  },
+                  "empresa": {
+                    "maxLength": 120,
                     "type": "string"
                   }
                 }
@@ -7190,6 +7561,27 @@
           },
           {
             "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "enum": [
+                    "AUTOMOTIVO"
+                  ]
+                },
+                {
+                  "type": "string",
+                  "enum": [
+                    "RESIDENCIAL"
+                  ]
+                }
+              ]
+            },
+            "in": "query",
+            "name": "segmento",
+            "required": false
+          },
+          {
+            "schema": {
               "minimum": 0,
               "type": "integer"
             },
@@ -7262,11 +7654,18 @@
                         "required": [
                           "id",
                           "empresaId",
+                          "segmento",
                           "placa",
                           "marca",
                           "modelo",
                           "ano",
                           "chassi",
+                          "tipoLocal",
+                          "ambientePorta",
+                          "marcaFechadura",
+                          "modeloFechadura",
+                          "tipoCilindro",
+                          "enderecoLocal",
                           "dataServico",
                           "tipoServico",
                           "tiposServico",
@@ -7300,6 +7699,22 @@
                             "description": "UUID estável gerado pelo cliente ou pelo servidor.",
                             "type": "string"
                           },
+                          "segmento": {
+                            "anyOf": [
+                              {
+                                "type": "string",
+                                "enum": [
+                                  "AUTOMOTIVO"
+                                ]
+                              },
+                              {
+                                "type": "string",
+                                "enum": [
+                                  "RESIDENCIAL"
+                                ]
+                              }
+                            ]
+                          },
                           "placa": {
                             "type": "string"
                           },
@@ -7313,6 +7728,24 @@
                             "type": "string"
                           },
                           "chassi": {
+                            "type": "string"
+                          },
+                          "tipoLocal": {
+                            "type": "string"
+                          },
+                          "ambientePorta": {
+                            "type": "string"
+                          },
+                          "marcaFechadura": {
+                            "type": "string"
+                          },
+                          "modeloFechadura": {
+                            "type": "string"
+                          },
+                          "tipoCilindro": {
+                            "type": "string"
+                          },
+                          "enderecoLocal": {
                             "type": "string"
                           },
                           "dataServico": {
@@ -7649,12 +8082,24 @@
                 "allOf": [
                   {
                     "type": "object",
-                    "required": [
-                      "placa"
-                    ],
                     "properties": {
+                      "segmento": {
+                        "anyOf": [
+                          {
+                            "type": "string",
+                            "enum": [
+                              "AUTOMOTIVO"
+                            ]
+                          },
+                          {
+                            "type": "string",
+                            "enum": [
+                              "RESIDENCIAL"
+                            ]
+                          }
+                        ]
+                      },
                       "placa": {
-                        "minLength": 1,
                         "maxLength": 10,
                         "type": "string"
                       },
@@ -7674,13 +8119,37 @@
                         "maxLength": 60,
                         "type": "string"
                       },
+                      "tipoLocal": {
+                        "maxLength": 120,
+                        "type": "string"
+                      },
+                      "ambientePorta": {
+                        "maxLength": 200,
+                        "type": "string"
+                      },
+                      "marcaFechadura": {
+                        "maxLength": 120,
+                        "type": "string"
+                      },
+                      "modeloFechadura": {
+                        "maxLength": 120,
+                        "type": "string"
+                      },
+                      "tipoCilindro": {
+                        "maxLength": 200,
+                        "type": "string"
+                      },
+                      "enderecoLocal": {
+                        "maxLength": 500,
+                        "type": "string"
+                      },
                       "dataServico": {
                         "minimum": 0,
                         "type": "integer"
                       },
                       "tiposServico": {
                         "minItems": 1,
-                        "maxItems": 8,
+                        "maxItems": 16,
                         "type": "array",
                         "items": {
                           "anyOf": [
@@ -7724,6 +8193,48 @@
                               "type": "string",
                               "enum": [
                                 "PROGRAMACAO_CHAVE"
+                              ]
+                            },
+                            {
+                              "type": "string",
+                              "enum": [
+                                "ABERTURA_RESIDENCIAL"
+                              ]
+                            },
+                            {
+                              "type": "string",
+                              "enum": [
+                                "COPIA_CHAVE"
+                              ]
+                            },
+                            {
+                              "type": "string",
+                              "enum": [
+                                "TROCA_SEGREDO"
+                              ]
+                            },
+                            {
+                              "type": "string",
+                              "enum": [
+                                "INSTALACAO_FECHADURA"
+                              ]
+                            },
+                            {
+                              "type": "string",
+                              "enum": [
+                                "TROCA_CILINDRO"
+                              ]
+                            },
+                            {
+                              "type": "string",
+                              "enum": [
+                                "FECHADURA_DIGITAL"
+                              ]
+                            },
+                            {
+                              "type": "string",
+                              "enum": [
+                                "REPARO_FECHADURA"
                               ]
                             },
                             {
@@ -7826,11 +8337,18 @@
                   "required": [
                     "id",
                     "empresaId",
+                    "segmento",
                     "placa",
                     "marca",
                     "modelo",
                     "ano",
                     "chassi",
+                    "tipoLocal",
+                    "ambientePorta",
+                    "marcaFechadura",
+                    "modeloFechadura",
+                    "tipoCilindro",
+                    "enderecoLocal",
                     "dataServico",
                     "tipoServico",
                     "tiposServico",
@@ -7864,6 +8382,22 @@
                       "description": "UUID estável gerado pelo cliente ou pelo servidor.",
                       "type": "string"
                     },
+                    "segmento": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "enum": [
+                            "AUTOMOTIVO"
+                          ]
+                        },
+                        {
+                          "type": "string",
+                          "enum": [
+                            "RESIDENCIAL"
+                          ]
+                        }
+                      ]
+                    },
                     "placa": {
                       "type": "string"
                     },
@@ -7877,6 +8411,24 @@
                       "type": "string"
                     },
                     "chassi": {
+                      "type": "string"
+                    },
+                    "tipoLocal": {
+                      "type": "string"
+                    },
+                    "ambientePorta": {
+                      "type": "string"
+                    },
+                    "marcaFechadura": {
+                      "type": "string"
+                    },
+                    "modeloFechadura": {
+                      "type": "string"
+                    },
+                    "tipoCilindro": {
+                      "type": "string"
+                    },
+                    "enderecoLocal": {
                       "type": "string"
                     },
                     "dataServico": {
@@ -8231,11 +8783,18 @@
                   "required": [
                     "id",
                     "empresaId",
+                    "segmento",
                     "placa",
                     "marca",
                     "modelo",
                     "ano",
                     "chassi",
+                    "tipoLocal",
+                    "ambientePorta",
+                    "marcaFechadura",
+                    "modeloFechadura",
+                    "tipoCilindro",
+                    "enderecoLocal",
                     "dataServico",
                     "tipoServico",
                     "tiposServico",
@@ -8269,6 +8828,22 @@
                       "description": "UUID estável gerado pelo cliente ou pelo servidor.",
                       "type": "string"
                     },
+                    "segmento": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "enum": [
+                            "AUTOMOTIVO"
+                          ]
+                        },
+                        {
+                          "type": "string",
+                          "enum": [
+                            "RESIDENCIAL"
+                          ]
+                        }
+                      ]
+                    },
                     "placa": {
                       "type": "string"
                     },
@@ -8282,6 +8857,24 @@
                       "type": "string"
                     },
                     "chassi": {
+                      "type": "string"
+                    },
+                    "tipoLocal": {
+                      "type": "string"
+                    },
+                    "ambientePorta": {
+                      "type": "string"
+                    },
+                    "marcaFechadura": {
+                      "type": "string"
+                    },
+                    "modeloFechadura": {
+                      "type": "string"
+                    },
+                    "tipoCilindro": {
+                      "type": "string"
+                    },
+                    "enderecoLocal": {
                       "type": "string"
                     },
                     "dataServico": {
@@ -8606,12 +9199,24 @@
                 "allOf": [
                   {
                     "type": "object",
-                    "required": [
-                      "placa"
-                    ],
                     "properties": {
+                      "segmento": {
+                        "anyOf": [
+                          {
+                            "type": "string",
+                            "enum": [
+                              "AUTOMOTIVO"
+                            ]
+                          },
+                          {
+                            "type": "string",
+                            "enum": [
+                              "RESIDENCIAL"
+                            ]
+                          }
+                        ]
+                      },
                       "placa": {
-                        "minLength": 1,
                         "maxLength": 10,
                         "type": "string"
                       },
@@ -8631,13 +9236,37 @@
                         "maxLength": 60,
                         "type": "string"
                       },
+                      "tipoLocal": {
+                        "maxLength": 120,
+                        "type": "string"
+                      },
+                      "ambientePorta": {
+                        "maxLength": 200,
+                        "type": "string"
+                      },
+                      "marcaFechadura": {
+                        "maxLength": 120,
+                        "type": "string"
+                      },
+                      "modeloFechadura": {
+                        "maxLength": 120,
+                        "type": "string"
+                      },
+                      "tipoCilindro": {
+                        "maxLength": 200,
+                        "type": "string"
+                      },
+                      "enderecoLocal": {
+                        "maxLength": 500,
+                        "type": "string"
+                      },
                       "dataServico": {
                         "minimum": 0,
                         "type": "integer"
                       },
                       "tiposServico": {
                         "minItems": 1,
-                        "maxItems": 8,
+                        "maxItems": 16,
                         "type": "array",
                         "items": {
                           "anyOf": [
@@ -8681,6 +9310,48 @@
                               "type": "string",
                               "enum": [
                                 "PROGRAMACAO_CHAVE"
+                              ]
+                            },
+                            {
+                              "type": "string",
+                              "enum": [
+                                "ABERTURA_RESIDENCIAL"
+                              ]
+                            },
+                            {
+                              "type": "string",
+                              "enum": [
+                                "COPIA_CHAVE"
+                              ]
+                            },
+                            {
+                              "type": "string",
+                              "enum": [
+                                "TROCA_SEGREDO"
+                              ]
+                            },
+                            {
+                              "type": "string",
+                              "enum": [
+                                "INSTALACAO_FECHADURA"
+                              ]
+                            },
+                            {
+                              "type": "string",
+                              "enum": [
+                                "TROCA_CILINDRO"
+                              ]
+                            },
+                            {
+                              "type": "string",
+                              "enum": [
+                                "FECHADURA_DIGITAL"
+                              ]
+                            },
+                            {
+                              "type": "string",
+                              "enum": [
+                                "REPARO_FECHADURA"
                               ]
                             },
                             {
@@ -8793,11 +9464,18 @@
                   "required": [
                     "id",
                     "empresaId",
+                    "segmento",
                     "placa",
                     "marca",
                     "modelo",
                     "ano",
                     "chassi",
+                    "tipoLocal",
+                    "ambientePorta",
+                    "marcaFechadura",
+                    "modeloFechadura",
+                    "tipoCilindro",
+                    "enderecoLocal",
                     "dataServico",
                     "tipoServico",
                     "tiposServico",
@@ -8831,6 +9509,22 @@
                       "description": "UUID estável gerado pelo cliente ou pelo servidor.",
                       "type": "string"
                     },
+                    "segmento": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "enum": [
+                            "AUTOMOTIVO"
+                          ]
+                        },
+                        {
+                          "type": "string",
+                          "enum": [
+                            "RESIDENCIAL"
+                          ]
+                        }
+                      ]
+                    },
                     "placa": {
                       "type": "string"
                     },
@@ -8844,6 +9538,24 @@
                       "type": "string"
                     },
                     "chassi": {
+                      "type": "string"
+                    },
+                    "tipoLocal": {
+                      "type": "string"
+                    },
+                    "ambientePorta": {
+                      "type": "string"
+                    },
+                    "marcaFechadura": {
+                      "type": "string"
+                    },
+                    "modeloFechadura": {
+                      "type": "string"
+                    },
+                    "tipoCilindro": {
+                      "type": "string"
+                    },
+                    "enderecoLocal": {
                       "type": "string"
                     },
                     "dataServico": {
@@ -9205,11 +9917,18 @@
                   "required": [
                     "id",
                     "empresaId",
+                    "segmento",
                     "placa",
                     "marca",
                     "modelo",
                     "ano",
                     "chassi",
+                    "tipoLocal",
+                    "ambientePorta",
+                    "marcaFechadura",
+                    "modeloFechadura",
+                    "tipoCilindro",
+                    "enderecoLocal",
                     "dataServico",
                     "tipoServico",
                     "tiposServico",
@@ -9243,6 +9962,22 @@
                       "description": "UUID estável gerado pelo cliente ou pelo servidor.",
                       "type": "string"
                     },
+                    "segmento": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "enum": [
+                            "AUTOMOTIVO"
+                          ]
+                        },
+                        {
+                          "type": "string",
+                          "enum": [
+                            "RESIDENCIAL"
+                          ]
+                        }
+                      ]
+                    },
                     "placa": {
                       "type": "string"
                     },
@@ -9256,6 +9991,24 @@
                       "type": "string"
                     },
                     "chassi": {
+                      "type": "string"
+                    },
+                    "tipoLocal": {
+                      "type": "string"
+                    },
+                    "ambientePorta": {
+                      "type": "string"
+                    },
+                    "marcaFechadura": {
+                      "type": "string"
+                    },
+                    "modeloFechadura": {
+                      "type": "string"
+                    },
+                    "tipoCilindro": {
+                      "type": "string"
+                    },
+                    "enderecoLocal": {
                       "type": "string"
                     },
                     "dataServico": {
@@ -11812,6 +12565,7 @@
                           "categoria",
                           "legenda",
                           "ordem",
+                          "anotacoes",
                           "mimeType",
                           "tamanho",
                           "checksum",
@@ -11877,6 +12631,9 @@
                           },
                           "ordem": {
                             "type": "integer"
+                          },
+                          "anotacoes": {
+                            "type": "string"
                           },
                           "mimeType": {
                             "type": "string"
@@ -12176,6 +12933,7 @@
                     "categoria",
                     "legenda",
                     "ordem",
+                    "anotacoes",
                     "mimeType",
                     "tamanho",
                     "checksum",
@@ -12241,6 +12999,9 @@
                     },
                     "ordem": {
                       "type": "integer"
+                    },
+                    "anotacoes": {
+                      "type": "string"
                     },
                     "mimeType": {
                       "type": "string"
@@ -12547,6 +13308,7 @@
                           "categoria",
                           "legenda",
                           "ordem",
+                          "anotacoes",
                           "mimeType",
                           "tamanho",
                           "checksum",
@@ -12612,6 +13374,9 @@
                           },
                           "ordem": {
                             "type": "integer"
+                          },
+                          "anotacoes": {
+                            "type": "string"
                           },
                           "mimeType": {
                             "type": "string"
@@ -12911,6 +13676,7 @@
                     "categoria",
                     "legenda",
                     "ordem",
+                    "anotacoes",
                     "mimeType",
                     "tamanho",
                     "checksum",
@@ -12976,6 +13742,9 @@
                     },
                     "ordem": {
                       "type": "integer"
+                    },
+                    "anotacoes": {
+                      "type": "string"
                     },
                     "mimeType": {
                       "type": "string"
@@ -13527,6 +14296,10 @@
                   "ordem": {
                     "minimum": 0,
                     "type": "integer"
+                  },
+                  "anotacoes": {
+                    "maxLength": 100000,
+                    "type": "string"
                   }
                 }
               }
@@ -13575,6 +14348,7 @@
                     "categoria",
                     "legenda",
                     "ordem",
+                    "anotacoes",
                     "mimeType",
                     "tamanho",
                     "checksum",
@@ -13640,6 +14414,9 @@
                     },
                     "ordem": {
                       "type": "integer"
+                    },
+                    "anotacoes": {
+                      "type": "string"
                     },
                     "mimeType": {
                       "type": "string"
@@ -13945,6 +14722,7 @@
                     "categoria",
                     "legenda",
                     "ordem",
+                    "anotacoes",
                     "mimeType",
                     "tamanho",
                     "checksum",
@@ -14010,6 +14788,9 @@
                     },
                     "ordem": {
                       "type": "integer"
+                    },
+                    "anotacoes": {
+                      "type": "string"
                     },
                     "mimeType": {
                       "type": "string"

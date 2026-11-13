@@ -290,16 +290,19 @@ public static class MotorSincronia
         long revisao,
         bool servidorExcluido = false)
     {
-        var placa = local.Estado.Atendimentos.FirstOrDefault(a => a.Uuid == uuid)?.Placa
-            ?? local.Estado.Fichas.FirstOrDefault(f => f.Uuid == uuid)?.Equipamento
-            ?? "";
+        var atendimento = local.Estado.Atendimentos.FirstOrDefault(a => a.Uuid == uuid);
+        var identificacao = atendimento is not null
+            ? (!string.IsNullOrWhiteSpace(atendimento.Placa)
+                ? atendimento.Placa
+                : (!string.IsNullOrWhiteSpace(atendimento.Modelo) ? atendimento.Modelo : atendimento.TipoLocal))
+            : local.Estado.Fichas.FirstOrDefault(f => f.Uuid == uuid)?.Equipamento ?? "";
         local.Estado.Conflitos.RemoveAll(c => c.Uuid == uuid);
         local.Estado.Conflitos.Add(new ArmazenamentoLocal.Conflito
         {
             Uuid = uuid,
             Entidade = entidade,
             RevisaoServidor = revisao,
-            Placa = placa,
+            Placa = identificacao,
             ServidorExcluido = servidorExcluido,
         });
     }
@@ -408,7 +411,7 @@ public static class MotorSincronia
             return 1;
         }
         var existente = local.Estado.Fotos.FirstOrDefault(f => f.Uuid == remota.Uuid);
-        if (existente is not null && !existente.Pendente && File.Exists(existente.CaminhoLocal)) return 0;
+        if (existente is not null && !existente.Pendente && File.Exists(existente.CaminhoLocal) && remota.Revisao <= existente.Revisao) return 0;
         var extensao = remota.MimeType switch
         {
             "image/png" => ".png",
@@ -433,6 +436,7 @@ public static class MotorSincronia
             FichaUuid = remota.FichaUuid,
             Categoria = remota.Categoria,
             Legenda = remota.Legenda,
+            Anotacoes = remota.Anotacoes,
             Ordem = remota.Ordem,
             Revisao = remota.Revisao,
             CaminhoLocal = caminho,

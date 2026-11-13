@@ -24,7 +24,7 @@ import { rotasSync } from "./rotas/sync.js";
 import { rotasImportacao } from "./rotas/importacao.js";
 import { rotasAuditoria } from "./rotas/auditoria.js";
 
-export const VERSAO_API = "1.6.2";
+export const VERSAO_API = "1.7.0";
 
 export interface OpcoesServidor {
   config?: Config;

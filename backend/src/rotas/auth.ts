@@ -2,7 +2,14 @@ import type { FastifyPluginAsync } from "fastify";
 import { Type } from "@sinclair/typebox";
 import type { ContextoRotas } from "./contexto.js";
 import { exigirUsuario, obterIp, obterUserAgent } from "../auth/autenticacao.js";
-import { criarEmpresa, criarUsuario, listarEmpresasDoUsuario, obterUsuarioPorEmail } from "../auth/contas.js";
+import {
+  criarEmpresa,
+  criarUsuario,
+  entrarOuCriarUsuarioGoogle,
+  listarEmpresasDoUsuario,
+  obterUsuarioPorEmail,
+  verificarTokenGoogle,
+} from "../auth/contas.js";
 import { conferirSenha, gerarHashSenha, senhaAceitavel } from "../auth/senha.js";
 import { criarSessao, renovarSessao, revogarSessao, revogarSessaoDoRefresh, revogarTodasAsSessoes } from "../auth/sessoes.js";
 import { consumirTokenConta, criarTokenConta } from "../auth/tokensConta.js";
@@ -29,6 +36,12 @@ const CadastroEntrada = Type.Object({
 const LoginEntrada = Type.Object({
   email: Type.String({ maxLength: 254 }),
   senha: Type.String({ maxLength: 128 }),
+});
+
+const GoogleLoginEntrada = Type.Object({
+  idToken: Type.Optional(Type.String({ minLength: 10 })),
+  accessToken: Type.Optional(Type.String({ minLength: 10 })),
+  empresa: Type.Optional(Type.String({ maxLength: 120 })),
 });
 
 const RenovarEntrada = Type.Object({ refresh: Type.String({ minLength: 10 }) });
@@ -122,6 +135,11 @@ export const rotasAuth: FastifyPluginAsync<ContextoRotas> = async (app, opcoes) 
       config: { rateLimit: { max: 10, timeWindow: "1 minute" } },
     },
     async (request, reply) => {
+      if (config.googleOnly) {
+        throw erros.semPermissao(
+          "O cadastro por e-mail e senha está desativado. Entre com sua conta Google.",
+        );
+      }
       const entrada = request.body as {
         nome: string;
         email: string;
@@ -171,6 +189,11 @@ export const rotasAuth: FastifyPluginAsync<ContextoRotas> = async (app, opcoes) 
       config: { rateLimit: { max: 10, timeWindow: "1 minute" } },
     },
     async (request) => {
+      if (config.googleOnly) {
+        throw erros.semPermissao(
+          "O acesso por e-mail e senha está desativado. Entre com sua conta Google.",
+        );
+      }
       const entrada = request.body as { email: string; senha: string };
       const emailNormalizado = normalizarEmail(entrada.email);
       const resultado = await banco.execute({
@@ -205,6 +228,51 @@ export const rotasAuth: FastifyPluginAsync<ContextoRotas> = async (app, opcoes) 
         },
         tokens,
         empresas: await listarEmpresasDoUsuario(banco, usuarioId),
+      };
+    },
+  );
+
+  app.post(
+    "/auth/google-login",
+    {
+      schema: {
+        tags: ["Autenticação"],
+        summary: "Entra ou cria conta usando autenticação Google",
+        body: GoogleLoginEntrada,
+        response: { 200: SessaoResposta, ...respostasErro },
+      },
+      config: { rateLimit: { max: 20, timeWindow: "1 minute" } },
+    },
+    async (request) => {
+      const entrada = request.body as {
+        idToken?: string;
+        accessToken?: string;
+        empresa?: string;
+      };
+      const perfil = await verificarTokenGoogle(
+        { idToken: entrada.idToken, accessToken: entrada.accessToken },
+        config.googleClientId,
+      );
+      const resultado = await entrarOuCriarUsuarioGoogle(banco, perfil, entrada.empresa);
+      const tokens = await criarSessao(
+        banco,
+        resultado.usuario.id,
+        obterIp(request),
+        obterUserAgent(request),
+      );
+      await registrarAuditoria(banco, {
+        empresaId: resultado.empresas[0]?.id,
+        usuarioId: resultado.usuario.id,
+        acao: resultado.criado ? "conta.criada.google" : "sessao.iniciada.google",
+        entidade: "usuario",
+        entidadeId: resultado.usuario.id,
+        ip: obterIp(request),
+        detalhes: { userAgent: obterUserAgent(request).slice(0, 200) },
+      });
+      return {
+        usuario: usuarioResposta(resultado.usuario),
+        tokens,
+        empresas: resultado.empresas,
       };
     },
   );

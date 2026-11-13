@@ -162,6 +162,7 @@ public sealed class ArmazenamentoLocal
         public int Ordem { get; set; }
         public long Revisao { get; set; }
         public string CaminhoLocal { get; set; } = "";
+        public string Anotacoes { get; set; } = "[]";
         public bool Pendente { get; set; }
     }
 }

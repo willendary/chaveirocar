@@ -43,6 +43,7 @@ import com.willendary.chaveirocar.dados.BackupAutomatico
 import com.willendary.chaveirocar.dados.Preferencias
 import com.willendary.chaveirocar.modelo.Atendimento
 import com.willendary.chaveirocar.modelo.FichaTecnica
+import com.willendary.chaveirocar.modelo.TipoServico
 import com.willendary.chaveirocar.nuvem.ApiChaveiroCar
 import com.willendary.chaveirocar.nuvem.GoogleDrive
 import com.willendary.chaveirocar.nuvem.MotorSinc
@@ -55,6 +56,7 @@ import com.willendary.chaveirocar.ui.TelaBloqueio
 import com.willendary.chaveirocar.ui.TelaDetalhe
 import com.willendary.chaveirocar.ui.TelaFichario
 import com.willendary.chaveirocar.ui.TelaFicharioModelo
+import com.willendary.chaveirocar.ui.TelaFicharioResidencial
 import com.willendary.chaveirocar.ui.TelaFichaFormulario
 import com.willendary.chaveirocar.ui.TelaFichaTecnica
 import com.willendary.chaveirocar.ui.TelaFormulario
@@ -72,6 +74,7 @@ private const val TELA_PRINCIPAL = ""
 private const val TELA_FORMULARIO = "formulario"
 private const val TELA_DETALHE = "detalhe"
 private const val TELA_FICHARIO_MODELO = "fichario_modelo"
+private const val TELA_FICHARIO_RESIDENCIAL = "fichario_residencial"
 private const val TELA_FICHA = "ficha"
 private const val TELA_FICHA_FORMULARIO = "ficha_formulario"
 
@@ -95,7 +98,13 @@ fun ChaveiroCarApp() {
   var modeloMarca by rememberSaveable { mutableStateOf("") }
   var modeloNome by rememberSaveable { mutableStateOf("") }
   var modeloAno by rememberSaveable { mutableStateOf("") }
+  var resTipoLocal by rememberSaveable { mutableStateOf("") }
+  var resAmbientePorta by rememberSaveable { mutableStateOf("") }
+  var resMarcaFechadura by rememberSaveable { mutableStateOf("") }
+  var resModeloFechadura by rememberSaveable { mutableStateOf("") }
+  var resTipoCilindro by rememberSaveable { mutableStateOf("") }
   var voltarParaFichario by rememberSaveable { mutableStateOf(false) }
+  var voltarParaFicharioResidencial by rememberSaveable { mutableStateOf(false) }
   var idFicha by rememberSaveable { mutableStateOf(0L) }
   var baseFicha by remember { mutableStateOf<FichaTecnica?>(null) }
   var estadoConsulta by remember { mutableStateOf(EstadoConsulta()) }
@@ -235,8 +244,12 @@ fun ChaveiroCarApp() {
   }
 
   fun voltarDoDetalhe() {
-    tela = if (voltarParaFichario) TELA_FICHARIO_MODELO else TELA_PRINCIPAL
-    if (!voltarParaFichario) idSelecionado = 0L
+    tela = when {
+      voltarParaFichario -> TELA_FICHARIO_MODELO
+      voltarParaFicharioResidencial -> TELA_FICHARIO_RESIDENCIAL
+      else -> TELA_PRINCIPAL
+    }
+    if (!voltarParaFichario && !voltarParaFicharioResidencial) idSelecionado = 0L
   }
 
   BackHandler(enabled = loginNuvemObrigatorio) {}
@@ -249,7 +262,7 @@ fun ChaveiroCarApp() {
   }
 
   BackHandler(
-    enabled = !bloqueado && (tela == TELA_DETALHE || tela == TELA_FICHARIO_MODELO),
+    enabled = !bloqueado && (tela == TELA_DETALHE || tela == TELA_FICHARIO_MODELO || tela == TELA_FICHARIO_RESIDENCIAL),
   ) {
     if (tela == TELA_DETALHE) voltarDoDetalhe() else tela = TELA_PRINCIPAL
   }
@@ -295,13 +308,18 @@ fun ChaveiroCarApp() {
               quantidadeFotos = 0,
             )
             voltarParaFichario = false
+            voltarParaFicharioResidencial = false
             idSelecionado = 0L
             tela = TELA_FORMULARIO
           },
           onExcluido = {
             baseParaNovo = null
             idSelecionado = 0L
-            tela = if (voltarParaFichario) TELA_FICHARIO_MODELO else TELA_PRINCIPAL
+            tela = when {
+              voltarParaFichario -> TELA_FICHARIO_MODELO
+              voltarParaFicharioResidencial -> TELA_FICHARIO_RESIDENCIAL
+              else -> TELA_PRINCIPAL
+            }
           },
           onVoltar = { voltarDoDetalhe() },
         )
@@ -341,6 +359,22 @@ fun ChaveiroCarApp() {
           onAbrirServico = { id ->
             idSelecionado = id
             voltarParaFichario = true
+            voltarParaFicharioResidencial = false
+            tela = TELA_DETALHE
+          },
+          onVoltar = { tela = TELA_PRINCIPAL },
+        )
+
+      TELA_FICHARIO_RESIDENCIAL ->
+        TelaFicharioResidencial(
+          banco = banco,
+          tipoLocal = resTipoLocal,
+          marcaFechadura = resMarcaFechadura,
+          modeloFechadura = resModeloFechadura,
+          onAbrirServico = { id ->
+            idSelecionado = id
+            voltarParaFichario = false
+            voltarParaFicharioResidencial = true
             tela = TELA_DETALHE
           },
           onVoltar = { tela = TELA_PRINCIPAL },
@@ -389,6 +423,12 @@ fun ChaveiroCarApp() {
                     modeloNome = modelo.modelo
                     modeloAno = modelo.ano
                     tela = TELA_FICHARIO_MODELO
+                  },
+                  onAbrirResidencial = { item ->
+                    resTipoLocal = item.tipoLocal
+                    resMarcaFechadura = item.marcaFechadura
+                    resModeloFechadura = item.modeloFechadura
+                    tela = TELA_FICHARIO_RESIDENCIAL
                   },
                 )
 
@@ -440,11 +480,20 @@ fun ChaveiroCarApp() {
                   onAbrir = { id ->
                     idSelecionado = id
                     voltarParaFichario = false
+                    voltarParaFicharioResidencial = false
                     tela = TELA_DETALHE
                   },
                   onNovo = {
-                    baseParaNovo = null
+                    baseParaNovo = filtro.segmento?.let { seg ->
+                      val padrao = TipoServico.padraoDoSegmento(seg)
+                      Atendimento(
+                        segmento = seg,
+                        tipoServico = padrao,
+                        tiposServico = setOf(padrao),
+                      )
+                    }
                     voltarParaFichario = false
+                    voltarParaFicharioResidencial = false
                     idSelecionado = 0L
                     tela = TELA_FORMULARIO
                   },

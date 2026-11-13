@@ -1,6 +1,7 @@
 package com.willendary.chaveirocar.nuvem
 
 import com.willendary.chaveirocar.modelo.Atendimento
+import com.willendary.chaveirocar.modelo.SegmentoAtendimento
 import com.willendary.chaveirocar.modelo.TipoServico
 import org.json.JSONArray
 import org.json.JSONObject
@@ -14,11 +15,18 @@ object Sincronizacao {
   /** Payload `dados` de uma operação upsert. */
   fun dadosDeAtendimento(atendimento: Atendimento): JSONObject =
     JSONObject().apply {
+      put("segmento", atendimento.segmento.name)
       put("placa", atendimento.placa)
       put("marca", atendimento.marca)
       put("modelo", atendimento.modelo)
       put("ano", atendimento.ano)
       put("chassi", atendimento.chassi)
+      put("tipoLocal", atendimento.tipoLocal)
+      put("ambientePorta", atendimento.ambientePorta)
+      put("marcaFechadura", atendimento.marcaFechadura)
+      put("modeloFechadura", atendimento.modeloFechadura)
+      put("tipoCilindro", atendimento.tipoCilindro)
+      put("enderecoLocal", atendimento.enderecoLocal)
       put("dataServico", atendimento.dataServico)
       put("tiposServico", JSONArray(atendimento.tiposOrdenados.map { it.name }))
       put("defeito", atendimento.defeito)
@@ -100,11 +108,18 @@ object Sincronizacao {
     if (lista != null) for (i in 0 until lista.length()) tiposNomes.add(lista.optString(i))
     val tipoPadrao = TipoServico.de(remoto.optString("tipoServico"))
     return Atendimento(
+      segmento = SegmentoAtendimento.de(remoto.optString("segmento")),
       placa = remoto.optString("placa"),
       marca = remoto.optString("marca"),
       modelo = remoto.optString("modelo"),
       ano = remoto.optString("ano"),
       chassi = remoto.optString("chassi"),
+      tipoLocal = remoto.optString("tipoLocal"),
+      ambientePorta = remoto.optString("ambientePorta"),
+      marcaFechadura = remoto.optString("marcaFechadura"),
+      modeloFechadura = remoto.optString("modeloFechadura"),
+      tipoCilindro = remoto.optString("tipoCilindro"),
+      enderecoLocal = remoto.optString("enderecoLocal"),
       dataServico = remoto.optLong("dataServico"),
       tipoServico = tipoPadrao,
       tiposServico = TipoServico.deNomes(tiposNomes, tipoPadrao),

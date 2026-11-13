@@ -117,7 +117,7 @@ object MotorSinc {
         runCatching {
           val bytes = arquivo.readBytes()
           val criada = api.enviarFoto(
-            empresaId, uuidAtendimento, uuid, foto.categoria.name, foto.legenda, foto.ordem.toLong(), bytes,
+            empresaId, uuidAtendimento, uuid, foto.categoria.name, foto.legenda, foto.ordem.toLong(), bytes, foto.anotacoes,
           )
           banco.marcarFotoEnviada(foto.id, criada.optLong("revisao", 1))
           enviadas++
@@ -203,18 +203,30 @@ object MotorSinc {
         recebidas++
         continue
       }
-      // Baixa bytes quando o registro ainda não está no aparelho.
+      // Baixa bytes quando o registro ainda não está no aparelho ou foi atualizado no servidor.
       val local = banco.obterFotoPorUuid(uuid)
-      val caminho = local?.caminho ?: run {
+      val caminho = if (local == null) {
         if (contexto == null) continue
         val url = remoto.optString("url")
         if (url.isBlank()) continue
         val bytes = runCatching { api.baixarFoto(url) }.getOrNull() ?: continue
         Fotos.salvarDeBytes(contexto, bytes)
+      } else {
+        if (contexto != null && rev > banco.revisaoRemotaFoto(local.id)) {
+          val url = remoto.optString("url")
+          if (url.isNotBlank()) {
+            runCatching {
+              val bytes = api.baixarFoto(url)
+              Fotos.arquivo(contexto, local.caminho).writeBytes(bytes)
+            }
+          }
+        }
+        local.caminho
       }
       banco.aplicarFotoRemota(
         uuid, atendimento.id, caminho, remoto.optString("categoria", "CARRO"),
         remoto.optString("legenda", ""), remoto.optInt("ordem", 0), rev,
+        remoto.optString("anotacoes", "[]"),
       )
       recebidas++
     }

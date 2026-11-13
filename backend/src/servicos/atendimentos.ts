@@ -1,7 +1,7 @@
 import type { Banco } from "../banco.js";
 import { agora } from "../banco.js";
 import { erros } from "../erros.js";
-import type { DadosAtendimento } from "../esquemas.js";
+import type { DadosAtendimento, SegmentoAtendimento } from "../esquemas.js";
 import { normalizar, texto, inteiro, booleano, pagina, tamanhoPagina } from "../util/texto.js";
 import { normalizarPlaca, novoId } from "../util/id.js";
 import { registrarMudanca, type ExecutorSql, type TipoMudanca } from "../dominio/comum.js";
@@ -14,6 +14,13 @@ const TIPOS = new Set([
   "IGNICAO",
   "CONSERTO",
   "PROGRAMACAO_CHAVE",
+  "ABERTURA_RESIDENCIAL",
+  "COPIA_CHAVE",
+  "TROCA_SEGREDO",
+  "INSTALACAO_FECHADURA",
+  "TROCA_CILINDRO",
+  "FECHADURA_DIGITAL",
+  "REPARO_FECHADURA",
   "OUTRO",
 ]);
 
@@ -30,11 +37,18 @@ export interface EntradaAtendimento extends DadosAtendimento {
 export interface Atendimento {
   id: string;
   empresaId: string;
+  segmento: SegmentoAtendimento;
   placa: string;
   marca: string;
   modelo: string;
   ano: string;
   chassi: string;
+  tipoLocal: string;
+  ambientePorta: string;
+  marcaFechadura: string;
+  modeloFechadura: string;
+  tipoCilindro: string;
+  enderecoLocal: string;
   dataServico: number;
   tipoServico: string;
   tiposServico: string[];
@@ -61,11 +75,18 @@ export interface Atendimento {
 interface LinhaAtendimento {
   id: string;
   empresa_id: string;
+  segmento: string;
   placa: string;
   marca: string;
   modelo: string;
   ano: string;
   chassi: string;
+  tipo_local: string;
+  ambiente_porta: string;
+  marca_fechadura: string;
+  modelo_fechadura: string;
+  tipo_cilindro: string;
+  endereco_local: string;
   data_servico: number;
   tipos_servico: string;
   defeito: string;
@@ -88,13 +109,17 @@ interface LinhaAtendimento {
   quantidade_fotos: number;
 }
 
-const CAMPOS = `id, empresa_id, placa, marca, modelo, ano, chassi, data_servico, tipos_servico,
+const CAMPOS = `id, empresa_id, segmento, placa, marca, modelo, ano, chassi,
+  tipo_local, ambiente_porta, marca_fechadura, modelo_fechadura, tipo_cilindro, endereco_local,
+  data_servico, tipos_servico,
   defeito, solucao, abertura, codigo_chave, codigo_configuracao, chip_transponder, ferramenta,
   valor_centavos, cliente_nome, cliente_telefone, pago, revisao, criado_em, atualizado_em,
   excluido_em, criado_por, atualizado_por,
   (SELECT COUNT(*) FROM fotos f WHERE f.atendimento_id = a.id AND f.excluido_em IS NULL) AS quantidade_fotos`;
 
 export function paraAtendimento(linha: LinhaAtendimento): Atendimento {
+  const segmento: SegmentoAtendimento =
+    linha.segmento === "RESIDENCIAL" ? "RESIDENCIAL" : "AUTOMOTIVO";
   let tipos: string[] = [];
   try {
     const bruto = JSON.parse(linha.tipos_servico || "[]") as unknown;
@@ -108,11 +133,18 @@ export function paraAtendimento(linha: LinhaAtendimento): Atendimento {
   return {
     id: linha.id,
     empresaId: linha.empresa_id,
+    segmento,
     placa: linha.placa,
     marca: linha.marca,
     modelo: linha.modelo,
     ano: linha.ano,
     chassi: linha.chassi,
+    tipoLocal: linha.tipo_local ?? "",
+    ambientePorta: linha.ambiente_porta ?? "",
+    marcaFechadura: linha.marca_fechadura ?? "",
+    modeloFechadura: linha.modelo_fechadura ?? "",
+    tipoCilindro: linha.tipo_cilindro ?? "",
+    enderecoLocal: linha.endereco_local ?? "",
     dataServico: Number(linha.data_servico),
     tipoServico: tipos[0]!,
     tiposServico: tipos,
@@ -147,31 +179,80 @@ function validarTipos(valor: unknown): string[] {
 }
 
 export function normalizarAtendimento(entrada: EntradaAtendimento) {
+  const segmento: SegmentoAtendimento =
+    entrada.segmento === "RESIDENCIAL" ? "RESIDENCIAL" : "AUTOMOTIVO";
   const tipos = validarTipos(entrada.tiposServico);
-  const placa = normalizarPlaca(texto(entrada.placa, 10));
-  if (!placa) throw erros.validacao("Informe a placa do veículo.");
+  const placa = segmento === "AUTOMOTIVO" ? normalizarPlaca(texto(entrada.placa, 10)) : "";
+  const marca = segmento === "AUTOMOTIVO" ? texto(entrada.marca, 120) : "";
+  const modelo = segmento === "AUTOMOTIVO" ? texto(entrada.modelo, 120) : "";
+  const ano = segmento === "AUTOMOTIVO" ? texto(entrada.ano, 30) : "";
+  const chassi = segmento === "AUTOMOTIVO" ? texto(entrada.chassi, 60) : "";
+  const tipoLocal = segmento === "RESIDENCIAL" ? texto(entrada.tipoLocal, 120) : "";
+  const ambientePorta = segmento === "RESIDENCIAL" ? texto(entrada.ambientePorta, 200) : "";
+  const marcaFechadura = segmento === "RESIDENCIAL" ? texto(entrada.marcaFechadura, 120) : "";
+  const modeloFechadura = segmento === "RESIDENCIAL" ? texto(entrada.modeloFechadura, 120) : "";
+  const tipoCilindro = segmento === "RESIDENCIAL" ? texto(entrada.tipoCilindro, 200) : "";
+  const enderecoLocal = segmento === "RESIDENCIAL" ? texto(entrada.enderecoLocal, 500) : "";
+  const defeito = texto(entrada.defeito, 20_000);
+  const solucao = texto(entrada.solucao, 20_000);
+
+  if (segmento === "AUTOMOTIVO") {
+    if (!modelo) throw erros.validacao("Informe o modelo do veículo.");
+  } else if (
+    !tipoLocal &&
+    !ambientePorta &&
+    !marcaFechadura &&
+    !modeloFechadura &&
+    !defeito &&
+    !solucao
+  ) {
+    throw erros.validacao(
+      "Informe o tipo de local, ambiente/porta, fechadura ou descrição do serviço residencial.",
+    );
+  }
+
   const clienteNome = texto(entrada.clienteNome, 200);
   const clienteTelefone = texto(entrada.clienteTelefone, 60);
-  const marca = texto(entrada.marca, 120);
-  const modelo = texto(entrada.modelo, 120);
-  const chassi = texto(entrada.chassi, 60);
   const codigoChave = texto(entrada.codigoChave, 500);
   const chipTransponder = texto(entrada.chipTransponder, 200);
   const busca = normalizar(
-    [placa, marca, modelo, chassi, clienteNome, clienteTelefone, codigoChave, chipTransponder].join(" "),
+    [
+      segmento,
+      placa,
+      marca,
+      modelo,
+      chassi,
+      tipoLocal,
+      ambientePorta,
+      marcaFechadura,
+      modeloFechadura,
+      tipoCilindro,
+      enderecoLocal,
+      clienteNome,
+      clienteTelefone,
+      codigoChave,
+      chipTransponder,
+    ].join(" "),
   );
   return {
+    segmento,
     placa,
     placaBusca: placa,
     marca,
     modelo,
-    ano: texto(entrada.ano, 30),
+    ano,
     chassi,
+    tipoLocal,
+    ambientePorta,
+    marcaFechadura,
+    modeloFechadura,
+    tipoCilindro,
+    enderecoLocal,
     dataServico: inteiro(entrada.dataServico, agora()),
     tipoServico: tipos[0]!,
     tiposServico: JSON.stringify(tipos),
-    defeito: texto(entrada.defeito, 20_000),
-    solucao: texto(entrada.solucao, 20_000),
+    defeito,
+    solucao,
     abertura: texto(entrada.abertura, 20_000),
     codigoChave,
     codigoConfiguracao: texto(entrada.codigoConfiguracao, 500),
@@ -190,6 +271,7 @@ export async function listarAtendimentos(
   empresaId: string,
   filtros: {
     busca?: string;
+    segmento?: string;
     de?: number;
     ate?: number;
     pagina?: number;
@@ -202,6 +284,10 @@ export async function listarAtendimentos(
   const condicoes = ["a.empresa_id = ?"];
   const argumentos: Array<string | number> = [empresaId];
   if (!filtros.incluirExcluidos) condicoes.push("a.excluido_em IS NULL");
+  if (filtros.segmento === "AUTOMOTIVO" || filtros.segmento === "RESIDENCIAL") {
+    condicoes.push("a.segmento = ?");
+    argumentos.push(filtros.segmento);
+  }
   const termos = normalizar(filtros.busca).split(" ").filter(Boolean);
   for (const termo of termos) {
     condicoes.push("a.busca LIKE ?");
@@ -275,20 +361,28 @@ export async function salvarAtendimento(
     if (!linhaExistente) {
       await transacao.execute({
         sql: `INSERT INTO atendimentos (
-            id, empresa_id, placa, placa_busca, marca, modelo, ano, chassi, data_servico,
-            tipo_servico, tipos_servico, defeito, solucao, abertura, codigo_chave,
+            id, empresa_id, segmento, placa, placa_busca, marca, modelo, ano, chassi,
+            tipo_local, ambiente_porta, marca_fechadura, modelo_fechadura, tipo_cilindro, endereco_local,
+            data_servico, tipo_servico, tipos_servico, defeito, solucao, abertura, codigo_chave,
             codigo_configuracao, chip_transponder, ferramenta, valor_centavos, cliente_nome,
             cliente_telefone, pago, busca, revisao, criado_em, atualizado_em, criado_por, atualizado_por
-          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?, ?)`,
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?, ?)`,
         args: [
           id,
           contexto.empresaId,
+          dados.segmento,
           dados.placa,
           dados.placaBusca,
           dados.marca,
           dados.modelo,
           dados.ano,
           dados.chassi,
+          dados.tipoLocal,
+          dados.ambientePorta,
+          dados.marcaFechadura,
+          dados.modeloFechadura,
+          dados.tipoCilindro,
+          dados.enderecoLocal,
           dados.dataServico,
           dados.tipoServico,
           dados.tiposServico,
@@ -328,19 +422,27 @@ export async function salvarAtendimento(
       }
       const atualizacao = await transacao.execute({
         sql: `UPDATE atendimentos SET
-            placa = ?, placa_busca = ?, marca = ?, modelo = ?, ano = ?, chassi = ?, data_servico = ?,
-            tipo_servico = ?, tipos_servico = ?, defeito = ?, solucao = ?, abertura = ?,
+            segmento = ?, placa = ?, placa_busca = ?, marca = ?, modelo = ?, ano = ?, chassi = ?,
+            tipo_local = ?, ambiente_porta = ?, marca_fechadura = ?, modelo_fechadura = ?, tipo_cilindro = ?, endereco_local = ?,
+            data_servico = ?, tipo_servico = ?, tipos_servico = ?, defeito = ?, solucao = ?, abertura = ?,
             codigo_chave = ?, codigo_configuracao = ?, chip_transponder = ?, ferramenta = ?,
             valor_centavos = ?, cliente_nome = ?, cliente_telefone = ?, pago = ?, busca = ?,
             revisao = revisao + 1, atualizado_em = ?, atualizado_por = ?
           WHERE id = ? AND empresa_id = ? AND revisao = ?`,
         args: [
+          dados.segmento,
           dados.placa,
           dados.placaBusca,
           dados.marca,
           dados.modelo,
           dados.ano,
           dados.chassi,
+          dados.tipoLocal,
+          dados.ambientePorta,
+          dados.marcaFechadura,
+          dados.modeloFechadura,
+          dados.tipoCilindro,
+          dados.enderecoLocal,
           dados.dataServico,
           dados.tipoServico,
           dados.tiposServico,

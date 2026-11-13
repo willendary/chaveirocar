@@ -10,6 +10,8 @@ import com.willendary.chaveirocar.modelo.CategoriaFoto
 import com.willendary.chaveirocar.modelo.FichaTecnica
 import com.willendary.chaveirocar.modelo.Foto
 import com.willendary.chaveirocar.modelo.ResumoModelo
+import com.willendary.chaveirocar.modelo.ResumoResidencial
+import com.willendary.chaveirocar.modelo.SegmentoAtendimento
 import com.willendary.chaveirocar.modelo.TipoServico
 import com.willendary.chaveirocar.util.normalizar
 
@@ -28,11 +30,18 @@ class BancoDeAtendimentos(contexto: Context) :
       """
       CREATE TABLE atendimentos (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
-        placa TEXT NOT NULL,
+        segmento TEXT NOT NULL DEFAULT 'AUTOMOTIVO',
+        placa TEXT NOT NULL DEFAULT '',
         marca TEXT NOT NULL DEFAULT '',
         modelo TEXT NOT NULL DEFAULT '',
         ano TEXT NOT NULL DEFAULT '',
         chassi TEXT NOT NULL DEFAULT '',
+        tipo_local TEXT NOT NULL DEFAULT '',
+        ambiente_porta TEXT NOT NULL DEFAULT '',
+        marca_fechadura TEXT NOT NULL DEFAULT '',
+        modelo_fechadura TEXT NOT NULL DEFAULT '',
+        tipo_cilindro TEXT NOT NULL DEFAULT '',
+        endereco_local TEXT NOT NULL DEFAULT '',
         data_servico INTEGER NOT NULL,
         tipo_servico TEXT NOT NULL,
         tipos_servico TEXT NOT NULL DEFAULT '',
@@ -58,6 +67,7 @@ class BancoDeAtendimentos(contexto: Context) :
     )
     banco.execSQL("CREATE INDEX idx_atendimentos_placa ON atendimentos(placa)")
     banco.execSQL("CREATE INDEX idx_atendimentos_data ON atendimentos(data_servico)")
+    banco.execSQL("CREATE INDEX idx_atendimentos_segmento ON atendimentos(segmento)")
     criarTabelaFotos(banco)
     banco.execSQL("CREATE INDEX idx_fotos_atendimento ON fotos(atendimento_id)")
     criarTabelaFichas(banco)
@@ -75,6 +85,7 @@ class BancoDeAtendimentos(contexto: Context) :
         categoria TEXT NOT NULL DEFAULT 'CARRO',
         legenda TEXT NOT NULL DEFAULT '',
         ordem INTEGER NOT NULL DEFAULT 0,
+        anotacoes TEXT NOT NULL DEFAULT '[]',
         criado_em INTEGER NOT NULL,
         uuid TEXT NOT NULL DEFAULT '',
         revisao_remota INTEGER NOT NULL DEFAULT 0,
@@ -225,6 +236,31 @@ class BancoDeAtendimentos(contexto: Context) :
       }
       criarTabelasSync(banco)
     }
+    if (versaoAntiga < 8) {
+      fun coluna(tabela: String, nome: String): Boolean {
+        banco.rawQuery("PRAGMA table_info($tabela)", null).use { cursor ->
+          while (cursor.moveToNext()) {
+            if (cursor.getString(1) == nome) return true
+          }
+        }
+        return false
+      }
+      fun adicionar(tabela: String, definicao: String) {
+        val nomeColuna = definicao.substringBefore(" ")
+        if (!coluna(tabela, nomeColuna)) {
+          banco.execSQL("ALTER TABLE $tabela ADD COLUMN $definicao")
+        }
+      }
+      adicionar("atendimentos", "segmento TEXT NOT NULL DEFAULT 'AUTOMOTIVO'")
+      adicionar("atendimentos", "tipo_local TEXT NOT NULL DEFAULT ''")
+      adicionar("atendimentos", "ambiente_porta TEXT NOT NULL DEFAULT ''")
+      adicionar("atendimentos", "marca_fechadura TEXT NOT NULL DEFAULT ''")
+      adicionar("atendimentos", "modelo_fechadura TEXT NOT NULL DEFAULT ''")
+      adicionar("atendimentos", "tipo_cilindro TEXT NOT NULL DEFAULT ''")
+      adicionar("atendimentos", "endereco_local TEXT NOT NULL DEFAULT ''")
+      banco.execSQL("CREATE INDEX IF NOT EXISTS idx_atendimentos_segmento ON atendimentos(segmento)")
+      adicionar("fotos", "anotacoes TEXT NOT NULL DEFAULT '[]'")
+    }
   }
 
   fun listar(
@@ -233,6 +269,7 @@ class BancoDeAtendimentos(contexto: Context) :
     desde: Long? = null,
     ate: Long? = null,
     somenteComFotos: Boolean = false,
+    segmento: SegmentoAtendimento? = null,
   ): List<Atendimento> {
     val tokens = normalizar(consulta).split(' ').filter { it.isNotBlank() }
     val condicoes = mutableListOf<String>()
@@ -240,6 +277,10 @@ class BancoDeAtendimentos(contexto: Context) :
     for (token in tokens) {
       condicoes.add("a.busca LIKE ?")
       argumentos.add("%$token%")
+    }
+    if (segmento != null) {
+      condicoes.add("a.segmento = ?")
+      argumentos.add(segmento.name)
     }
     if (tipo != null) {
       // A lista é delimitada por vírgulas; a busca mantém correspondência exata.
@@ -275,12 +316,14 @@ class BancoDeAtendimentos(contexto: Context) :
   /**
    * Serviços anteriores do mesmo carro — usado pra avisar "já trabalhei nesse".
    */
-  fun servicosDaPlaca(placa: String, excetoId: Long = 0): List<Atendimento> =
-    consultar(
+  fun servicosDaPlaca(placa: String, excetoId: Long = 0): List<Atendimento> {
+    if (placa.isBlank()) return emptyList()
+    return consultar(
       "SELECT a.*, (SELECT COUNT(*) FROM fotos f WHERE f.atendimento_id = a.id) AS total_fotos " +
         "FROM atendimentos a WHERE a.placa = ? AND a.id <> ? ORDER BY a.data_servico DESC",
-      arrayOf(placa, excetoId.toString()),
+      arrayOf(placa.trim().uppercase(), excetoId.toString()),
     )
+  }
 
   /**
    * Serviços anteriores da mesma marca/modelo — abertura e código costumam repetir.
@@ -350,7 +393,7 @@ class BancoDeAtendimentos(contexto: Context) :
         "MAX(CASE WHEN abertura <> '' OR codigo_chave <> '' OR codigo_configuracao <> '' OR chip_transponder <> '' THEN 1 " +
         "WHEN EXISTS (SELECT 1 FROM fotos f WHERE f.atendimento_id = atendimentos.id " +
         "AND f.categoria = 'PROCEDIMENTO') THEN 1 ELSE 0 END) AS tem_procedimento " +
-        "FROM atendimentos WHERE marca <> '' OR modelo <> '' " +
+        "FROM atendimentos WHERE segmento = 'AUTOMOTIVO' AND (marca <> '' OR modelo <> '') " +
         "GROUP BY lower(marca), lower(modelo), ano ORDER BY ultima DESC",
       null,
     ).use { cursor ->
@@ -370,12 +413,59 @@ class BancoDeAtendimentos(contexto: Context) :
       }
     }
 
+  fun resumoResidencial(): List<ResumoResidencial> =
+    readableDatabase.rawQuery(
+      "SELECT tipo_local, marca_fechadura, modelo_fechadura, COUNT(*) AS quantidade, MAX(data_servico) AS ultima, " +
+        "MAX(CASE WHEN abertura <> '' OR codigo_chave <> '' OR codigo_configuracao <> '' THEN 1 " +
+        "WHEN EXISTS (SELECT 1 FROM fotos f WHERE f.atendimento_id = atendimentos.id " +
+        "AND f.categoria = 'PROCEDIMENTO') THEN 1 ELSE 0 END) AS tem_procedimento " +
+        "FROM atendimentos WHERE segmento = 'RESIDENCIAL' " +
+        "GROUP BY lower(tipo_local), lower(marca_fechadura), lower(modelo_fechadura) ORDER BY ultima DESC",
+      null,
+    ).use { cursor ->
+      buildList {
+        while (cursor.moveToNext()) {
+          add(
+            ResumoResidencial(
+              tipoLocal = cursor.getString(0),
+              marcaFechadura = cursor.getString(1),
+              modeloFechadura = cursor.getString(2),
+              quantidade = cursor.getInt(3),
+              ultimaData = cursor.getLong(4),
+              temProcedimento = cursor.getInt(5) == 1,
+            ),
+          )
+        }
+      }
+    }
+
+  fun servicosResidenciais(
+    tipoLocal: String,
+    marcaFechadura: String,
+    modeloFechadura: String,
+  ): List<Atendimento> {
+    val condicoes = mutableListOf("a.segmento = 'RESIDENCIAL'")
+    val argumentos = mutableListOf<String>()
+    condicoes.add("lower(a.tipo_local) = lower(?)")
+    argumentos.add(tipoLocal.trim())
+    condicoes.add("lower(a.marca_fechadura) = lower(?)")
+    argumentos.add(marcaFechadura.trim())
+    condicoes.add("lower(a.modelo_fechadura) = lower(?)")
+    argumentos.add(modeloFechadura.trim())
+    return consultar(
+      "SELECT a.*, (SELECT COUNT(*) FROM fotos f WHERE f.atendimento_id = a.id) AS total_fotos " +
+        "FROM atendimentos a WHERE ${condicoes.joinToString(" AND ")} ORDER BY a.data_servico DESC",
+      argumentos.toTypedArray(),
+    )
+  }
+
   /**
    * Sugestões de autocomplete vindas do próprio histórico.
    */
   fun valoresUsados(coluna: String, limite: Int = 30): List<String> {
     val colunaSegura = when (coluna) {
-      "marca", "modelo", "defeito", "solucao", "abertura", "ferramenta" -> coluna
+      "marca", "modelo", "defeito", "solucao", "abertura", "ferramenta",
+      "tipo_local", "ambiente_porta", "marca_fechadura", "modelo_fechadura", "tipo_cilindro" -> coluna
       else -> return emptyList()
     }
     return readableDatabase.rawQuery(
@@ -392,11 +482,18 @@ class BancoDeAtendimentos(contexto: Context) :
   fun salvar(atendimento: Atendimento): Long {
     val agora = System.currentTimeMillis()
     val valores = ContentValues().apply {
+      put("segmento", atendimento.segmento.name)
       put("placa", atendimento.placa.trim().uppercase())
       put("marca", atendimento.marca.trim())
       put("modelo", atendimento.modelo.trim())
       put("ano", atendimento.ano.trim())
       put("chassi", atendimento.chassi.trim().uppercase())
+      put("tipo_local", atendimento.tipoLocal.trim())
+      put("ambiente_porta", atendimento.ambientePorta.trim())
+      put("marca_fechadura", atendimento.marcaFechadura.trim())
+      put("modelo_fechadura", atendimento.modeloFechadura.trim())
+      put("tipo_cilindro", atendimento.tipoCilindro.trim())
+      put("endereco_local", atendimento.enderecoLocal.trim())
       put("data_servico", atendimento.dataServico)
       put("tipo_servico", atendimento.tiposOrdenados.first().name)
       put("tipos_servico", atendimento.tiposOrdenados.joinToString(",") { it.name })
@@ -463,7 +560,7 @@ class BancoDeAtendimentos(contexto: Context) :
 
   fun listarFotos(atendimentoId: Long): List<Foto> =
     readableDatabase.rawQuery(
-      "SELECT id, atendimento_id, caminho, categoria, legenda, ordem FROM fotos " +
+      "SELECT id, atendimento_id, caminho, categoria, legenda, ordem, anotacoes FROM fotos " +
         "WHERE atendimento_id = ? ORDER BY categoria DESC, ordem, id",
       arrayOf(atendimentoId.toString()),
     ).use { cursor ->
@@ -477,6 +574,7 @@ class BancoDeAtendimentos(contexto: Context) :
               categoria = CategoriaFoto.de(cursor.getString(3)),
               legenda = cursor.getString(4),
               ordem = cursor.getInt(5),
+              anotacoes = cursor.getString(6) ?: "[]",
             ),
           )
         }
@@ -488,6 +586,7 @@ class BancoDeAtendimentos(contexto: Context) :
     caminho: String,
     categoria: CategoriaFoto = CategoriaFoto.CARRO,
     legenda: String = "",
+    anotacoes: String = "[]",
   ): Long {
     val proximaOrdem = readableDatabase.rawQuery(
       "SELECT COALESCE(MAX(ordem), 0) + 1 FROM fotos WHERE atendimento_id = ?",
@@ -499,6 +598,7 @@ class BancoDeAtendimentos(contexto: Context) :
       put("categoria", categoria.name)
       put("legenda", legenda)
       put("ordem", proximaOrdem)
+      put("anotacoes", anotacoes.ifBlank { "[]" })
       put("criado_em", System.currentTimeMillis())
       put("uuid", java.util.UUID.randomUUID().toString())
       put("revisao_remota", 0)
@@ -512,6 +612,7 @@ class BancoDeAtendimentos(contexto: Context) :
       put("categoria", foto.categoria.name)
       put("legenda", foto.legenda)
       put("ordem", foto.ordem)
+      put("anotacoes", foto.anotacoes.ifBlank { "[]" })
       put("sinc_pendente", 1)
     }
     writableDatabase.update("fotos", valores, "id = ?", arrayOf(foto.id.toString()))
@@ -674,14 +775,27 @@ class BancoDeAtendimentos(contexto: Context) :
       }
     }
 
-  private fun Cursor.paraAtendimento(): Atendimento =
-    Atendimento(
+  private fun Cursor.paraAtendimento(): Atendimento {
+    val idxSegmento = getColumnIndex("segmento")
+    val segmento = if (idxSegmento >= 0) SegmentoAtendimento.de(getString(idxSegmento)) else SegmentoAtendimento.AUTOMOTIVO
+    fun col(nome: String): String {
+      val idx = getColumnIndex(nome)
+      return if (idx >= 0 && !isNull(idx)) getString(idx) else ""
+    }
+    return Atendimento(
       id = getLong(getColumnIndexOrThrow("id")),
+      segmento = segmento,
       placa = getString(getColumnIndexOrThrow("placa")),
       marca = getString(getColumnIndexOrThrow("marca")),
       modelo = getString(getColumnIndexOrThrow("modelo")),
       ano = getString(getColumnIndexOrThrow("ano")),
       chassi = getString(getColumnIndexOrThrow("chassi")),
+      tipoLocal = col("tipo_local"),
+      ambientePorta = col("ambiente_porta"),
+      marcaFechadura = col("marca_fechadura"),
+      modeloFechadura = col("modelo_fechadura"),
+      tipoCilindro = col("tipo_cilindro"),
+      enderecoLocal = col("endereco_local"),
       dataServico = getLong(getColumnIndexOrThrow("data_servico")),
       tipoServico = TipoServico.de(getString(getColumnIndexOrThrow("tipo_servico"))),
       tiposServico = TipoServico.deNomes(
@@ -702,14 +816,22 @@ class BancoDeAtendimentos(contexto: Context) :
       quantidadeFotos = getInt(getColumnIndexOrThrow("total_fotos")),
       atualizadoEm = getLong(getColumnIndexOrThrow("atualizado_em")),
     )
+  }
 
   private fun montarBusca(atendimento: Atendimento): String {
     val partes = listOf(
+      atendimento.segmento.rotulo,
       atendimento.placa,
       atendimento.marca,
       atendimento.modelo,
       atendimento.ano,
       atendimento.chassi,
+      atendimento.tipoLocal,
+      atendimento.ambientePorta,
+      atendimento.marcaFechadura,
+      atendimento.modeloFechadura,
+      atendimento.tipoCilindro,
+      atendimento.enderecoLocal,
       atendimento.tiposEmTexto,
       atendimento.defeito,
       atendimento.solucao,
@@ -833,11 +955,18 @@ class BancoDeAtendimentos(contexto: Context) :
 
   private fun valoresDeSync(atendimento: Atendimento, uuid: String, revisao: Long): ContentValues =
     ContentValues().apply {
+      put("segmento", atendimento.segmento.name)
       put("placa", atendimento.placa.trim().uppercase())
       put("marca", atendimento.marca.trim())
       put("modelo", atendimento.modelo.trim())
       put("ano", atendimento.ano.trim())
       put("chassi", atendimento.chassi.trim().uppercase())
+      put("tipo_local", atendimento.tipoLocal.trim())
+      put("ambiente_porta", atendimento.ambientePorta.trim())
+      put("marca_fechadura", atendimento.marcaFechadura.trim())
+      put("modelo_fechadura", atendimento.modeloFechadura.trim())
+      put("tipo_cilindro", atendimento.tipoCilindro.trim())
+      put("endereco_local", atendimento.enderecoLocal.trim())
       put("data_servico", atendimento.dataServico)
       put("tipo_servico", atendimento.tiposOrdenados.first().name)
       put("tipos_servico", atendimento.tiposOrdenados.joinToString(",") { it.name })
@@ -861,7 +990,7 @@ class BancoDeAtendimentos(contexto: Context) :
 
   companion object {
     const val NOME = "chaveirocar.db"
-    const val VERSAO = 7
+    const val VERSAO = 8
   }
 }
 
@@ -915,13 +1044,14 @@ fun BancoDeAtendimentos.uuidFoto(id: Long): String =
     null, null, null).use { if (it.moveToFirst()) it.getString(0) else "" }
 
 fun BancoDeAtendimentos.obterFoto(id: Long): com.willendary.chaveirocar.modelo.Foto? =
-  writableDatabase.query("fotos", arrayOf("id", "atendimento_id", "caminho", "categoria", "legenda", "ordem"),
+  writableDatabase.query("fotos", arrayOf("id", "atendimento_id", "caminho", "categoria", "legenda", "ordem", "anotacoes"),
     "id = ?", arrayOf(id.toString()), null, null, null).use { cursor ->
     if (!cursor.moveToFirst()) null
     else com.willendary.chaveirocar.modelo.Foto(
       id = cursor.getLong(0), atendimentoId = cursor.getLong(1),
       caminho = cursor.getString(2), categoria = CategoriaFoto.de(cursor.getString(3)),
       legenda = cursor.getString(4), ordem = cursor.getInt(5),
+      anotacoes = cursor.getString(6) ?: "[]",
     )
   }
 
@@ -930,7 +1060,7 @@ fun BancoDeAtendimentos.obterFotoPorUuid(uuid: String): com.willendary.chaveiroc
     null, null, null).use { if (it.moveToFirst()) obterFoto(it.getLong(0)) else null }
 
 fun BancoDeAtendimentos.pendentesFotos(): List<com.willendary.chaveirocar.modelo.Foto> =
-  writableDatabase.query("fotos", arrayOf("id", "atendimento_id", "caminho", "categoria", "legenda", "ordem"),
+  writableDatabase.query("fotos", arrayOf("id", "atendimento_id", "caminho", "categoria", "legenda", "ordem", "anotacoes"),
     "sinc_pendente = 1", null, null, null, "id").use { cursor ->
     buildList {
       while (cursor.moveToNext()) {
@@ -938,6 +1068,7 @@ fun BancoDeAtendimentos.pendentesFotos(): List<com.willendary.chaveirocar.modelo
           id = cursor.getLong(0), atendimentoId = cursor.getLong(1),
           caminho = cursor.getString(2), categoria = CategoriaFoto.de(cursor.getString(3)),
           legenda = cursor.getString(4), ordem = cursor.getInt(5),
+          anotacoes = cursor.getString(6) ?: "[]",
         ))
       }
     }
@@ -957,7 +1088,7 @@ fun BancoDeAtendimentos.marcarFotoEnviada(id: Long, revisao: Long) {
 
 fun BancoDeAtendimentos.aplicarFotoRemota(
   uuid: String, atendimentoId: Long, caminho: String, categoria: String,
-  legenda: String, ordem: Int, revisao: Long,
+  legenda: String, ordem: Int, revisao: Long, anotacoes: String = "[]",
 ): Long {
   val local = obterFotoPorUuid(uuid)
   val valores = ContentValues().apply {
@@ -966,6 +1097,7 @@ fun BancoDeAtendimentos.aplicarFotoRemota(
     put("categoria", categoria)
     put("legenda", legenda)
     put("ordem", ordem)
+    put("anotacoes", anotacoes.ifBlank { "[]" })
     put("uuid", uuid)
     put("revisao_remota", revisao)
     put("sinc_pendente", 0)

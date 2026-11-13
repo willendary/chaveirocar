@@ -31,6 +31,8 @@ const esquema = z.object({
   MAX_CONVITES_ABERTOS: numero.default(20),
   RETENCAO_MUDANCAS_DIAS: numero.default(180),
   EXPOR_TOKEN_DEV: boolean.default(false),
+  GOOGLE_ONLY: boolean.default(false),
+  GOOGLE_CLIENT_ID: z.string().default(""),
   LOG_NIVEL: z.string().default("info"),
 });
 
@@ -67,6 +69,8 @@ export interface Config {
     retencaoMudancasDias: number;
   };
   exporTokenDev: boolean;
+  googleOnly: boolean;
+  googleClientId: string;
   logNivel: string;
   raiz: string;
 }
@@ -93,7 +97,7 @@ export function criarConfig(
   if (producao && dados.TURSO_TOKEN.trim().length === 0) {
     throw new Error("TURSO_TOKEN é obrigatório em produção.");
   }
-  if (producao && dados.SMTP_URL.trim().length === 0) {
+  if (producao && dados.SMTP_URL.trim().length === 0 && !dados.GOOGLE_ONLY) {
     throw new Error("SMTP_URL é obrigatório em produção para envio seguro de links de conta.");
   }
   if (producao && dados.EXPOR_TOKEN_DEV) {
@@ -136,6 +140,8 @@ export function criarConfig(
       retencaoMudancasDias: dados.RETENCAO_MUDANCAS_DIAS,
     },
     exporTokenDev: dados.EXPOR_TOKEN_DEV || !producao,
+    googleOnly: dados.GOOGLE_ONLY,
+    googleClientId: dados.GOOGLE_CLIENT_ID.trim(),
     logNivel: dados.LOG_NIVEL,
     raiz,
   };

@@ -67,6 +67,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.willendary.chaveirocar.dados.BancoDeAtendimentos
 import com.willendary.chaveirocar.modelo.Atendimento
+import com.willendary.chaveirocar.modelo.SegmentoAtendimento
 import com.willendary.chaveirocar.modelo.TipoServico
 import com.willendary.chaveirocar.util.formatarData
 import kotlinx.coroutines.Dispatchers
@@ -86,6 +87,7 @@ enum class Periodo(val rotulo: String) {
  */
 data class FiltroLista(
   val busca: String = "",
+  val segmento: SegmentoAtendimento? = null,
   val tipo: TipoServico? = null,
   val periodo: Periodo = Periodo.TODOS,
   val desdePersonalizado: Long? = null,
@@ -93,7 +95,7 @@ data class FiltroLista(
   val somenteComFotos: Boolean = false,
 ) {
   val ativo: Boolean
-    get() = busca.isNotBlank() || tipo != null || periodo != Periodo.TODOS || somenteComFotos
+    get() = busca.isNotBlank() || segmento != null || tipo != null || periodo != Periodo.TODOS || somenteComFotos
 
   fun desde(agora: Long = System.currentTimeMillis()): Long? = when (periodo) {
     Periodo.TODOS -> null
@@ -109,6 +111,7 @@ data class FiltroLista(
   fun ate(): Long? = if (periodo == Periodo.PERSONALIZADO) atePersonalizado else null
 
   fun descricao(): String = listOfNotNull(
+    segmento?.rotulo,
     tipo?.rotulo,
     if (periodo != Periodo.TODOS) periodo.rotulo else null,
     if (somenteComFotos) "com fotos" else null,
@@ -124,6 +127,7 @@ data class FiltroLista(
           it.desdePersonalizado ?: 0L,
           it.atePersonalizado ?: 0L,
           if (it.somenteComFotos) 1 else 0,
+          it.segmento?.name.orEmpty(),
         )
       },
       restore = { valores ->
@@ -134,6 +138,7 @@ data class FiltroLista(
           desdePersonalizado = (valores[3] as Long).takeIf { it > 0 },
           atePersonalizado = (valores[4] as Long).takeIf { it > 0 },
           somenteComFotos = valores[5] as Int == 1,
+          segmento = (valores.getOrNull(6) as? String)?.takeIf { it.isNotBlank() }?.let { SegmentoAtendimento.de(it) },
         )
       },
     )
@@ -168,8 +173,14 @@ fun TelaLista(
     erroCarga = false
     try {
       registros = withContext(Dispatchers.IO) {
-        banco.listar(consulta = filtro.busca, tipo = filtro.tipo, desde = filtro.desde(),
-          ate = filtro.ate(), somenteComFotos = filtro.somenteComFotos)
+        banco.listar(
+          consulta = filtro.busca,
+          tipo = filtro.tipo,
+          desde = filtro.desde(),
+          ate = filtro.ate(),
+          somenteComFotos = filtro.somenteComFotos,
+          segmento = filtro.segmento,
+        )
       }
     } catch (cancelado: kotlinx.coroutines.CancellationException) {
       throw cancelado
@@ -206,7 +217,7 @@ fun TelaLista(
         OutlinedTextField(
           value = filtro.busca, onValueChange = { aoMudarFiltro(filtro.copy(busca = it)) },
           modifier = Modifier.fillMaxWidth(),
-          placeholder = { Text("Buscar placa, modelo, código…") },
+          placeholder = { Text("Buscar placa, modelo, local, fechadura…") },
           leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
           trailingIcon = {
             if (filtro.busca.isNotEmpty()) IconButton(onClick = { aoMudarFiltro(filtro.copy(busca = "")) }) {
@@ -220,6 +231,30 @@ fun TelaLista(
             unfocusedBorderColor = MaterialTheme.colorScheme.outlineVariant,
           ),
         )
+      }
+      item {
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+          FilterChip(
+            selected = filtro.segmento == null,
+            onClick = { aoMudarFiltro(filtro.copy(segmento = null)) },
+            label = { Text("Todos") },
+          )
+          SegmentoAtendimento.entries.forEach { seg ->
+            FilterChip(
+              selected = filtro.segmento == seg,
+              onClick = {
+                val novoSegmento = if (filtro.segmento == seg) null else seg
+                val novoTipo = if (novoSegmento != null && filtro.tipo != null && filtro.tipo !in TipoServico.doSegmento(novoSegmento)) {
+                  null
+                } else {
+                  filtro.tipo
+                }
+                aoMudarFiltro(filtro.copy(segmento = novoSegmento, tipo = novoTipo))
+              },
+              label = { Text(seg.rotulo) },
+            )
+          }
+        }
       }
       item {
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
@@ -236,12 +271,13 @@ fun TelaLista(
         }
       }
       if (filtrosAbertos) item {
+        val tiposDisponiveis = filtro.segmento?.let { TipoServico.doSegmento(it) } ?: TipoServico.entries
         Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)) {
           Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Text("Tipo de serviço", style = MaterialTheme.typography.labelLarge)
             FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
               FilterChip(selected = filtro.tipo == null, onClick = { aoMudarFiltro(filtro.copy(tipo = null)) }, label = { Text("Todos") })
-              TipoServico.entries.forEach { tipo ->
+              tiposDisponiveis.forEach { tipo ->
                 FilterChip(selected = filtro.tipo == tipo,
                   onClick = { aoMudarFiltro(filtro.copy(tipo = if (filtro.tipo == tipo) null else tipo)) },
                   label = { Text(tipo.rotulo) })
@@ -280,11 +316,22 @@ fun TelaLista(
           Text("Acesso rápido", style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
           LazyRow(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             items(registros.take(5), key = { it.id }) { registro ->
+              val tituloRapido = if (registro.segmento == SegmentoAtendimento.RESIDENCIAL) {
+                registro.tipoLocal.ifBlank { registro.ambientePorta.ifBlank { "Residencial" } }
+              } else {
+                registro.placa.ifBlank { registro.modelo.ifBlank { "Sem placa" } }
+              }
+              val subtituloRapido = if (registro.segmento == SegmentoAtendimento.RESIDENCIAL) {
+                listOf(registro.ambientePorta, registro.marcaFechadura, registro.modeloFechadura)
+                  .filter { it.isNotBlank() }.joinToString(" · ").ifBlank { "Chaveiro residencial" }
+              } else {
+                listOf(registro.marca, registro.modelo).filter { it.isNotBlank() }.joinToString(" ")
+              }
               Card(onClick = { onAbrir(registro.id) }, modifier = Modifier.width(188.dp),
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer)) {
                 Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                  Text(registro.placa, fontFamily = FontFamily.Monospace, fontWeight = FontWeight.Bold, fontSize = 18.sp)
-                  Text(listOf(registro.marca, registro.modelo).filter { it.isNotBlank() }.joinToString(" "),
+                  Text(tituloRapido, fontFamily = FontFamily.Monospace, fontWeight = FontWeight.Bold, fontSize = 18.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                  Text(subtituloRapido,
                     style = MaterialTheme.typography.bodySmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
                   Text(formatarData(registro.dataServico), style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -301,7 +348,7 @@ fun TelaLista(
         } }
         registros.isEmpty() -> item {
           EstadoVazio(if (filtro.ativo) "Nenhum resultado" else "Seu próximo serviço começa aqui",
-            if (filtro.ativo) "Tente outra busca ou remova os filtros." else "Registre o primeiro carro e construa sua memória de oficina.") {
+            if (filtro.ativo) "Tente outra busca ou remova os filtros." else "Registre o primeiro serviço e construa sua memória de oficina.") {
             if (filtro.ativo) OutlinedButton(onClick = { aoMudarFiltro(FiltroLista()) }) { Text("Limpar filtros") }
           }
         }
@@ -351,6 +398,33 @@ private fun EscolherData(
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun CartaoRegistro(registro: Atendimento, onAbrir: () -> Unit) {
+  val residencial = registro.segmento == SegmentoAtendimento.RESIDENCIAL
+  val titulo = if (residencial) {
+    listOf(registro.tipoLocal, registro.ambientePorta)
+      .filter { it.isNotBlank() }
+      .joinToString(" · ")
+      .ifBlank { "Serviço residencial" }
+  } else {
+    registro.placa.ifBlank {
+      listOf(registro.marca, registro.modelo).filter { it.isNotBlank() }.joinToString(" ").ifBlank { "Sem placa" }
+    }
+  }
+  val subtitulo = if (residencial) {
+    listOf(registro.marcaFechadura, registro.modeloFechadura, registro.tipoCilindro)
+      .filter { it.isNotBlank() }
+      .joinToString(" · ")
+      .ifBlank { registro.enderecoLocal.ifBlank { "Chaveiro residencial" } }
+  } else if (registro.placa.isNotBlank()) {
+    listOf(registro.marca, registro.modelo, registro.ano)
+      .filter { it.isNotBlank() }
+      .joinToString(" ")
+      .ifBlank { "Veículo sem modelo" }
+  } else {
+    listOf(registro.ano, "Sem placa")
+      .filter { it.isNotBlank() }
+      .joinToString(" · ")
+  }
+
   Card(
     onClick = onAbrir, modifier = Modifier.fillMaxWidth(),
     colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
@@ -359,14 +433,14 @@ private fun CartaoRegistro(registro: Atendimento, onAbrir: () -> Unit) {
     Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
       Row(verticalAlignment = Alignment.CenterVertically) {
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-          Text(registro.placa, fontFamily = FontFamily.Monospace, fontWeight = FontWeight.Bold, fontSize = 22.sp,
-            color = MaterialTheme.colorScheme.onSurface)
-          Text(listOf(registro.marca, registro.modelo, registro.ano).filter { it.isNotBlank() }.joinToString(" ").ifBlank { "Veículo sem modelo" },
-            style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+          Text(titulo, fontFamily = if (residencial || registro.placa.isBlank()) FontFamily.Default else FontFamily.Monospace,
+            fontWeight = FontWeight.Bold, fontSize = 22.sp, color = MaterialTheme.colorScheme.onSurface)
+          Text(subtitulo, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
         Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
       }
       FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        Selo(registro.segmento.rotulo)
         registro.tiposOrdenados.forEach { Selo(it.rotulo) }
         if (!registro.pago) Selo("Pagamento pendente", pendente = true)
       }

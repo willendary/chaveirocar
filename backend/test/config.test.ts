@@ -15,4 +15,10 @@ describe("configuração de produção", () => {
   it("aceita SMTP configurado", () => {
     expect(criarConfig({ ...producao, SMTP_URL: "smtp://localhost" }).ambiente).toBe("producao");
   });
+
+  it("dispensa SMTP em produção quando GOOGLE_ONLY está ativo", () => {
+    const cfg = criarConfig({ ...producao, GOOGLE_ONLY: "true" });
+    expect(cfg.ambiente).toBe("producao");
+    expect(cfg.googleOnly).toBe(true);
+  });
 });

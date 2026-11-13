@@ -12,10 +12,14 @@ describe("fotos", () => {
     const id = conta.empresas[0]!.id;
     const a = (await ambiente.app.inject({
       method: "POST", url: `/api/v1/empresas/${id}/atendimentos`, headers: conta.cabecalho,
-      payload: { placa: "FOT1F23" },
+      payload: { placa: "FOT1F23", modelo: "Gol" },
     })).json();
 
-    const up = corpoMultipart({ categoria: "CARRO", legenda: "frente" }, { nome: "foto.jpg", mime: "image/jpeg", bytes: imagemJpeg("xxx") });
+    const setasJson = JSON.stringify([{ x1: 0.1, y1: 0.2, x2: 0.8, y2: 0.7, cor: "#EF4444", espessura: 4 }]);
+    const up = corpoMultipart(
+      { categoria: "CARRO", legenda: "frente", anotacoes: setasJson },
+      { nome: "foto.jpg", mime: "image/jpeg", bytes: imagemJpeg("xxx") },
+    );
     const envio = await ambiente.app.inject({
       method: "POST", url: `/api/v1/empresas/${id}/atendimentos/${a.id}/fotos`,
       headers: { ...conta.cabecalho, "content-type": up.contentType }, payload: up.payload,
@@ -23,6 +27,7 @@ describe("fotos", () => {
     expect(envio.statusCode).toBe(201);
     const foto = envio.json();
     expect(foto.mimeType).toBe("image/jpeg");
+    expect(foto.anotacoes).toBe(setasJson);
     expect(foto.url).toContain(foto.id);
 
     const list = await ambiente.app.inject({ method: "GET", url: `/api/v1/empresas/${id}/atendimentos/${a.id}/fotos`, headers: conta.cabecalho });
@@ -46,7 +51,7 @@ describe("fotos", () => {
     const conta = await cadastrar(ambiente.app);
     const id = conta.empresas[0]!.id;
     const a = (await ambiente.app.inject({
-      method: "POST", url: `/api/v1/empresas/${id}/atendimentos`, headers: conta.cabecalho, payload: { placa: "FOT2F23" },
+      method: "POST", url: `/api/v1/empresas/${id}/atendimentos`, headers: conta.cabecalho, payload: { placa: "FOT2F23", modelo: "Gol" },
     })).json();
     const up = corpoMultipart({}, { nome: "x.jpg", mime: "image/jpeg", bytes: Buffer.from("não é imagem") });
     const r = await ambiente.app.inject({
@@ -63,7 +68,7 @@ describe("fotos", () => {
       method: "POST",
       url: `/api/v1/empresas/${empresaId}/atendimentos`,
       headers: conta.cabecalho,
-      payload: { placa: "IDEM1D23" },
+      payload: { placa: "IDEM1D23", modelo: "Onix" },
     })).json();
     const id = randomUUID();
     const bytes = imagemJpeg("mesma foto");

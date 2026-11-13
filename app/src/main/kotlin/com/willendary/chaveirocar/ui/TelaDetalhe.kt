@@ -56,6 +56,7 @@ import com.willendary.chaveirocar.dados.Fotos
 import com.willendary.chaveirocar.modelo.Atendimento
 import com.willendary.chaveirocar.modelo.CategoriaFoto
 import com.willendary.chaveirocar.modelo.Foto
+import com.willendary.chaveirocar.modelo.SegmentoAtendimento
 import com.willendary.chaveirocar.util.Compartilhamento
 import com.willendary.chaveirocar.util.formatarData
 import com.willendary.chaveirocar.util.formatarValor
@@ -77,7 +78,8 @@ fun TelaDetalhe(
   val escopo = rememberCoroutineScope()
   var atendimento by remember { mutableStateOf<Atendimento?>(null) }
   var fotos by remember { mutableStateOf<List<Foto>>(emptyList()) }
-  var fotoAberta by remember { mutableStateOf<String?>(null) }
+  var fotoAberta by remember { mutableStateOf<Foto?>(null) }
+  var fotoEditandoSetas by remember { mutableStateOf<Foto?>(null) }
   var confirmandoExclusao by remember { mutableStateOf(false) }
   var gerandoPdf by remember { mutableStateOf(false) }
 
@@ -139,6 +141,25 @@ fun TelaDetalhe(
       return@Scaffold
     }
 
+    val residencial = registro.segmento == SegmentoAtendimento.RESIDENCIAL
+    val tituloPainel = if (residencial) {
+      listOf(registro.tipoLocal, registro.ambientePorta).filter { it.isNotBlank() }.joinToString(" · ").ifBlank { "Serviço residencial" }
+    } else {
+      registro.placa.ifBlank {
+        listOf(registro.marca, registro.modelo).filter { it.isNotBlank() }.joinToString(" ").ifBlank { "Sem placa" }
+      }
+    }
+    val subtituloPainel = if (residencial) {
+      listOf(registro.marcaFechadura, registro.modeloFechadura, registro.tipoCilindro)
+        .filter { it.isNotBlank() }
+        .joinToString(" · ")
+        .ifBlank { registro.enderecoLocal.ifBlank { "Chaveiro residencial" } }
+    } else if (registro.placa.isNotBlank()) {
+      listOf(registro.marca, registro.modelo, registro.ano).filter { it.isNotBlank() }.joinToString(" ").ifBlank { "Veículo sem modelo" }
+    } else {
+      listOf(registro.ano, "Sem placa").filter { it.isNotBlank() }.joinToString(" · ")
+    }
+
     Column(
       modifier = Modifier
         .conteudoResponsivo()
@@ -147,18 +168,23 @@ fun TelaDetalhe(
         .padding(16.dp),
       verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-      PainelDestaque(registro.placa,
-        listOf(registro.marca, registro.modelo, registro.ano).filter { it.isNotBlank() }.joinToString(" ").ifBlank { "Veículo sem modelo" },
-        registro.tiposEmTexto)
+      PainelDestaque(tituloPainel, subtituloPainel, registro.tiposEmTexto)
       Card(modifier = Modifier.fillMaxWidth()) {
         Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
           FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Selo(registro.segmento.rotulo)
             Selo(if (registro.pago) "Pago" else "Pagamento pendente", pendente = !registro.pago)
             if (registro.valorCentavos > 0) Text(formatarValor(registro.valorCentavos),
               style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.primary)
           }
           Text("Serviço em ${formatarData(registro.dataServico)}", style = MaterialTheme.typography.bodyMedium)
-          if (registro.chassi.isNotBlank()) Text("Chassi ${registro.chassi}", style = MaterialTheme.typography.bodySmall)
+          if (!residencial && registro.chassi.isNotBlank()) Text("Chassi ${registro.chassi}", style = MaterialTheme.typography.bodySmall)
+          if (residencial) {
+            val fechaduraTexto = listOf(registro.marcaFechadura, registro.modeloFechadura, registro.tipoCilindro)
+              .filter { it.isNotBlank() }.joinToString(" · ")
+            if (fechaduraTexto.isNotBlank()) Text("Fechadura: $fechaduraTexto", style = MaterialTheme.typography.bodySmall)
+            if (registro.enderecoLocal.isNotBlank()) Text("Endereço: ${registro.enderecoLocal}", style = MaterialTheme.typography.bodySmall)
+          }
           if (registro.atualizadoEm > registro.dataServico) Text("Última correção em ${formatarData(registro.atualizadoEm)}",
             style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
           if (registro.clienteNome.isNotBlank() || registro.clienteTelefone.isNotBlank()) {
@@ -177,8 +203,8 @@ fun TelaDetalhe(
         }
       }
 
-      if (registro.codigoChave.isNotBlank() || registro.codigoConfiguracao.isNotBlank() || registro.chipTransponder.isNotBlank()) {
-        TituloSecao("Códigos do veículo")
+      if (registro.codigoChave.isNotBlank() || registro.codigoConfiguracao.isNotBlank() || (!residencial && registro.chipTransponder.isNotBlank())) {
+        TituloSecao(if (residencial) "Códigos e referências" else "Códigos do veículo")
         Card(modifier = Modifier.fillMaxWidth()) {
           Column(
             modifier = Modifier.padding(20.dp),
@@ -193,14 +219,14 @@ fun TelaDetalhe(
             }
             if (registro.codigoConfiguracao.isNotBlank()) {
               CodigoCopiado(
-                rotulo = "Código de configuração",
+                rotulo = if (residencial) "Senha / configuração" else "Código de configuração",
                 valor = registro.codigoConfiguracao,
                 onCopiar = {
                   copiarTexto(contexto, "Código de configuração", registro.codigoConfiguracao)
                 },
               )
             }
-            if (registro.chipTransponder.isNotBlank()) {
+            if (!residencial && registro.chipTransponder.isNotBlank()) {
               CodigoCopiado(
                 rotulo = "Chip / Transponder",
                 valor = registro.chipTransponder,
@@ -212,30 +238,29 @@ fun TelaDetalhe(
       }
 
       if (registro.defeito.isNotBlank() || registro.solucao.isNotBlank() || registro.ferramenta.isNotBlank()) {
-      TituloSecao("Diagnóstico e solução")
-      Card(modifier = Modifier.fillMaxWidth()) {
-        Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-          if (registro.defeito.isNotBlank()) {
-            Text("Defeito encontrado", style = MaterialTheme.typography.labelLarge)
-            Text(registro.defeito, style = MaterialTheme.typography.bodyMedium)
-          }
-          if (registro.solucao.isNotBlank()) {
-            Text("Solução aplicada", style = MaterialTheme.typography.labelLarge)
-            Text(registro.solucao, style = MaterialTheme.typography.bodyMedium)
-          }
-          if (registro.ferramenta.isNotBlank()) {
-            Text("Ferramenta: ${registro.ferramenta}", style = MaterialTheme.typography.bodyMedium)
+        TituloSecao("Diagnóstico e solução")
+        Card(modifier = Modifier.fillMaxWidth()) {
+          Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            if (registro.defeito.isNotBlank()) {
+              Text("Defeito encontrado", style = MaterialTheme.typography.labelLarge)
+              Text(registro.defeito, style = MaterialTheme.typography.bodyMedium)
+            }
+            if (registro.solucao.isNotBlank()) {
+              Text("Solução aplicada", style = MaterialTheme.typography.labelLarge)
+              Text(registro.solucao, style = MaterialTheme.typography.bodyMedium)
+            }
+            if (registro.ferramenta.isNotBlank()) {
+              Text("Ferramenta: ${registro.ferramenta}", style = MaterialTheme.typography.bodyMedium)
+            }
           }
         }
-      }
-
       }
 
       val fotosDoCarro = fotos.filter { it.categoria == CategoriaFoto.CARRO }
       val fotosDeProcedimento = fotos.filter { it.categoria == CategoriaFoto.PROCEDIMENTO }
 
       if (fotosDoCarro.isNotEmpty()) {
-        TituloSecao("Fotos do carro")
+        TituloSecao(if (residencial) "Fotos do local e fechadura" else "Fotos do carro")
         GradeDeFotos(fotosDoCarro) { fotoAberta = it }
       }
 
@@ -247,7 +272,7 @@ fun TelaDetalhe(
       Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Button(onClick = { onEditar(registro.id) }, modifier = Modifier.fillMaxWidth()) { Text("Editar atendimento") }
         OutlinedButton(onClick = { onDuplicar(registro) }, modifier = Modifier.fillMaxWidth()) {
-          Text("Novo atendimento (mesmo carro)")
+          Text(if (residencial) "Novo atendimento (mesmo local)" else "Novo atendimento (mesmo carro)")
         }
       }
       TextButton(onClick = { confirmandoExclusao = true }) {
@@ -263,17 +288,38 @@ fun TelaDetalhe(
       Card {
         Column {
           ImagemLocal(
-            caminho = foto,
+            caminho = foto.caminho,
             ladoMaximo = 2000,
             modificador = Modifier
               .fillMaxWidth()
               .heightIn(max = 520.dp)
               .clickable { fotoAberta = null },
           )
-          TextButton(onClick = { fotoAberta = null }, modifier = Modifier.fillMaxWidth()) { Text("Fechar") }
+          Row(Modifier.fillMaxWidth().padding(horizontal = 8.dp), horizontalArrangement = Arrangement.SpaceBetween) {
+            TextButton(onClick = {
+              fotoEditandoSetas = foto
+              fotoAberta = null
+            }) { Text("↗ Anotar com setas") }
+            TextButton(onClick = { fotoAberta = null }) { Text("Fechar") }
+          }
         }
       }
     }
+  }
+
+  fotoEditandoSetas?.let { fotoEmEdicao ->
+    EditorFotoDialog(
+      caminho = fotoEmEdicao.caminho,
+      anotacoesIniciais = fotoEmEdicao.anotacoes,
+      onSalvar = { jsonAnotacoes ->
+        fotoEditandoSetas = null
+        escopo.launch {
+          withContext(Dispatchers.IO) { banco.atualizarFoto(fotoEmEdicao.copy(anotacoes = jsonAnotacoes)) }
+          fotos = withContext(Dispatchers.IO) { banco.listarFotos(id) }
+        }
+      },
+      onCancelar = { fotoEditandoSetas = null },
+    )
   }
 
   if (confirmandoExclusao && atendimento != null) {
@@ -321,7 +367,7 @@ private fun CodigoCopiado(rotulo: String, valor: String, onCopiar: () -> Unit) {
 private fun GradeDeFotos(
   fotos: List<Foto>,
   mostrarPasso: Boolean = false,
-  aoAbrir: (String) -> Unit,
+  aoAbrir: (Foto) -> Unit,
 ) {
   FlowRow(
     horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -337,7 +383,7 @@ private fun GradeDeFotos(
               .width(140.dp)
               .height(140.dp)
               .clip(RoundedCornerShape(12.dp))
-              .clickable { aoAbrir(foto.caminho) },
+              .clickable { aoAbrir(foto) },
           )
           if (mostrarPasso) {
             Text(

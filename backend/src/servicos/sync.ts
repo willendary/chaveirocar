@@ -224,6 +224,7 @@ async function aplicarOperacao(
     categoria: typeof dados.categoria === "string" ? dados.categoria : existente.categoria,
     legenda: typeof dados.legenda === "string" ? dados.legenda : existente.legenda,
     ordem: typeof dados.ordem === "number" ? dados.ordem : existente.ordem,
+    anotacoes: typeof dados.anotacoes === "string" ? dados.anotacoes : existente.anotacoes,
   });
   return { opId: operacao.opId, status: "aplicado", revisao: registro.revisao, registro };
 }

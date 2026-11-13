@@ -59,6 +59,12 @@ export const ConviteSchema = Type.Object({
   expirado: Type.Boolean(),
 });
 
+export const SEGMENTOS_ATENDIMENTO = ["AUTOMOTIVO", "RESIDENCIAL"] as const;
+export type SegmentoAtendimento = (typeof SEGMENTOS_ATENDIMENTO)[number];
+export const SegmentoAtendimentoSchema = Type.Union(
+  SEGMENTOS_ATENDIMENTO.map((valor) => Type.Literal(valor)),
+);
+
 export const TIPOS_SERVICO = [
   "CHAVE_CODIFICADA",
   "TRANSPONDER",
@@ -67,21 +73,35 @@ export const TIPOS_SERVICO = [
   "IGNICAO",
   "CONSERTO",
   "PROGRAMACAO_CHAVE",
+  "ABERTURA_RESIDENCIAL",
+  "COPIA_CHAVE",
+  "TROCA_SEGREDO",
+  "INSTALACAO_FECHADURA",
+  "TROCA_CILINDRO",
+  "FECHADURA_DIGITAL",
+  "REPARO_FECHADURA",
   "OUTRO",
 ] as const;
 export type TipoServico = (typeof TIPOS_SERVICO)[number];
 
 export const TiposServicoSchema = Type.Array(
   Type.Union(TIPOS_SERVICO.map((valor) => Type.Literal(valor))),
-  { minItems: 1, maxItems: 8 },
+  { minItems: 1, maxItems: 16 },
 );
 
 export const DadosAtendimentoSchema = Type.Object({
-  placa: Type.String({ minLength: 1, maxLength: 10 }),
+  segmento: Type.Optional(SegmentoAtendimentoSchema),
+  placa: Type.Optional(Type.String({ maxLength: 10 })),
   marca: Type.Optional(Type.String({ maxLength: 120 })),
   modelo: Type.Optional(Type.String({ maxLength: 120 })),
   ano: Type.Optional(Type.String({ maxLength: 30 })),
   chassi: Type.Optional(Type.String({ maxLength: 60 })),
+  tipoLocal: Type.Optional(Type.String({ maxLength: 120 })),
+  ambientePorta: Type.Optional(Type.String({ maxLength: 200 })),
+  marcaFechadura: Type.Optional(Type.String({ maxLength: 120 })),
+  modeloFechadura: Type.Optional(Type.String({ maxLength: 120 })),
+  tipoCilindro: Type.Optional(Type.String({ maxLength: 200 })),
+  enderecoLocal: Type.Optional(Type.String({ maxLength: 500 })),
   dataServico: Type.Optional(Type.Integer({ minimum: 0 })),
   tiposServico: Type.Optional(TiposServicoSchema),
   defeito: Type.Optional(Type.String({ maxLength: 20_000 })),
@@ -108,11 +128,18 @@ export const AtendimentoEntradaSchema = Type.Intersect([
 export const AtendimentoRespostaSchema = Type.Object({
   id: ID,
   empresaId: ID,
+  segmento: SegmentoAtendimentoSchema,
   placa: Type.String(),
   marca: Type.String(),
   modelo: Type.String(),
   ano: Type.String(),
   chassi: Type.String(),
+  tipoLocal: Type.String(),
+  ambientePorta: Type.String(),
+  marcaFechadura: Type.String(),
+  modeloFechadura: Type.String(),
+  tipoCilindro: Type.String(),
+  enderecoLocal: Type.String(),
   dataServico: Type.Integer(),
   tipoServico: Type.String(),
   tiposServico: Type.Array(Type.String()),
@@ -211,6 +238,7 @@ export const FotoRespostaSchema = Type.Object({
   categoria: Type.Union([Type.Literal("CARRO"), Type.Literal("PROCEDIMENTO")]),
   legenda: Type.String(),
   ordem: Type.Integer(),
+  anotacoes: Type.String(),
   mimeType: Type.String(),
   tamanho: Type.Integer(),
   checksum: Type.String(),

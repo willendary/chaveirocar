@@ -4,6 +4,7 @@ import android.content.Context
 import com.willendary.chaveirocar.modelo.Atendimento
 import com.willendary.chaveirocar.modelo.CategoriaFoto
 import com.willendary.chaveirocar.modelo.FichaTecnica
+import com.willendary.chaveirocar.modelo.SegmentoAtendimento
 import com.willendary.chaveirocar.modelo.TipoServico
 import org.json.JSONArray
 import org.json.JSONObject
@@ -34,11 +35,18 @@ object Backup {
       val objeto = JSONObject().apply {
         put("id", atendimento.id)
         put("atualizadoEm", atendimento.atualizadoEm)
+        put("segmento", atendimento.segmento.name)
         put("placa", atendimento.placa)
         put("marca", atendimento.marca)
         put("modelo", atendimento.modelo)
         put("ano", atendimento.ano)
         put("chassi", atendimento.chassi)
+        put("tipoLocal", atendimento.tipoLocal)
+        put("ambientePorta", atendimento.ambientePorta)
+        put("marcaFechadura", atendimento.marcaFechadura)
+        put("modeloFechadura", atendimento.modeloFechadura)
+        put("tipoCilindro", atendimento.tipoCilindro)
+        put("enderecoLocal", atendimento.enderecoLocal)
         put("dataServico", atendimento.dataServico)
         // Backup singular para interoperabilidade com versões anteriores.
         put("tipoServico", atendimento.tiposOrdenados.first().name)
@@ -69,6 +77,7 @@ object Backup {
             put("categoria", foto.categoria.name)
             put("legenda", foto.legenda)
             put("ordem", foto.ordem)
+            put("anotacoes", foto.anotacoes)
           },
         )
       }
@@ -163,11 +172,18 @@ object Backup {
       val tipos = if (listaTipos == null) setOf(tipoAntigo) else
         TipoServico.deNomes((0 until listaTipos.length()).map { listaTipos.optString(it) }, tipoAntigo)
       val atendimento = Atendimento(
+        segmento = SegmentoAtendimento.de(objeto.optString("segmento")),
         placa = objeto.optString("placa"),
         marca = objeto.optString("marca"),
         modelo = objeto.optString("modelo"),
         ano = objeto.optString("ano"),
         chassi = objeto.optString("chassi"),
+        tipoLocal = objeto.optString("tipoLocal"),
+        ambientePorta = objeto.optString("ambientePorta"),
+        marcaFechadura = objeto.optString("marcaFechadura"),
+        modeloFechadura = objeto.optString("modeloFechadura"),
+        tipoCilindro = objeto.optString("tipoCilindro"),
+        enderecoLocal = objeto.optString("enderecoLocal"),
         dataServico = objeto.optLong("dataServico", System.currentTimeMillis()),
         tipoServico = tipoAntigo,
         tiposServico = tipos,
@@ -195,20 +211,23 @@ object Backup {
         val arquivo: String
         val categoria: CategoriaFoto
         val legenda: String
+        val anotacoes: String
         if (item is JSONObject) {
           arquivo = item.optString("arquivo")
           categoria = CategoriaFoto.de(item.optString("categoria"))
           legenda = item.optString("legenda")
+          anotacoes = item.optString("anotacoes", "[]").ifBlank { "[]" }
         } else {
           // backups antigos (1.0) guardavam só o nome do arquivo
           arquivo = item?.toString().orEmpty()
           categoria = CategoriaFoto.CARRO
           legenda = ""
+          anotacoes = "[]"
         }
         if (arquivo.isBlank()) continue
         val bytes = fotosDoZip[arquivo] ?: continue
         val nomeNovo = Fotos.salvarDeBytes(contexto, bytes)
-        banco.adicionarFoto(id, nomeNovo, categoria, legenda)
+        banco.adicionarFoto(id, nomeNovo, categoria, legenda, anotacoes)
       }
       aplicados++
     }

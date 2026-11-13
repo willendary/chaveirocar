@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { cadastrar, criarAmbiente, type Ambiente } from "./ajuda.js";
 
 let ambiente: Ambiente;
@@ -175,5 +175,110 @@ describe("autenticação", () => {
       headers: { authorization: "Bearer nada" },
     });
     expect(invalido.statusCode).toBe(401);
+  });
+
+  it("autentica com Google (accessToken e idToken), cria conta/empresa e vincula usuário existente", async () => {
+    const fetchOriginal = globalThis.fetch;
+    try {
+      globalThis.fetch = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+        const url = String(input);
+        if (url.includes("userinfo")) {
+          const auth = (init?.headers as Record<string, string> | undefined)?.Authorization ?? "";
+          if (auth === "Bearer token-google-valido") {
+            return new Response(
+              JSON.stringify({
+                sub: "google-sub-123",
+                email: "googleuser@exemplo.com",
+                email_verified: true,
+                name: "Usuário Google",
+              }),
+              { status: 200, headers: { "content-type": "application/json" } },
+            );
+          }
+          return new Response("{}", { status: 401 });
+        }
+        if (url.includes("tokeninfo")) {
+          if (url.includes("idtoken-vinculo")) {
+            return new Response(
+              JSON.stringify({
+                sub: "google-sub-999",
+                email: "existente@exemplo.com",
+                email_verified: "true",
+                name: "Existente Google",
+              }),
+              { status: 200, headers: { "content-type": "application/json" } },
+            );
+          }
+          return new Response("{}", { status: 401 });
+        }
+        return fetchOriginal(input, init);
+      }) as typeof fetch;
+
+      // 1) Novo usuário via accessToken
+      const novo = await ambiente.app.inject({
+        method: "POST",
+        url: "/api/v1/auth/google-login",
+        payload: { accessToken: "token-google-valido", empresa: "Chaveiro Google" },
+      });
+      expect(novo.statusCode).toBe(200);
+      const corpoNovo = novo.json();
+      expect(corpoNovo.usuario.email).toBe("googleuser@exemplo.com");
+      expect(corpoNovo.usuario.emailVerificado).toBe(true);
+      expect(corpoNovo.empresas).toHaveLength(1);
+      expect(corpoNovo.empresas[0].nome).toBe("Chaveiro Google");
+      expect(corpoNovo.tokens.acesso).toBeTruthy();
+
+      // 2) Segundo login com o mesmo sub reutiliza a mesma conta e empresa
+      const repetido = await ambiente.app.inject({
+        method: "POST",
+        url: "/api/v1/auth/google-login",
+        payload: { accessToken: "token-google-valido" },
+      });
+      expect(repetido.statusCode).toBe(200);
+      expect(repetido.json().usuario.id).toBe(corpoNovo.usuario.id);
+      expect(repetido.json().empresas).toHaveLength(1);
+
+      // 3) Vincula conta previamente criada por e-mail
+      const preExistente = await cadastrar(ambiente.app, { email: "existente@exemplo.com" });
+      const vinculado = await ambiente.app.inject({
+        method: "POST",
+        url: "/api/v1/auth/google-login",
+        payload: { idToken: "idtoken-vinculo" },
+      });
+      expect(vinculado.statusCode).toBe(200);
+      expect(vinculado.json().usuario.id).toBe(preExistente.usuario.id);
+      expect(vinculado.json().usuario.emailVerificado).toBe(true);
+
+      // 4) Token inválido retorna 401
+      const invalido = await ambiente.app.inject({
+        method: "POST",
+        url: "/api/v1/auth/google-login",
+        payload: { accessToken: "token-invalido-123" },
+      });
+      expect(invalido.statusCode).toBe(401);
+    } finally {
+      globalThis.fetch = fetchOriginal;
+    }
+  });
+
+  it("bloqueia login e cadastro por senha quando GOOGLE_ONLY=true", async () => {
+    const restrito = await criarAmbiente({ GOOGLE_ONLY: "true" });
+    try {
+      const cad = await restrito.app.inject({
+        method: "POST",
+        url: "/api/v1/auth/cadastro",
+        payload: { nome: "Teste", email: "t@exemplo.com", senha: "Senha1234" },
+      });
+      expect(cad.statusCode).toBe(403);
+
+      const login = await restrito.app.inject({
+        method: "POST",
+        url: "/api/v1/auth/login",
+        payload: { email: "t@exemplo.com", senha: "Senha1234" },
+      });
+      expect(login.statusCode).toBe(403);
+    } finally {
+      await restrito.fechar();
+    }
   });
 });

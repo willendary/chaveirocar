@@ -24,6 +24,7 @@ const AtualizarFotoEntrada = Type.Object({
   categoria: Type.Optional(Type.Union([Type.Literal("CARRO"), Type.Literal("PROCEDIMENTO")])),
   legenda: Type.Optional(Type.String({ maxLength: 500 })),
   ordem: Type.Optional(Type.Integer({ minimum: 0 })),
+  anotacoes: Type.Optional(Type.String({ maxLength: 100_000 })),
 });
 const ExcluirFotoQuery = Type.Object({ baseRevisao: Type.Integer({ minimum: 1 }) });
 
@@ -112,6 +113,7 @@ export const rotasFotos: FastifyPluginAsync<ContextoRotas> = async (app, opcoes)
           categoria: campos.categoria,
           legenda: campos.legenda,
           ordem: campos.ordem ? Number(campos.ordem) : 0,
+          anotacoes: campos.anotacoes,
           bytes,
           mimeInformado: mime,
         },
@@ -172,6 +174,7 @@ export const rotasFotos: FastifyPluginAsync<ContextoRotas> = async (app, opcoes)
           categoria: campos.categoria ?? "PROCEDIMENTO",
           legenda: campos.legenda,
           ordem: campos.ordem ? Number(campos.ordem) : 0,
+          anotacoes: campos.anotacoes,
           bytes,
           mimeInformado: mime,
         },
@@ -230,6 +233,7 @@ export const rotasFotos: FastifyPluginAsync<ContextoRotas> = async (app, opcoes)
         categoria?: string;
         legenda?: string;
         ordem?: number;
+        anotacoes?: string;
       };
       return atualizarFoto(banco, { empresaId, usuarioId: usuario.usuarioId }, fotoId, entrada);
     },

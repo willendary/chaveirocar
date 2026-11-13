@@ -16,7 +16,7 @@ async function criarAtendimento(conta: Conta, placa: string, cliente = "") {
     method: "POST",
     url: `/api/v1/empresas/${conta.empresas[0]!.id}/atendimentos`,
     headers: conta.cabecalho,
-    payload: { placa, clienteNome: cliente, tiposServico: ["CHAVE_CODIFICADA"] },
+    payload: { placa, modelo: "Palio", clienteNome: cliente, tiposServico: ["CHAVE_CODIFICADA"] },
   });
   expect(resposta.statusCode).toBe(201);
   return resposta.json();
@@ -75,6 +75,7 @@ describe("isolamento entre empresas", () => {
       headers: bruno.cabecalho,
       payload: {
         placa: "TEN1T23",
+        modelo: "Palio",
         empresaId: ana.empresas[0]!.id,
       },
     });

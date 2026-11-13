@@ -45,6 +45,15 @@ public sealed class ClienteApi : IDisposable
         return await CriarSessaoAsync(resposta);
     }
 
+    public async Task<ResultadoLogin> EntrarComGoogleAsync(string idToken, string? empresa = null)
+    {
+        object corpo = string.IsNullOrWhiteSpace(empresa)
+            ? new { idToken }
+            : new { idToken, empresa = empresa.Trim() };
+        using var resposta = await PostAsync("/api/v1/auth/google-login", corpo);
+        return await CriarSessaoAsync(resposta);
+    }
+
     private async Task<ResultadoLogin> CriarSessaoAsync(HttpResponseMessage resposta)
     {
         if (!resposta.IsSuccessStatusCode) return new ResultadoLogin(false, null, []);
@@ -250,6 +259,8 @@ public sealed class ClienteApi : IDisposable
                     ? "" : item.GetProperty("fichaId").GetString() ?? "",
                 Categoria = item.GetProperty("categoria").GetString() ?? "CARRO",
                 Legenda = item.GetProperty("legenda").GetString() ?? "",
+                Anotacoes = item.TryGetProperty("anotacoes", out var anot) && anot.ValueKind == JsonValueKind.String
+                    ? anot.GetString() ?? "[]" : "[]",
                 Ordem = item.GetProperty("ordem").GetInt32(),
                 Revisao = item.GetProperty("revisao").GetInt64(),
                 Url = item.GetProperty("url").GetString() ?? "",
@@ -324,6 +335,7 @@ public sealed class ClienteApi : IDisposable
             formulario.Add(new StringContent(foto.Uuid), "id");
             formulario.Add(new StringContent(foto.Categoria), "categoria");
             formulario.Add(new StringContent(foto.Legenda), "legenda");
+            formulario.Add(new StringContent(string.IsNullOrWhiteSpace(foto.Anotacoes) ? "[]" : foto.Anotacoes), "anotacoes");
             formulario.Add(new StringContent(foto.Ordem.ToString()), "ordem");
             var arquivo = new ByteArrayContent(bytes);
             arquivo.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue(tipo);
@@ -455,6 +467,7 @@ public sealed class ClienteApi : IDisposable
         public string FichaUuid { get; set; } = "";
         public string Categoria { get; set; } = "CARRO";
         public string Legenda { get; set; } = "";
+        public string Anotacoes { get; set; } = "[]";
         public int Ordem { get; set; }
         public long Revisao { get; set; }
         public string Url { get; set; } = "";
@@ -466,11 +479,18 @@ public sealed class ClienteApi : IDisposable
 public sealed class Atendimento
 {
     public string Uuid { get; set; } = "";
+    public string Segmento { get; set; } = "AUTOMOTIVO";
     public string Placa { get; set; } = "";
     public string Marca { get; set; } = "";
     public string Modelo { get; set; } = "";
     public string Ano { get; set; } = "";
     public string Chassi { get; set; } = "";
+    public string TipoLocal { get; set; } = "";
+    public string AmbientePorta { get; set; } = "";
+    public string MarcaFechadura { get; set; } = "";
+    public string ModeloFechadura { get; set; } = "";
+    public string TipoCilindro { get; set; } = "";
+    public string EnderecoLocal { get; set; } = "";
     public long DataServico { get; set; }
     public List<string> TiposServico { get; set; } = [];
     public string Defeito { get; set; } = "";
@@ -489,7 +509,9 @@ public sealed class Atendimento
 
     [JsonIgnore] public bool Pendente { get; set; }
 
-    public string Resumo => $"{Placa} · {Marca} {Modelo} · {DateTimeOffset.FromUnixTimeMilliseconds(DataServico):dd/MM/yyyy}";
+    public string Resumo => Segmento == "RESIDENCIAL"
+        ? $"[Residencial] {TipoLocal} {AmbientePorta}".Trim() + $" · {MarcaFechadura} {ModeloFechadura}".TrimEnd(' ', '·') + $" · {DateTimeOffset.FromUnixTimeMilliseconds(DataServico):dd/MM/yyyy}"
+        : $"{(string.IsNullOrWhiteSpace(Placa) ? "Sem placa" : Placa)} · {Marca} {Modelo} · {DateTimeOffset.FromUnixTimeMilliseconds(DataServico):dd/MM/yyyy}";
 }
 
 internal static class Converter
@@ -497,11 +519,19 @@ internal static class Converter
     public static Atendimento AtendimentoDeJson(JsonElement e) => new()
     {
         Uuid = e.GetProperty("id").GetString() ?? "",
+        Segmento = e.TryGetProperty("segmento", out var seg) && seg.ValueKind == JsonValueKind.String
+            ? seg.GetString() ?? "AUTOMOTIVO" : "AUTOMOTIVO",
         Placa = e.GetProperty("placa").GetString() ?? "",
         Marca = e.GetProperty("marca").GetString() ?? "",
         Modelo = e.GetProperty("modelo").GetString() ?? "",
         Ano = e.GetProperty("ano").GetString() ?? "",
         Chassi = e.GetProperty("chassi").GetString() ?? "",
+        TipoLocal = e.TryGetProperty("tipoLocal", out var tl) && tl.ValueKind == JsonValueKind.String ? tl.GetString() ?? "" : "",
+        AmbientePorta = e.TryGetProperty("ambientePorta", out var ap) && ap.ValueKind == JsonValueKind.String ? ap.GetString() ?? "" : "",
+        MarcaFechadura = e.TryGetProperty("marcaFechadura", out var mf) && mf.ValueKind == JsonValueKind.String ? mf.GetString() ?? "" : "",
+        ModeloFechadura = e.TryGetProperty("modeloFechadura", out var modf) && modf.ValueKind == JsonValueKind.String ? modf.GetString() ?? "" : "",
+        TipoCilindro = e.TryGetProperty("tipoCilindro", out var tc) && tc.ValueKind == JsonValueKind.String ? tc.GetString() ?? "" : "",
+        EnderecoLocal = e.TryGetProperty("enderecoLocal", out var el) && el.ValueKind == JsonValueKind.String ? el.GetString() ?? "" : "",
         DataServico = e.GetProperty("dataServico").GetInt64(),
         TiposServico = e.TryGetProperty("tiposServico", out var t)
             ? t.EnumerateArray().Select(x => x.GetString() ?? "").ToList()
@@ -524,11 +554,18 @@ internal static class Converter
 
     public static object Dados(Atendimento a) => new
     {
+        segmento = string.IsNullOrWhiteSpace(a.Segmento) ? "AUTOMOTIVO" : a.Segmento,
         placa = a.Placa,
         marca = a.Marca,
         modelo = a.Modelo,
         ano = a.Ano,
         chassi = a.Chassi,
+        tipoLocal = a.TipoLocal,
+        ambientePorta = a.AmbientePorta,
+        marcaFechadura = a.MarcaFechadura,
+        modeloFechadura = a.ModeloFechadura,
+        tipoCilindro = a.TipoCilindro,
+        enderecoLocal = a.EnderecoLocal,
         dataServico = a.DataServico,
         tiposServico = a.TiposServico.Count > 0 ? a.TiposServico : new List<string> { "OUTRO" },
         defeito = a.Defeito,

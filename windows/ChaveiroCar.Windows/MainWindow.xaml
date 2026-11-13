@@ -11,8 +11,13 @@
         </Grid.RowDefinitions>
 
         <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="0,0,0,8">
-            <ComboBox x:Name="Empresas" Width="200" Margin="0,0,8,0" SelectionChanged="Empresa_Mudou"/>
-            <TextBox x:Name="Busca" Width="220" Margin="0,0,8,0" KeyDown="Busca_KeyDown"/>
+            <ComboBox x:Name="Empresas" Width="180" Margin="0,0,8,0" SelectionChanged="Empresa_Mudou"/>
+            <ComboBox x:Name="FiltroSegmento" Width="130" Margin="0,0,8,0" SelectedIndex="0" SelectionChanged="FiltroSegmento_Mudou">
+                <ComboBoxItem Content="Todos" Tag=""/>
+                <ComboBoxItem Content="Automotivo" Tag="AUTOMOTIVO"/>
+                <ComboBoxItem Content="Residencial" Tag="RESIDENCIAL"/>
+            </ComboBox>
+            <TextBox x:Name="Busca" Width="200" Margin="0,0,8,0" KeyDown="Busca_KeyDown"/>
             <Button Content="Pesquisar" Click="Pesquisar_Click"/>
             <Button Content="Sincronizar" Click="Sincronizar_Click" Margin="8,0,0,0"/>
             <Button Content="Novo" Click="Novo_Click" Margin="8,0,0,0"/>
@@ -26,6 +31,22 @@
             <TabItem Header="Atendimentos">
                 <DataGrid x:Name="Grade" AutoGenerateColumns="True"
                           IsReadOnly="True" CanUserAddRows="False" SelectionMode="Single"/>
+            </TabItem>
+            <TabItem Header="Fichário">
+                <Grid Margin="4">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                    </Grid.RowDefinitions>
+                    <TextBlock Grid.Row="0" Text="Fichário de veículos (por modelo)" FontWeight="SemiBold" Margin="0,4,0,4"/>
+                    <DataGrid Grid.Row="1" x:Name="GradeFicharioVeiculos" AutoGenerateColumns="True"
+                              IsReadOnly="True" CanUserAddRows="False" SelectionMode="Single"/>
+                    <TextBlock Grid.Row="2" Text="Fichário residencial (por local e fechadura)" FontWeight="SemiBold" Margin="0,8,0,4"/>
+                    <DataGrid Grid.Row="3" x:Name="GradeFicharioResidencial" AutoGenerateColumns="True"
+                              IsReadOnly="True" CanUserAddRows="False" SelectionMode="Single"/>
+                </Grid>
             </TabItem>
             <TabItem Header="Fichas técnicas">
                 <DockPanel>

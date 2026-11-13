@@ -16,6 +16,7 @@ export interface Foto {
   categoria: CategoriaFoto;
   legenda: string;
   ordem: number;
+  anotacoes: string;
   mimeType: string;
   tamanho: number;
   checksum: string;
@@ -34,6 +35,7 @@ interface LinhaFoto {
   categoria: string;
   legenda: string;
   ordem: number;
+  anotacoes: string;
   storage_key: string;
   mime_type: string;
   tamanho: number;
@@ -44,7 +46,7 @@ interface LinhaFoto {
   excluido_em: number | null;
 }
 
-const CAMPOS = `id, empresa_id, atendimento_id, ficha_id, categoria, legenda, ordem, storage_key,
+const CAMPOS = `id, empresa_id, atendimento_id, ficha_id, categoria, legenda, ordem, anotacoes, storage_key,
   mime_type, tamanho, checksum, revisao, criado_em, atualizado_em, excluido_em`;
 
 function urlFoto(empresaId: string, fotoId: string): string {
@@ -60,6 +62,7 @@ export function paraFoto(linha: LinhaFoto): Foto {
     categoria: linha.categoria === "PROCEDIMENTO" ? "PROCEDIMENTO" : "CARRO",
     legenda: linha.legenda,
     ordem: Number(linha.ordem),
+    anotacoes: linha.anotacoes ?? "[]",
     mimeType: linha.mime_type,
     tamanho: Number(linha.tamanho),
     checksum: linha.checksum,
@@ -126,6 +129,7 @@ export async function adicionarFoto(
     categoria?: string;
     legenda?: string;
     ordem?: number;
+    anotacoes?: string;
     bytes: Buffer;
     mimeInformado?: string;
   },
@@ -145,10 +149,11 @@ export async function adicionarFoto(
   const checksum = sha256Bytes(entrada.bytes);
   const legenda = texto(entrada.legenda, 500);
   const ordem = inteiro(entrada.ordem, 0);
+  const anotacoes = texto(entrada.anotacoes, 100_000) || "[]";
   const categoria: CategoriaFoto = entrada.categoria === "PROCEDIMENTO" ? "PROCEDIMENTO" : "CARRO";
 
   const existente = await banco.execute({
-    sql: "SELECT empresa_id, atendimento_id, ficha_id, categoria, legenda, ordem, checksum FROM fotos WHERE id = ?",
+    sql: "SELECT empresa_id, atendimento_id, ficha_id, categoria, legenda, ordem, anotacoes, checksum, revisao FROM fotos WHERE id = ?",
     args: [id],
   });
   const linhaExistente = existente.rows[0];
@@ -157,14 +162,52 @@ export async function adicionarFoto(
       String(linhaExistente.empresa_id) === contexto.empresaId &&
       (linhaExistente.atendimento_id == null ? null : String(linhaExistente.atendimento_id)) === atendimentoId &&
       (linhaExistente.ficha_id == null ? null : String(linhaExistente.ficha_id)) === fichaId;
+    if (!mesmoAlvo) {
+      throw erros.conflito("Já existe uma foto com este identificador.");
+    }
     const mesmaFoto =
-      mesmoAlvo &&
       String(linhaExistente.categoria) === categoria &&
       String(linhaExistente.legenda) === legenda &&
       Number(linhaExistente.ordem) === ordem &&
+      String(linhaExistente.anotacoes ?? "[]") === anotacoes &&
       String(linhaExistente.checksum) === checksum;
     if (mesmaFoto) return obterFoto(banco, contexto.empresaId, id, true);
-    throw erros.conflito("Já existe uma foto com este identificador.");
+
+    const objetoAtualizado = atendimentoId ? `atendimentos/${atendimentoId}` : `fichas/${fichaId}`;
+    const chaveAtualizada = `${contexto.empresaId}/${objetoAtualizada(objetoAtualizado)}/${id}-${checksum}.${imagem.extensao}`;
+    const instanteAtualizado = agora();
+    const novaRevisao = Number(linhaExistente.revisao ?? 1) + 1;
+    await storage.salvar(chaveAtualizada, entrada.bytes, imagem.mime);
+    const transacaoAtualizacao = await banco.transaction("write");
+    try {
+      await transacaoAtualizacao.execute({
+        sql: `UPDATE fotos SET
+                categoria = ?, legenda = ?, ordem = ?, anotacoes = ?, storage_key = ?,
+                mime_type = ?, tamanho = ?, checksum = ?, revisao = ?, atualizado_em = ?, excluido_em = NULL
+              WHERE id = ? AND empresa_id = ?`,
+        args: [
+          categoria,
+          legenda,
+          ordem,
+          anotacoes,
+          chaveAtualizada,
+          imagem.mime,
+          entrada.bytes.length,
+          checksum,
+          novaRevisao,
+          instanteAtualizado,
+          id,
+          contexto.empresaId,
+        ],
+      });
+      await registrarMudanca(transacaoAtualizacao, contexto.empresaId, "foto", id, novaRevisao, "upsert");
+      await transacaoAtualizacao.commit();
+    } catch (erro) {
+      await transacaoAtualizacao.rollback().catch(() => undefined);
+      await storage.remover(chaveAtualizada).catch(() => undefined);
+      throw erro;
+    }
+    return obterFoto(banco, contexto.empresaId, id);
   }
 
   await garantirAlvo(banco, contexto.empresaId, atendimentoId, fichaId);
@@ -192,9 +235,9 @@ export async function adicionarFoto(
     if (conflito.rows[0]) throw erros.conflito("Já existe uma foto com este identificador.");
     await transacao.execute({
       sql: `INSERT INTO fotos (
-          id, empresa_id, atendimento_id, ficha_id, categoria, legenda, ordem, storage_key,
+          id, empresa_id, atendimento_id, ficha_id, categoria, legenda, ordem, anotacoes, storage_key,
           mime_type, tamanho, checksum, revisao, criado_em, atualizado_em, criado_por
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?)`,
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?)`,
       args: [
         id,
         contexto.empresaId,
@@ -203,6 +246,7 @@ export async function adicionarFoto(
         categoria,
         legenda,
         ordem,
+        anotacoes,
         chave,
         imagem.mime,
         entrada.bytes.length,
@@ -237,6 +281,10 @@ export async function adicionarFoto(
     throw erro;
   }
   return obterFoto(banco, contexto.empresaId, id);
+}
+
+function objetoAtualizada(valor: string): string {
+  return valor;
 }
 
 export async function obterFoto(
@@ -295,23 +343,26 @@ export async function atualizarFoto(
   banco: Banco,
   contexto: { empresaId: string; usuarioId: string },
   id: string,
-  entrada: { baseRevisao: number; categoria?: string; legenda?: string; ordem?: number },
+  entrada: { baseRevisao: number; categoria?: string; legenda?: string; ordem?: number; anotacoes?: string },
 ): Promise<Foto> {
   const atual = await obterFoto(banco, contexto.empresaId, id);
   if (atual.revisao !== entrada.baseRevisao) {
     throw erros.conflito("A foto foi alterada por outra pessoa.", { registro: atual });
   }
   const instante = agora();
+  const anotacoes =
+    entrada.anotacoes !== undefined ? texto(entrada.anotacoes, 100_000) || "[]" : atual.anotacoes;
   const transacao = await banco.transaction("write");
   try {
     const resultado = await transacao.execute({
-      sql: `UPDATE fotos SET categoria = ?, legenda = ?, ordem = ?, revisao = revisao + 1,
+      sql: `UPDATE fotos SET categoria = ?, legenda = ?, ordem = ?, anotacoes = ?, revisao = revisao + 1,
               atualizado_em = ?
             WHERE id = ? AND empresa_id = ? AND revisao = ? AND excluido_em IS NULL`,
       args: [
         entrada.categoria === "PROCEDIMENTO" ? "PROCEDIMENTO" : "CARRO",
         texto(entrada.legenda, 500),
         inteiro(entrada.ordem, 0),
+        anotacoes,
         instante,
         id,
         contexto.empresaId,
