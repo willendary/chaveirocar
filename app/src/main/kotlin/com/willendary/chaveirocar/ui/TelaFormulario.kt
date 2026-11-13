@@ -74,6 +74,9 @@ import com.willendary.chaveirocar.util.Erros
 import com.willendary.chaveirocar.util.OcrPlaca
 import com.willendary.chaveirocar.util.Placa
 import com.willendary.chaveirocar.util.formatarData
+import com.willendary.chaveirocar.util.formatarMoedaDigitacao
+import com.willendary.chaveirocar.util.formatarPlacaMascara
+import com.willendary.chaveirocar.util.formatarTelefoneMascara
 import com.willendary.chaveirocar.util.formatarValorEditavel
 import com.willendary.chaveirocar.util.paraCentavos
 import kotlinx.coroutines.Dispatchers
@@ -575,9 +578,9 @@ fun TelaFormulario(
           rotulo = "Placa (opcional)",
           valor = atendimento.placa,
           aoMudar = { texto ->
-            atendimento = atendimento.copy(placa = texto.uppercase().filter { it.isLetterOrDigit() }.take(10))
+            atendimento = atendimento.copy(placa = formatarPlacaMascara(texto))
           },
-          dica = "ABC1D23",
+          dica = "ABC-1234 ou ABC1D23",
           estiloTexto = MaterialTheme.typography.titleLarge.copy(fontFamily = FontFamily.Monospace),
           modificador = Modifier.fillMaxWidth(),
         )
@@ -753,11 +756,12 @@ fun TelaFormulario(
         rotulo = "Valor cobrado (opcional)",
         valor = valorTexto,
         aoMudar = {
-          valorTexto = it
-          atendimento = atendimento.copy(valorCentavos = paraCentavos(it))
+          val (formatado, centavos) = formatarMoedaDigitacao(it)
+          valorTexto = formatado
+          atendimento = atendimento.copy(valorCentavos = centavos)
         },
-        dica = "150,00",
-        teclado = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+        dica = "R$ 150,00",
+        teclado = KeyboardOptions(keyboardType = KeyboardType.Number),
         modificador = Modifier.fillMaxWidth(),
       )
 
@@ -772,7 +776,7 @@ fun TelaFormulario(
       CampoTexto(
         rotulo = "Telefone do cliente (opcional)",
         valor = atendimento.clienteTelefone,
-        aoMudar = { atendimento = atendimento.copy(clienteTelefone = it) },
+        aoMudar = { atendimento = atendimento.copy(clienteTelefone = formatarTelefoneMascara(it)) },
         dica = "(11) 99999-0000",
         teclado = KeyboardOptions(keyboardType = KeyboardType.Phone),
         modificador = Modifier.fillMaxWidth(),

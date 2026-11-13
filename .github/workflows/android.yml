@@ -87,8 +87,19 @@ jobs:
         shell: pwsh
         run: |
           New-Item -ItemType Directory -Force -Path dist | Out-Null
+          New-Item -ItemType Directory -Force -Path windows/ChaveiroCar.Windows/publish | Out-Null
           Copy-Item publish/ChaveiroCar.Windows.exe dist/ChaveiroCar.Windows.exe -Force
+          Copy-Item publish/ChaveiroCar.Windows.exe windows/ChaveiroCar.Windows/publish/ChaveiroCar.Windows.exe -Force
           Compress-Archive -Path publish/ChaveiroCar.Windows.exe -DestinationPath dist/chaveirocar-windows-x64.zip -Force
+
+      - name: Instalar Inno Setup
+        shell: pwsh
+        run: choco install innosetup --no-progress
+
+      - name: Compilar Instalador Windows (Setup.exe)
+        shell: pwsh
+        run: |
+          & "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" windows/installer/chaveirocar.iss
 
       - name: Guardar pacote Windows
         uses: actions/upload-artifact@v4
@@ -96,6 +107,7 @@ jobs:
           name: chaveirocar-windows-x64
           path: |
             dist/ChaveiroCar.Windows.exe
+            dist/ChaveiroCar-Setup.exe
             dist/chaveirocar-windows-x64.zip
 
       - name: Anexar Windows à release
@@ -106,4 +118,5 @@ jobs:
           body_path: release/${{ github.ref_name }}.md
           files: |
             dist/ChaveiroCar.Windows.exe
+            dist/ChaveiroCar-Setup.exe
             dist/chaveirocar-windows-x64.zip

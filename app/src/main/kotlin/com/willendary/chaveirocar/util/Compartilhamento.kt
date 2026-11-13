@@ -55,6 +55,59 @@ object Compartilhamento {
     append("Enviado pelo ChaveiroCar")
   }
 
+  fun textoReciboCliente(atendimento: Atendimento): String = buildString {
+    appendLine("🔑 *CHAVEIROCAR — COMPROVANTE DE SERVIÇO*")
+    appendLine("----------------------------------------")
+    if (atendimento.segmento == SegmentoAtendimento.RESIDENCIAL) {
+      val local = listOf(atendimento.tipoLocal, atendimento.ambientePorta)
+        .filter { it.isNotBlank() }
+        .joinToString(" · ")
+        .ifBlank { "Serviço Residencial" }
+      appendLine("🏠 *$local*")
+      val fechadura = listOf(atendimento.marcaFechadura, atendimento.modeloFechadura, atendimento.tipoCilindro)
+        .filter { it.isNotBlank() }
+        .joinToString(" · ")
+      if (fechadura.isNotBlank()) appendLine("Fechadura: $fechadura")
+      if (atendimento.enderecoLocal.isNotBlank()) appendLine("Endereço: ${atendimento.enderecoLocal}")
+    } else {
+      val carro = listOf(atendimento.marca, atendimento.modelo, atendimento.ano)
+        .filter { it.isNotBlank() }
+        .joinToString(" ")
+      if (atendimento.placa.isNotBlank()) {
+        appendLine("🚗 *Placa:* ${atendimento.placa} ${if (carro.isNotBlank()) "· $carro" else ""}".trim())
+      } else {
+        appendLine("🚗 *Veículo:* ${carro.ifBlank { "Sem placa informada" }}")
+      }
+    }
+    appendLine("📅 *Data:* ${formatarData(atendimento.dataServico)}")
+    appendLine("🛠️ *Serviço:* ${atendimento.tiposEmTexto}")
+    if (atendimento.solucao.isNotBlank()) appendLine("📋 *Procedimento:* ${atendimento.solucao}")
+    if (atendimento.codigoChave.isNotBlank()) appendLine("🔢 *Segredo da chave:* ${atendimento.codigoChave}")
+    if (atendimento.valorCentavos > 0) {
+      appendLine("💰 *Valor:* ${formatarValor(atendimento.valorCentavos)} (${if (atendimento.pago) "Pago" else "Pendente"})")
+    }
+    appendLine("----------------------------------------")
+    appendLine("🛡️ *Garantia:* 90 dias com apresentação deste comprovante.")
+    append("Obrigado pela preferência!")
+  }
+
+  fun enviarReciboWhatsApp(contexto: Context, atendimento: Atendimento) {
+    val texto = textoReciboCliente(atendimento)
+    val telLimpo = atendimento.clienteTelefone.filter { it.isDigit() }
+    if (telLimpo.length >= 10) {
+      val ddi = if (telLimpo.startsWith("55")) telLimpo else "55$telLimpo"
+      val url = "https://api.whatsapp.com/send?phone=$ddi&text=" + java.net.URLEncoder.encode(texto, "UTF-8")
+      val intencao = Intent(Intent.ACTION_VIEW, android.net.Uri.parse(url))
+      runCatching {
+        contexto.startActivity(intencao)
+      }.onFailure {
+        compartilharTexto(contexto, texto)
+      }
+    } else {
+      compartilharTexto(contexto, texto)
+    }
+  }
+
   fun compartilharTexto(contexto: Context, texto: String) {
     val intencao = Intent(Intent.ACTION_SEND).apply {
       type = "text/plain"

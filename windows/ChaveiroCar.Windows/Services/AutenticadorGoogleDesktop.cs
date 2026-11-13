@@ -21,8 +21,8 @@ public static class AutenticadorGoogleDesktop
         CancellationToken cancelamento = default)
     {
         int porta = ObterPortaLivre();
-        string prefixo = $"http://127.0.0.1:{porta}/callback/";
-        string redirectUri = $"http://127.0.0.1:{porta}/callback";
+        string prefixo = $"http://127.0.0.1:{porta}/";
+        string redirectUri = $"http://127.0.0.1:{porta}/callback/";
 
         using var listener = new HttpListener();
         listener.Prefixes.Add(prefixo);

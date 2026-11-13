@@ -162,6 +162,7 @@ fun TelaLista(
   onAbrir: (Long) -> Unit,
   onNovo: () -> Unit,
   versaoSincronia: Int = 0,
+  sincronizando: Boolean = false,
 ) {
   var registros by remember { mutableStateOf<List<Atendimento>>(emptyList()) }
   var carregando by remember { mutableStateOf(true) }
@@ -193,7 +194,7 @@ fun TelaLista(
   }
 
   Scaffold(
-    topBar = { CabecalhoTela("ChaveiroCar", "Seu parceiro de bancada") },
+    topBar = { CabecalhoTela("ChaveiroCar", "Seu parceiro de bancada", sincronizando = sincronizando) },
     floatingActionButton = {
       ExtendedFloatingActionButton(
         modifier = Modifier.testTag("acao_novo_servico"),

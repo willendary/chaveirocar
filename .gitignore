@@ -16,6 +16,10 @@ local.properties
 
 # Build local
 .kotlin/
+/publish/
+windows/ChaveiroCar.Windows/publish/
+bin/
+obj/
 
 # APK gerado para instalar
 /dist/

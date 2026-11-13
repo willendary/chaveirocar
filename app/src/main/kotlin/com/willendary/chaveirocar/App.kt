@@ -517,6 +517,7 @@ fun ChaveiroCarApp() {
                     tela = TELA_FORMULARIO
                   },
                   versaoSincronia = versaoSincronia,
+                  sincronizando = sincronizandoNuvem,
                 )
             }
           }

@@ -14,11 +14,13 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.willendary.chaveirocar.R
-import com.willendary.chaveirocar.ui.theme.Tinta
+import com.willendary.chaveirocar.ui.theme.JadeVibrante
+import com.willendary.chaveirocar.ui.theme.Navy
 
 /** Um único símbolo vetorial na abertura, nas telas e no launcher. */
 @Composable
@@ -33,7 +35,11 @@ fun Modifier.conteudoResponsivo(maximo: Dp = 840.dp): Modifier =
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun CabecalhoTela(titulo: String, subtitulo: String) {
+fun CabecalhoTela(
+  titulo: String,
+  subtitulo: String,
+  sincronizando: Boolean = false,
+) {
   TopAppBar(
     title = {
       Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -41,6 +47,32 @@ fun CabecalhoTela(titulo: String, subtitulo: String) {
         Column {
           Text(titulo, style = MaterialTheme.typography.titleLarge)
           Text(subtitulo, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+      }
+    },
+    actions = {
+      Surface(
+        shape = RoundedCornerShape(999.dp),
+        color = if (sincronizando) Color(0x33FBBF24) else Color(0x1A0D9488),
+        modifier = Modifier.padding(end = 12.dp),
+      ) {
+        Row(
+          modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
+          verticalAlignment = Alignment.CenterVertically,
+          horizontalArrangement = Arrangement.spacedBy(6.dp),
+        ) {
+          Box(
+            modifier = Modifier
+              .size(8.dp)
+              .clip(RoundedCornerShape(4.dp))
+              .background(if (sincronizando) Color(0xFFF59E0B) else Color(0xFF10B981))
+          )
+          Text(
+            text = if (sincronizando) "Sincronizando..." else "Nuvem ativa",
+            style = MaterialTheme.typography.labelSmall,
+            color = if (sincronizando) Color(0xFFD97706) else Color(0xFF0D9488),
+            fontWeight = FontWeight.SemiBold,
+          )
         }
       }
     },
@@ -59,12 +91,12 @@ fun BotaoVoltar(aoVoltar: () -> Unit) {
 fun PainelDestaque(titulo: String, descricao: String, etiqueta: String? = null) {
   Column(
     modifier = Modifier.fillMaxWidth().clip(MaterialTheme.shapes.large)
-      .background(Brush.linearGradient(listOf(Tinta, Color(0xFF174C58)))).padding(24.dp),
+      .background(Brush.linearGradient(listOf(Navy, Color(0xFF134E4A)))).padding(24.dp),
     verticalArrangement = Arrangement.spacedBy(8.dp),
   ) {
-    if (etiqueta != null) Text(etiqueta, style = MaterialTheme.typography.labelMedium, color = Color(0xFF80E3C5))
+    if (etiqueta != null) Text(etiqueta, style = MaterialTheme.typography.labelMedium, color = JadeVibrante)
     Text(titulo, style = MaterialTheme.typography.headlineSmall, color = Color.White)
-    Text(descricao, style = MaterialTheme.typography.bodyMedium, color = Color(0xFFD0E3EC))
+    Text(descricao, style = MaterialTheme.typography.bodyMedium, color = Color(0xFFCBD5E1))
   }
 }
 

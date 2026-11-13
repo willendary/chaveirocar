@@ -1,12 +1,9 @@
 package com.willendary.chaveirocar.ui
 
 import android.widget.Toast
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Share
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectTransformGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -23,11 +20,16 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Share
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
@@ -44,6 +46,10 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
@@ -51,6 +57,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import com.willendary.chaveirocar.dados.BancoDeAtendimentos
 import com.willendary.chaveirocar.dados.Fotos
 import com.willendary.chaveirocar.modelo.Atendimento
@@ -192,6 +199,23 @@ fun TelaDetalhe(
             Text(listOf(registro.clienteNome, registro.clienteTelefone).filter { it.isNotBlank() }.joinToString(" · "),
               style = MaterialTheme.typography.bodyMedium)
           }
+          Row(
+            modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+          ) {
+            Button(
+              onClick = { Compartilhamento.enviarReciboWhatsApp(contexto, registro) },
+              modifier = Modifier.weight(1f),
+            ) {
+              Text("💬 Recibo WhatsApp")
+            }
+            OutlinedButton(
+              onClick = { Compartilhamento.compartilharTexto(contexto, Compartilhamento.textoReciboCliente(registro)) },
+              modifier = Modifier.weight(1f),
+            ) {
+              Text("Copiar Recibo")
+            }
+          }
         }
       }
       if (registro.abertura.isNotBlank()) {
@@ -284,23 +308,96 @@ fun TelaDetalhe(
 
   val foto = fotoAberta
   if (foto != null) {
-    Dialog(onDismissRequest = { fotoAberta = null }) {
-      Card {
-        Column {
+    Dialog(
+      onDismissRequest = { fotoAberta = null },
+      properties = DialogProperties(usePlatformDefaultWidth = false),
+    ) {
+      var escala by remember { mutableStateOf(1f) }
+      var offsetAtual by remember { mutableStateOf(Offset.Zero) }
+
+      Box(
+        modifier = Modifier
+          .fillMaxSize()
+          .background(Color(0xFF0B1120))
+          .pointerInput(Unit) {
+            detectTransformGestures { _, pan, zoom, _ ->
+              escala = (escala * zoom).coerceIn(1f, 6f)
+              offsetAtual = if (escala > 1f) {
+                Offset(
+                  x = offsetAtual.x + pan.x,
+                  y = offsetAtual.y + pan.y,
+                )
+              } else {
+                Offset.Zero
+              }
+            }
+          },
+      ) {
+        Box(
+          modifier = Modifier
+            .fillMaxSize()
+            .padding(16.dp),
+          contentAlignment = Alignment.Center,
+        ) {
           ImagemLocal(
             caminho = foto.caminho,
-            ladoMaximo = 2000,
+            ladoMaximo = 2400,
             modificador = Modifier
               .fillMaxWidth()
-              .heightIn(max = 520.dp)
-              .clickable { fotoAberta = null },
+              .graphicsLayer(
+                scaleX = escala,
+                scaleY = escala,
+                translationX = offsetAtual.x,
+                translationY = offsetAtual.y,
+              ),
           )
-          Row(Modifier.fillMaxWidth().padding(horizontal = 8.dp), horizontalArrangement = Arrangement.SpaceBetween) {
-            TextButton(onClick = {
+        }
+
+        Row(
+          modifier = Modifier
+            .fillMaxWidth()
+            .align(Alignment.TopCenter)
+            .background(Color(0xCC0F172A))
+            .padding(horizontal = 16.dp, vertical = 8.dp),
+          horizontalArrangement = Arrangement.SpaceBetween,
+          verticalAlignment = Alignment.CenterVertically,
+        ) {
+          Text(
+            text = if (escala > 1.05f) "Zoom: ${(escala * 100).toInt()}% (Arraste para mover)" else "Dica: Use dois dedos para dar zoom e inspecionar segredo",
+            color = Color.White,
+            style = MaterialTheme.typography.bodySmall,
+          )
+          Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            if (escala > 1.05f) {
+              TextButton(onClick = {
+                escala = 1f
+                offsetAtual = Offset.Zero
+              }) {
+                Text("Redefinir", color = Color(0xFF2DD4BF))
+              }
+            }
+            TextButton(onClick = { fotoAberta = null }) {
+              Text("Fechar", color = Color.White)
+            }
+          }
+        }
+
+        Row(
+          modifier = Modifier
+            .fillMaxWidth()
+            .align(Alignment.BottomCenter)
+            .background(Color(0xCC0F172A))
+            .padding(16.dp),
+          horizontalArrangement = Arrangement.Center,
+        ) {
+          Button(
+            onClick = {
               fotoEditandoSetas = foto
               fotoAberta = null
-            }) { Text("↗ Anotar com setas") }
-            TextButton(onClick = { fotoAberta = null }) { Text("Fechar") }
+            },
+            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF0D9488)),
+          ) {
+            Text("↗ Anotar com setas / cortes")
           }
         }
       }

@@ -53,3 +53,34 @@ fun diasDesde(millis: Long): Long {
   if (millis <= 0) return Long.MAX_VALUE
   return (System.currentTimeMillis() - millis) / (24 * 60 * 60 * 1000)
 }
+
+/** Formata placa para o padrão Mercosul (ABC1D23) ou antigo (ABC-1234). */
+fun formatarPlacaMascara(entrada: String): String {
+  val limpo = entrada.uppercase(Locale.ROOT).filter { it.isLetterOrDigit() }.take(7)
+  return if (limpo.length == 7 && limpo.take(3).all { it.isLetter() } && limpo.drop(3).all { it.isDigit() }) {
+    "${limpo.take(3)}-${limpo.drop(3)}"
+  } else {
+    limpo
+  }
+}
+
+/** Formata telefone brasileiro com DDD: (XX) XXXXX-XXXX ou (XX) XXXX-XXXX. */
+fun formatarTelefoneMascara(entrada: String): String {
+  val digitos = entrada.filter { it.isDigit() }.take(11)
+  return when {
+    digitos.isEmpty() -> ""
+    digitos.length <= 2 -> "($digitos"
+    digitos.length <= 6 -> "(${digitos.substring(0, 2)}) ${digitos.substring(2)}"
+    digitos.length <= 10 -> "(${digitos.substring(0, 2)}) ${digitos.substring(2, 6)}-${digitos.substring(6)}"
+    else -> "(${digitos.substring(0, 2)}) ${digitos.substring(2, 7)}-${digitos.substring(7)}"
+  }
+}
+
+/** Formata centavos como moeda R$ X.XXX,XX em tempo real. */
+fun formatarMoedaDigitacao(entrada: String): Pair<String, Long> {
+  val digitos = entrada.filter { it.isDigit() }
+  if (digitos.isBlank()) return "" to 0L
+  val centavos = digitos.toLongOrNull() ?: 0L
+  val texto = formatarValor(centavos)
+  return texto to centavos
+}

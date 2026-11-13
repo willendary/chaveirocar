@@ -54,6 +54,9 @@ public partial class AtendimentoEditorWindow : Window
         FotosExistentes.ItemsSource = _fotosExistentes;
         FotosNovas.ItemsSource = _fotosNovas;
         Preencher();
+        Placa.TextChanged += Placa_TextChanged;
+        ClienteTelefone.LostFocus += ClienteTelefone_LostFocus;
+        Valor.LostFocus += Valor_LostFocus;
         Closed += (_, _) =>
         {
             if (DialogResult == true) return;
@@ -233,6 +236,49 @@ public partial class AtendimentoEditorWindow : Window
             foto.Anotacoes = editor.ResultadoAnotacoes;
             foto.Pendente = true;
             Erro.Text = "";
+        }
+    }
+
+    private void Placa_TextChanged(object sender, TextChangedEventArgs e)
+    {
+        if (_carregando) return;
+        var texto = Placa.Text.ToUpperInvariant().Trim();
+        var limpo = new string(texto.Where(char.IsLetterOrDigit).ToArray());
+        if (limpo.Length > 7) limpo = limpo[..7];
+        string formatado = limpo;
+        if (limpo.Length == 7 &&
+            char.IsLetter(limpo[0]) && char.IsLetter(limpo[1]) && char.IsLetter(limpo[2]) &&
+            char.IsDigit(limpo[3]) && char.IsDigit(limpo[4]) && char.IsDigit(limpo[5]) && char.IsDigit(limpo[6]))
+        {
+            formatado = $"{limpo[..3]}-{limpo[3..]}";
+        }
+        if (Placa.Text != formatado)
+        {
+            var sel = Placa.SelectionStart;
+            Placa.Text = formatado;
+            Placa.SelectionStart = Math.Min(sel, Placa.Text.Length);
+        }
+    }
+
+    private void ClienteTelefone_LostFocus(object sender, RoutedEventArgs e)
+    {
+        var digitos = new string(ClienteTelefone.Text.Where(char.IsDigit).ToArray());
+        if (digitos.Length == 11)
+        {
+            ClienteTelefone.Text = $"({digitos[..2]}) {digitos.Substring(2, 5)}-{digitos.Substring(7, 4)}";
+        }
+        else if (digitos.Length == 10)
+        {
+            ClienteTelefone.Text = $"({digitos[..2]}) {digitos.Substring(2, 4)}-{digitos.Substring(6, 4)}";
+        }
+    }
+
+    private void Valor_LostFocus(object sender, RoutedEventArgs e)
+    {
+        var texto = Valor.Text.Trim().Replace("R$", "").Trim();
+        if (decimal.TryParse(texto, NumberStyles.Number, CultureInfo.CurrentCulture, out var v))
+        {
+            Valor.Text = v.ToString("N2", CultureInfo.CurrentCulture);
         }
     }
 

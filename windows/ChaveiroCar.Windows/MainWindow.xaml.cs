@@ -1,7 +1,11 @@
-﻿using System.Windows;
+﻿using System.Diagnostics;
+using System.Globalization;
+using System.Text;
+using System.Windows;
 using System.Windows.Documents;
 using System.Windows.Input;
 using System.Windows.Controls;
+using System.Windows.Media;
 using System.Windows.Threading;
 using ChaveiroCar.Windows.Services;
 
@@ -206,6 +210,18 @@ public partial class MainWindow : Window
             }
         }
 
+        if (StatusDot is not null)
+        {
+            if (!string.IsNullOrWhiteSpace(mensagemConexao) && mensagemConexao.Contains("Sem conexão"))
+            {
+                StatusDot.Fill = new SolidColorBrush(Color.FromRgb(148, 163, 184));
+            }
+            else
+            {
+                StatusDot.Fill = (Brush)FindResource("CorPrimaria");
+            }
+        }
+
         if (!string.IsNullOrWhiteSpace(mensagemConexao))
         {
             Status.Text = mensagemConexao;
@@ -221,6 +237,10 @@ public partial class MainWindow : Window
     {
         if (_sincronizando || _api is null || string.IsNullOrWhiteSpace(_local.Estado.EmpresaId)) return;
         _sincronizando = true;
+        if (StatusDot is not null)
+        {
+            StatusDot.Fill = new SolidColorBrush(Color.FromRgb(245, 158, 11));
+        }
         string? mensagem = null;
         try
         {
@@ -331,6 +351,59 @@ public partial class MainWindow : Window
             else _local.Estado.Fotos[indice] = foto;
         }
         _local.Salvar();
+    }
+
+    private void ReciboWhatsApp_Click(object sender, RoutedEventArgs e)
+    {
+        var item = Selecionado();
+        if (item is null)
+        {
+            MessageBox.Show("Selecione um atendimento na tabela para gerar o recibo WhatsApp.",
+                "Recibo WhatsApp", MessageBoxButton.OK, MessageBoxImage.Information);
+            return;
+        }
+
+        string telefone = new string((item.ClienteTelefone ?? "").Where(char.IsDigit).ToArray());
+        if (telefone.Length >= 10 && !telefone.StartsWith("55"))
+        {
+            telefone = "55" + telefone;
+        }
+
+        string titulo = item.Segmento == "RESIDENCIAL"
+            ? (string.IsNullOrWhiteSpace(item.AmbientePorta) ? "Serviço Residencial" : $"{item.TipoLocal} · {item.AmbientePorta}")
+            : (string.IsNullOrWhiteSpace(item.Placa) ? $"{item.Marca} {item.Modelo}" : $"{item.Placa} · {item.Marca} {item.Modelo}");
+
+        string servicos = item.TiposServico.Count > 0 ? string.Join(", ", item.TiposServico) : "Serviço de chaveiro";
+        string data = DateTimeOffset.FromUnixTimeMilliseconds(item.DataServico).ToLocalTime().ToString("dd/MM/yyyy");
+        string valor = (item.ValorCentavos / 100m).ToString("C2", CultureInfo.GetCultureInfo("pt-BR"));
+
+        var sb = new StringBuilder();
+        sb.AppendLine("*COMPROVANTE DE ATENDIMENTO — CHAVEIROCAR*");
+        sb.AppendLine("────────────────────────");
+        sb.AppendLine($"*Item:* {titulo}");
+        sb.AppendLine($"*Data:* {data}");
+        sb.AppendLine($"*Serviço:* {servicos}");
+        if (!string.IsNullOrWhiteSpace(item.Defeito)) sb.AppendLine($"*Defeito:* {item.Defeito}");
+        if (!string.IsNullOrWhiteSpace(item.Solucao)) sb.AppendLine($"*Solução:* {item.Solucao}");
+        sb.AppendLine($"*Valor:* {valor}");
+        sb.AppendLine($"*Situação:* {(item.Pago ? "Pago ✅" : "Pendente de pagamento ⏳")}");
+        sb.AppendLine("────────────────────────");
+        sb.AppendLine("Obrigado pela preferência!");
+
+        string textoFormatado = sb.ToString();
+        string url = string.IsNullOrWhiteSpace(telefone)
+            ? $"https://web.whatsapp.com/send?text={Uri.EscapeDataString(textoFormatado)}"
+            : $"https://web.whatsapp.com/send?phone={telefone}&text={Uri.EscapeDataString(textoFormatado)}";
+
+        try
+        {
+            Process.Start(new ProcessStartInfo(url) { UseShellExecute = true });
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show($"Não foi possível abrir o WhatsApp: {ex.Message}", "ChaveiroCar",
+                MessageBoxButton.OK, MessageBoxImage.Warning);
+        }
     }
 
     private void Excluir_Click(object sender, RoutedEventArgs e)
