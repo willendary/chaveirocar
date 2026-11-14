@@ -132,6 +132,14 @@ public static class MotorSincronia
                 recebidas += await ReceberFoto(local, api, remota);
             }
         }
+        foreach (var pendenteDownload in local.Estado.Fotos
+            .Where(f => !f.Pendente
+                && !string.IsNullOrWhiteSpace(f.UrlRemota)
+                && (string.IsNullOrWhiteSpace(f.CaminhoLocal) || !File.Exists(f.CaminhoLocal)))
+            .ToList())
+        {
+            recebidas += await BaixarFotoPendente(local, api, pendenteDownload);
+        }
         local.Salvar();
         return new Resumo(enviadas, recebidas, conflitos, falhas);
     }
@@ -402,31 +410,54 @@ public static class MotorSincronia
     private static async Task<int> ReceberFoto(
         ArmazenamentoLocal local, ClienteApi api, ClienteApi.FotoRemota remota)
     {
-        if (remota.Excluido) {
+        if (remota.Excluido)
+        {
             foreach (var foto in local.Estado.Fotos.Where(f => f.Uuid == remota.Uuid).ToList())
             {
-                if (!string.IsNullOrWhiteSpace(foto.CaminhoLocal)) File.Delete(foto.CaminhoLocal);
+                if (!string.IsNullOrWhiteSpace(foto.CaminhoLocal) && File.Exists(foto.CaminhoLocal))
+                {
+                    File.Delete(foto.CaminhoLocal);
+                }
             }
             local.Estado.Fotos.RemoveAll(f => f.Uuid == remota.Uuid);
             return 1;
         }
         var existente = local.Estado.Fotos.FirstOrDefault(f => f.Uuid == remota.Uuid);
-        if (existente is not null && !existente.Pendente && File.Exists(existente.CaminhoLocal) && remota.Revisao <= existente.Revisao) return 0;
-        var extensao = remota.MimeType switch
+        if (existente is not null
+            && !existente.Pendente
+            && !string.IsNullOrWhiteSpace(existente.CaminhoLocal)
+            && File.Exists(existente.CaminhoLocal)
+            && remota.Revisao <= existente.Revisao)
         {
-            "image/png" => ".png",
-            "image/webp" => ".webp",
-            _ => ".jpg",
-        };
-        var caminho = Path.Combine(PastaFotos(), $"{remota.Uuid}{extensao}");
-        try
-        {
-            var bytes = await api.BaixarFotoAsync(remota.Url);
-            await File.WriteAllBytesAsync(caminho, bytes);
+            return 0;
         }
-        catch
+        var caminho = await TentarBaixarFotoAsync(api, remota.Uuid, remota.Url, remota.MimeType);
+        if (caminho is null)
         {
-            // Sem rede, mantém o metadado anterior e tenta o download na próxima sync.
+            // Preserva metadados remotos para que o avanço do cursor não perca a foto offline/em falha.
+            if (existente is null)
+            {
+                local.Estado.Fotos.Add(new ArmazenamentoLocal.FotoLocal
+                {
+                    Uuid = remota.Uuid,
+                    AtendimentoUuid = remota.AtendimentoUuid,
+                    FichaUuid = remota.FichaUuid,
+                    Categoria = remota.Categoria,
+                    Legenda = remota.Legenda,
+                    Anotacoes = remota.Anotacoes,
+                    Ordem = remota.Ordem,
+                    Revisao = 0,
+                    CaminhoLocal = string.Empty,
+                    UrlRemota = remota.Url,
+                    MimeType = remota.MimeType,
+                    Pendente = false,
+                });
+            }
+            else
+            {
+                existente.UrlRemota = remota.Url;
+                existente.MimeType = remota.MimeType;
+            }
             return 0;
         }
         var meta = new ArmazenamentoLocal.FotoLocal
@@ -440,6 +471,8 @@ public static class MotorSincronia
             Ordem = remota.Ordem,
             Revisao = remota.Revisao,
             CaminhoLocal = caminho,
+            UrlRemota = remota.Url,
+            MimeType = remota.MimeType,
             Pendente = false,
         };
         if (existente is null) local.Estado.Fotos.Add(meta);
@@ -449,5 +482,38 @@ public static class MotorSincronia
             local.Estado.Fotos[indice] = meta;
         }
         return 1;
+    }
+
+    private static async Task<int> BaixarFotoPendente(
+        ArmazenamentoLocal local, ClienteApi api, ArmazenamentoLocal.FotoLocal foto)
+    {
+        var caminho = await TentarBaixarFotoAsync(api, foto.Uuid, foto.UrlRemota, foto.MimeType);
+        if (string.IsNullOrWhiteSpace(caminho)) return 0;
+        foto.CaminhoLocal = caminho;
+        if (foto.Revisao <= 0) foto.Revisao = 1;
+        return 1;
+    }
+
+    private static async Task<string?> TentarBaixarFotoAsync(
+        ClienteApi api, string uuid, string? url, string? mimeType)
+    {
+        if (string.IsNullOrWhiteSpace(url)) return null;
+        var extensao = mimeType switch
+        {
+            "image/png" => ".png",
+            "image/webp" => ".webp",
+            _ => ".jpg",
+        };
+        var caminho = Path.Combine(PastaFotos(), $"{uuid}{extensao}");
+        try
+        {
+            var bytes = await api.BaixarFotoAsync(url);
+            await File.WriteAllBytesAsync(caminho, bytes);
+            return caminho;
+        }
+        catch
+        {
+            return null;
+        }
     }
 }

@@ -61,7 +61,8 @@ class BancoDeAtendimentos(contexto: Context) :
         atualizado_em INTEGER NOT NULL,
         uuid TEXT NOT NULL DEFAULT '',
         revisao_remota INTEGER NOT NULL DEFAULT 0,
-        sinc_pendente INTEGER NOT NULL DEFAULT 0
+        sinc_pendente INTEGER NOT NULL DEFAULT 0,
+        op_id_pendente TEXT NOT NULL DEFAULT ''
       )
       """.trimIndent(),
     )
@@ -121,7 +122,8 @@ class BancoDeAtendimentos(contexto: Context) :
         atualizado_em INTEGER NOT NULL,
         uuid TEXT NOT NULL DEFAULT '',
         revisao_remota INTEGER NOT NULL DEFAULT 0,
-        sinc_pendente INTEGER NOT NULL DEFAULT 0
+        sinc_pendente INTEGER NOT NULL DEFAULT 0,
+        op_id_pendente TEXT NOT NULL DEFAULT ''
       )
       """.trimIndent(),
     )
@@ -153,6 +155,37 @@ class BancoDeAtendimentos(contexto: Context) :
         criado_em INTEGER NOT NULL
       )""",
     )
+    banco.execSQL(
+      """CREATE TABLE IF NOT EXISTS sync_fotos_pendentes (
+        uuid TEXT PRIMARY KEY,
+        atendimento_uuid TEXT NOT NULL,
+        json_remoto TEXT NOT NULL,
+        criado_em INTEGER NOT NULL
+      )""",
+    )
+  }
+
+  private fun tabelaExiste(banco: SQLiteDatabase, tabela: String): Boolean =
+    banco.query(
+      "sqlite_master", arrayOf("name"), "name = ?", arrayOf(tabela), null, null, null,
+    ).use { it.moveToFirst() }
+
+  private fun adicionarColunaSeAusente(banco: SQLiteDatabase, tabela: String, definicao: String) {
+    if (!tabelaExiste(banco, tabela)) return
+    val nomeColuna = definicao.substringBefore(" ")
+    val existe = banco.rawQuery("PRAGMA table_info($tabela)", null).use { cursor ->
+      var achou = false
+      while (cursor.moveToNext()) {
+        if (cursor.getString(1) == nomeColuna) {
+          achou = true
+          break
+        }
+      }
+      achou
+    }
+    if (!existe) {
+      banco.execSQL("ALTER TABLE $tabela ADD COLUMN $definicao")
+    }
   }
 
   override fun onUpgrade(banco: SQLiteDatabase, versaoAntiga: Int, versaoNova: Int) {
@@ -270,6 +303,18 @@ class BancoDeAtendimentos(contexto: Context) :
       if (existe("fotos")) {
         adicionar("fotos", "anotacoes TEXT NOT NULL DEFAULT '[]'")
       }
+    }
+    if (versaoAntiga < 9) {
+      adicionarColunaSeAusente(banco, "atendimentos", "op_id_pendente TEXT NOT NULL DEFAULT ''")
+      adicionarColunaSeAusente(banco, "fichas_tecnicas", "op_id_pendente TEXT NOT NULL DEFAULT ''")
+      banco.execSQL(
+        """CREATE TABLE IF NOT EXISTS sync_fotos_pendentes (
+          uuid TEXT PRIMARY KEY,
+          atendimento_uuid TEXT NOT NULL,
+          json_remoto TEXT NOT NULL,
+          criado_em INTEGER NOT NULL
+        )""",
+      )
     }
   }
 
@@ -521,6 +566,7 @@ class BancoDeAtendimentos(contexto: Context) :
       put("busca", montarBusca(atendimento))
       put("atualizado_em", agora)
       put("sinc_pendente", 1)
+      put("op_id_pendente", java.util.UUID.randomUUID().toString())
     }
     val banco = writableDatabase
     if (atendimento.id == 0L) {
@@ -701,6 +747,7 @@ class BancoDeAtendimentos(contexto: Context) :
       put("busca", normalizar(montarBuscaDaFicha(ficha)))
       put("atualizado_em", agora)
       put("sinc_pendente", 1)
+      put("op_id_pendente", java.util.UUID.randomUUID().toString())
     }
     val banco = writableDatabase
     if (ficha.id == 0L) {
@@ -923,6 +970,7 @@ class BancoDeAtendimentos(contexto: Context) :
       ContentValues().apply {
         put("revisao_remota", revisao)
         put("sinc_pendente", 0)
+        put("op_id_pendente", "")
       },
       "id = ?", arrayOf(id.toString()),
     )
@@ -996,11 +1044,73 @@ class BancoDeAtendimentos(contexto: Context) :
       put("uuid", uuid)
       put("revisao_remota", revisao)
       put("sinc_pendente", 0)
+      put("op_id_pendente", "")
     }
+
+  private fun obterOuCriarOpId(tabela: String, id: Long): String {
+    val atual = readableDatabase.rawQuery(
+      "SELECT op_id_pendente FROM $tabela WHERE id = ? LIMIT 1",
+      arrayOf(id.toString()),
+    ).use { cursor ->
+      if (cursor.moveToFirst()) cursor.getString(0).orEmpty() else ""
+    }
+    if (atual.isNotBlank()) return atual
+    val novo = java.util.UUID.randomUUID().toString()
+    writableDatabase.update(
+      tabela,
+      ContentValues().apply { put("op_id_pendente", novo) },
+      "id = ?",
+      arrayOf(id.toString()),
+    )
+    return novo
+  }
+
+  /** Retorna o `opId` estável de um atendimento pendente, gerando-o apenas se ainda não existir. */
+  fun obterOuCriarOpIdDe(id: Long): String = obterOuCriarOpId("atendimentos", id)
+
+  /** Retorna o `opId` estável de uma ficha pendente, gerando-o apenas se ainda não existir. */
+  fun obterOuCriarOpIdFicha(id: Long): String = obterOuCriarOpId("fichas_tecnicas", id)
+
+  /** Registra metadado remoto de foto que chegou antes do atendimento pai ou falhou no download. */
+  fun salvarFotoPendentePull(uuid: String, atendimentoUuid: String, jsonRemoto: String) {
+    if (uuid.isBlank() || atendimentoUuid.isBlank() || jsonRemoto.isBlank()) return
+    writableDatabase.insertWithOnConflict(
+      "sync_fotos_pendentes",
+      null,
+      ContentValues().apply {
+        put("uuid", uuid)
+        put("atendimento_uuid", atendimentoUuid)
+        put("json_remoto", jsonRemoto)
+        put("criado_em", System.currentTimeMillis())
+      },
+      android.database.sqlite.SQLiteDatabase.CONFLICT_REPLACE,
+    )
+  }
+
+  /** Remove foto da fila de pendências após aplicação ou exclusão bem-sucedida. */
+  fun removerFotoPendentePull(uuid: String) {
+    if (uuid.isBlank()) return
+    writableDatabase.delete("sync_fotos_pendentes", "uuid = ?", arrayOf(uuid))
+  }
+
+  /** Lista os JSONs remotos das fotos retidas para nova tentativa após o pull das entidades pai. */
+  fun listarFotosPendentesPull(): List<String> {
+    val lista = mutableListOf<String>()
+    readableDatabase.rawQuery(
+      "SELECT json_remoto FROM sync_fotos_pendentes ORDER BY criado_em ASC",
+      null,
+    ).use { cursor ->
+      while (cursor.moveToNext()) {
+        val bruto = cursor.getString(0)
+        if (!bruto.isNullOrBlank()) lista.add(bruto)
+      }
+    }
+    return lista
+  }
 
   companion object {
     const val NOME = "chaveirocar.db"
-    const val VERSAO = 8
+    const val VERSAO = 9
   }
 }
 
@@ -1039,7 +1149,11 @@ fun BancoDeAtendimentos.aplicarFichaRemota(ficha: FichaTecnica, uuid: String, re
 fun BancoDeAtendimentos.marcarFichaEnviada(id: Long, revisao: Long) {
   writableDatabase.update(
     "fichas_tecnicas",
-    ContentValues().apply { put("revisao_remota", revisao); put("sinc_pendente", 0) },
+    ContentValues().apply {
+      put("revisao_remota", revisao)
+      put("sinc_pendente", 0)
+      put("op_id_pendente", "")
+    },
     "id = ?", arrayOf(id.toString()),
   )
 }
@@ -1151,6 +1265,7 @@ private fun valoresFichaDeSync(ficha: FichaTecnica, uuid: String, revisao: Long)
     put("uuid", uuid)
     put("revisao_remota", revisao)
     put("sinc_pendente", 0)
+    put("op_id_pendente", "")
   }
 
 data class SaidaSync(val opId: String, val entidade: String, val uuid: String, val baseRevisao: Long)

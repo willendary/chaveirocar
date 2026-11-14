@@ -116,4 +116,13 @@ class SincronizacaoTest {
     assertEquals(0.8f, lidas[0].x2, 0.001f)
     assertEquals(3f, lidas[1].espessura, 0.001f)
   }
+
+  @Test
+  fun `opId persistido é preservado em reenvios da mesma operação local`() {
+    val opIdFixo = "op-persistido-123"
+    val primeiraTentativa = Sincronizacao.operacaoLocal(opIdFixo, "uuid-1", "upsert", 2, atendimento = original)
+    val segundaTentativa = Sincronizacao.operacaoLocal(opIdFixo, "uuid-1", "upsert", 2, atendimento = original)
+    assertEquals(opIdFixo, primeiraTentativa.getString("opId"))
+    assertEquals(primeiraTentativa.getString("opId"), segundaTentativa.getString("opId"))
+  }
 }

@@ -209,6 +209,28 @@ describe("autenticação", () => {
               { status: 200, headers: { "content-type": "application/json" } },
             );
           }
+          if (url.includes("access_token=token-google-valido")) {
+            return new Response(
+              JSON.stringify({
+                aud: "626552919131-c0n00ppvs7atldtknhmkh5roatt5t2ib.apps.googleusercontent.com",
+                sub: "google-sub-123",
+                email: "googleuser@exemplo.com",
+                email_verified: "true",
+              }),
+              { status: 200, headers: { "content-type": "application/json" } },
+            );
+          }
+          if (url.includes("access_token=token-outro-app") || url.includes("id_token=idtoken-outro-app")) {
+            return new Response(
+              JSON.stringify({
+                aud: "999999999999-outro-app.apps.googleusercontent.com",
+                sub: "google-sub-invasor",
+                email: "invasor@exemplo.com",
+                email_verified: "true",
+              }),
+              { status: 200, headers: { "content-type": "application/json" } },
+            );
+          }
           return new Response("{}", { status: 401 });
         }
         return fetchOriginal(input, init);
@@ -256,6 +278,21 @@ describe("autenticação", () => {
         payload: { accessToken: "token-invalido-123" },
       });
       expect(invalido.statusCode).toBe(401);
+
+      // 5) Tokens de outro aplicativo (aud divergente) retornam 401
+      const outroAccess = await ambiente.app.inject({
+        method: "POST",
+        url: "/api/v1/auth/google-login",
+        payload: { accessToken: "token-outro-app" },
+      });
+      expect(outroAccess.statusCode).toBe(401);
+
+      const outroId = await ambiente.app.inject({
+        method: "POST",
+        url: "/api/v1/auth/google-login",
+        payload: { idToken: "idtoken-outro-app" },
+      });
+      expect(outroId.statusCode).toBe(401);
     } finally {
       globalThis.fetch = fetchOriginal;
     }

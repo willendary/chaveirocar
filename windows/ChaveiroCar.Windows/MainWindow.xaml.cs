@@ -63,7 +63,7 @@ public partial class MainWindow : Window
 
         RecarregarGrade();
         AtualizarStatus();
-        var versaoAtual = System.Reflection.Assembly.GetEntryAssembly()?.GetName().Version?.ToString(3) ?? "1.11.3";
+        var versaoAtual = System.Reflection.Assembly.GetEntryAssembly()?.GetName().Version?.ToString(3) ?? "1.11.4";
         TxtVersaoApp.Text = $"ChaveiroCar Desktop v{versaoAtual}";
         await Inicializar();
         _timerSincronia.Start();

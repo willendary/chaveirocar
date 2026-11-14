@@ -52,13 +52,13 @@ object MotorSinc {
     for (item in pendentes) {
       val uuid = banco.uuidDe(item.id)
       if (uuid.isBlank()) throw IllegalStateException("Registro sem UUID não pode sincronizar.")
-      ops.put(Sincronizacao.operacaoLocal(UUID.randomUUID().toString(), uuid, "upsert", banco.revisaoRemotaDe(item.id), atendimento = item))
+      ops.put(Sincronizacao.operacaoLocal(banco.obterOuCriarOpIdDe(item.id), uuid, "upsert", banco.revisaoRemotaDe(item.id), atendimento = item))
     }
     val pendentesF = banco.pendentesFichas()
     for (item in pendentesF) {
       val uuid = banco.uuidFicha(item.id)
       if (uuid.isBlank()) throw IllegalStateException("Ficha sem UUID não pode sincronizar.")
-      ops.put(Sincronizacao.operacaoLocal(UUID.randomUUID().toString(), uuid, "upsert", banco.revisaoRemotaFicha(item.id), ficha = item, entidade = "ficha"))
+      ops.put(Sincronizacao.operacaoLocal(banco.obterOuCriarOpIdFicha(item.id), uuid, "upsert", banco.revisaoRemotaFicha(item.id), ficha = item, entidade = "ficha"))
     }
     val saidas = banco.saidasExcluidos()
     for (saida in saidas) {
@@ -136,6 +136,12 @@ object MotorSinc {
       temMais = pagina.optBoolean("temMais", false)
       recebidas += aplicarPagina(banco, api, contexto, pagina)
     }
+    for (bruto in banco.listarFotosPendentesPull()) {
+      val remoto = runCatching { org.json.JSONObject(bruto) }.getOrNull() ?: continue
+      if (processarFotoRemota(banco, api, contexto, remoto)) {
+        recebidas++
+      }
+    }
     return ResumoSync(enviadas, recebidas, conflitos, cursor, temMais)
   }
 
@@ -192,45 +198,79 @@ object MotorSinc {
     val fotos = pagina.optJSONArray("fotos") ?: JSONArray()
     for (i in 0 until fotos.length()) {
       val remoto = fotos.optJSONObject(i) ?: continue
-      val uuid = Sincronizacao.uuidDeRemoto(remoto)
-      val atendimentoUuid = remoto.optString("atendimentoId")
-      if (uuid.isBlank() || atendimentoUuid.isBlank() || banco.jaExcluidoConhecido(uuid)) continue
-      val atendimento = banco.obterPorUuid(atendimentoUuid) ?: continue
-      val excluido = Sincronizacao.excluidoDeRemoto(remoto)
-      val rev = Sincronizacao.revisaoDeRemoto(remoto)
-      if (excluido) {
-        banco.excluirFotoPorUuid(uuid)
+      if (processarFotoRemota(banco, api, contexto, remoto)) {
         recebidas++
-        continue
       }
-      // Baixa bytes quando o registro ainda não está no aparelho ou foi atualizado no servidor.
-      val local = banco.obterFotoPorUuid(uuid)
-      val caminho = if (local == null) {
-        if (contexto == null) continue
-        val url = remoto.optString("url")
-        if (url.isBlank()) continue
-        val bytes = runCatching { api.baixarFoto(url) }.getOrNull() ?: continue
-        Fotos.salvarDeBytes(contexto, bytes)
-      } else {
-        if (contexto != null && rev > banco.revisaoRemotaFoto(local.id)) {
-          val url = remoto.optString("url")
-          if (url.isNotBlank()) {
-            runCatching {
-              val bytes = api.baixarFoto(url)
-              Fotos.arquivo(contexto, local.caminho).writeBytes(bytes)
-            }
-          }
-        }
-        local.caminho
-      }
-      banco.aplicarFotoRemota(
-        uuid, atendimento.id, caminho, remoto.optString("categoria", "CARRO"),
-        remoto.optString("legenda", ""), remoto.optInt("ordem", 0), rev,
-        remoto.optString("anotacoes", "[]"),
-      )
-      recebidas++
     }
     return recebidas
+  }
+
+  private fun processarFotoRemota(
+    banco: BancoDeAtendimentos,
+    api: ApiChaveiroCar,
+    contexto: Context?,
+    remoto: org.json.JSONObject,
+  ): Boolean {
+    val uuid = Sincronizacao.uuidDeRemoto(remoto)
+    val atendimentoUuid = remoto.optString("atendimentoId")
+    if (uuid.isBlank() || atendimentoUuid.isBlank()) return false
+    if (banco.jaExcluidoConhecido(uuid)) {
+      banco.removerFotoPendentePull(uuid)
+      return false
+    }
+    val excluido = Sincronizacao.excluidoDeRemoto(remoto)
+    val rev = Sincronizacao.revisaoDeRemoto(remoto)
+    if (excluido) {
+      banco.excluirFotoPorUuid(uuid)
+      banco.removerFotoPendentePull(uuid)
+      return true
+    }
+    val atendimento = banco.obterPorUuid(atendimentoUuid)
+    if (atendimento == null) {
+      // Preserva a foto caso chegue antes do atendimento pai em pagina anterior.
+      banco.salvarFotoPendentePull(uuid, atendimentoUuid, remoto.toString())
+      return false
+    }
+    val local = banco.obterFotoPorUuid(uuid)
+    val caminho = if (local == null) {
+      if (contexto == null) {
+        banco.salvarFotoPendentePull(uuid, atendimentoUuid, remoto.toString())
+        return false
+      }
+      val url = remoto.optString("url")
+      if (url.isBlank()) {
+        banco.salvarFotoPendentePull(uuid, atendimentoUuid, remoto.toString())
+        return false
+      }
+      val bytes = runCatching { api.baixarFoto(url) }.getOrNull()
+      if (bytes == null) {
+        banco.salvarFotoPendentePull(uuid, atendimentoUuid, remoto.toString())
+        return false
+      }
+      Fotos.salvarDeBytes(contexto, bytes)
+    } else {
+      if (contexto != null && rev > banco.revisaoRemotaFoto(local.id)) {
+        val url = remoto.optString("url")
+        if (url.isNotBlank()) {
+          val baixou = runCatching {
+            val bytes = api.baixarFoto(url)
+            Fotos.arquivo(contexto, local.caminho).writeBytes(bytes)
+          }.isSuccess
+          if (!baixou) {
+            banco.salvarFotoPendentePull(uuid, atendimentoUuid, remoto.toString())
+            return false
+          }
+        }
+      }
+      local.caminho
+    }
+    banco.aplicarFotoRemota(
+      uuid, atendimento.id, caminho, remoto.optString("categoria", "CARRO"),
+      remoto.optString("legenda", ""), remoto.optInt("ordem", 0), rev,
+      remoto.optString("anotacoes", "[]"),
+    )
+    banco.removerFotoPendentePull(uuid)
+    return true
   }
 
   private fun aplicarRemotoAtendimento(

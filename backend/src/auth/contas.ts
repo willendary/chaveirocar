@@ -139,6 +139,28 @@ export interface PerfilGoogle {
   emailVerificado: boolean;
 }
 
+export function clientIdGooglePermitido(candidato: string, permitidos: string[]): boolean {
+  const limpo = candidato.trim();
+  if (permitidos.length === 0 || !limpo) return true;
+  if (permitidos.includes(limpo)) return true;
+
+  const sufixo = ".apps.googleusercontent.com";
+  if (!limpo.endsWith(sufixo)) return false;
+  const traco = limpo.indexOf("-");
+  if (traco <= 0) return false;
+  const prefixoProjeto = limpo.slice(0, traco + 1);
+  return permitidos.some((item) => item.endsWith(sufixo) && item.startsWith(prefixoProjeto));
+}
+
+function validarAudienceGoogle(dados: Record<string, unknown>, permitidos: string[]): void {
+  if (permitidos.length === 0) return;
+  const aud = String(dados.aud ?? dados.issued_to ?? "").trim();
+  const azp = String(dados.azp ?? "").trim();
+  if ((aud && !clientIdGooglePermitido(aud, permitidos)) || (azp && !clientIdGooglePermitido(azp, permitidos))) {
+    throw erros.naoAutenticado("Token Google não pertence a este aplicativo.");
+  }
+}
+
 export async function verificarTokenGoogle(
   entrada: { idToken?: string; accessToken?: string },
   googleClientId = "",
@@ -148,6 +170,11 @@ export async function verificarTokenGoogle(
   if (!idToken && !accessToken) {
     throw erros.validacao("Informe o token do Google (idToken ou accessToken).");
   }
+
+  const permitidos = (googleClientId ?? "")
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean);
 
   if (idToken) {
     let resposta: Response;
@@ -162,14 +189,7 @@ export async function verificarTokenGoogle(
       throw erros.naoAutenticado("Token Google inválido ou expirado.");
     }
     const dados = (await resposta.json()) as Record<string, unknown>;
-    const permitidos = (googleClientId ?? "")
-      .split(",")
-      .map((s) => s.trim())
-      .filter(Boolean);
-    const aud = String(dados.aud ?? "").trim();
-    if (permitidos.length > 0 && aud && !permitidos.includes(aud)) {
-      throw erros.naoAutenticado("Token Google não pertence a este aplicativo.");
-    }
+    validarAudienceGoogle(dados, permitidos);
     const sub = String(dados.sub ?? "").trim();
     const emailBruto = String(dados.email ?? "").trim();
     const verificado = dados.email_verified === true || dados.email_verified === "true";
@@ -180,6 +200,20 @@ export async function verificarTokenGoogle(
     const nome = texto(String(dados.name ?? email.split("@")[0] ?? "Usuário Google"), 120) || "Usuário Google";
     return { sub, email, nome, emailVerificado: true };
   }
+
+  let infoResp: Response;
+  try {
+    infoResp = await fetch(
+      `https://oauth2.googleapis.com/tokeninfo?access_token=${encodeURIComponent(accessToken)}`,
+    );
+  } catch {
+    throw erros.naoAutenticado("Não foi possível validar o token Google no momento.");
+  }
+  if (!infoResp.ok) {
+    throw erros.naoAutenticado("Token de acesso Google inválido ou expirado.");
+  }
+  const infoDados = (await infoResp.json()) as Record<string, unknown>;
+  validarAudienceGoogle(infoDados, permitidos);
 
   let resposta: Response;
   try {

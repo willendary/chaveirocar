@@ -19,53 +19,139 @@ public sealed class ArmazenamentoLocal
     };
 
     private readonly string _arquivo;
+    private readonly string _arquivoBackup;
     private readonly string _arquivoTokens;
+    private readonly string _arquivoTokensBackup;
 
     public EstadoLocal Estado { get; private set; } = new();
 
-    public ArmazenamentoLocal()
+    public ArmazenamentoLocal() : this(Path.Combine(
+        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "ChaveiroCar"))
     {
-        var pasta = Path.Combine(
-            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "ChaveiroCar");
+    }
+
+    public ArmazenamentoLocal(string pasta)
+    {
         Directory.CreateDirectory(pasta);
         _arquivo = Path.Combine(pasta, "cache.json");
+        _arquivoBackup = Path.Combine(pasta, "cache.json.bak");
         _arquivoTokens = Path.Combine(pasta, "tokens.bin");
+        _arquivoTokensBackup = Path.Combine(pasta, "tokens.bin.bak");
         Carregar();
+    }
+
+    private static EstadoLocal? TentarLerEstado(string caminho)
+    {
+        try
+        {
+            if (!File.Exists(caminho) || new FileInfo(caminho).Length == 0) return null;
+            var texto = File.ReadAllText(caminho);
+            return JsonSerializer.Deserialize<EstadoLocal>(texto, Opcoes);
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    private static (string? Acesso, string? Refresh)? TentarLerTokens(string caminho)
+    {
+        try
+        {
+            if (!File.Exists(caminho) || new FileInfo(caminho).Length == 0) return null;
+            var protegido = File.ReadAllBytes(caminho);
+            var texto = Encoding.UTF8.GetString(ProtectedData.Unprotect(protegido, null, DataProtectionScope.CurrentUser));
+            var par = texto.Split('\n', 2);
+            if (par.Length == 2) return (par[0], par[1]);
+            return null;
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    private static void GravarAtomico(string caminhoDestino, string caminhoBackup, byte[] dados)
+    {
+        var caminhoTemp = $"{caminhoDestino}.{Guid.NewGuid():N}.tmp";
+        try
+        {
+            using (var fs = new FileStream(caminhoTemp, FileMode.CreateNew, FileAccess.Write, FileShare.None, 4096, FileOptions.WriteThrough))
+            {
+                fs.Write(dados, 0, dados.Length);
+                fs.Flush(flushToDisk: true);
+            }
+
+            if (File.Exists(caminhoDestino))
+            {
+                try
+                {
+                    File.Replace(caminhoTemp, caminhoDestino, caminhoBackup, ignoreMetadataErrors: true);
+                }
+                catch (IOException)
+                {
+                    if (new FileInfo(caminhoDestino).Length > 0)
+                    {
+                        File.Copy(caminhoDestino, caminhoBackup, overwrite: true);
+                    }
+                    File.Move(caminhoTemp, caminhoDestino, overwrite: true);
+                }
+            }
+            else
+            {
+                File.Move(caminhoTemp, caminhoDestino, overwrite: true);
+            }
+        }
+        finally
+        {
+            if (File.Exists(caminhoTemp))
+            {
+                try { File.Delete(caminhoTemp); } catch { }
+            }
+        }
     }
 
     private void Carregar()
     {
-        try
+        var estado = TentarLerEstado(_arquivo);
+        if (estado is null)
         {
-            if (!File.Exists(_arquivo)) return;
-            var texto = File.ReadAllText(_arquivo);
-            var estado = JsonSerializer.Deserialize<EstadoLocal>(texto, Opcoes);
+            estado = TentarLerEstado(_arquivoBackup);
             if (estado is not null)
             {
-                Estado = estado;
-                Estado.CursoresPorEmpresa ??= [];
-                if (!string.IsNullOrWhiteSpace(Estado.EmpresaId) && Estado.Cursor > 0 &&
-                    !Estado.CursoresPorEmpresa.ContainsKey(Estado.EmpresaId))
-                    Estado.CursoresPorEmpresa[Estado.EmpresaId] = Estado.Cursor;
+                try { File.Copy(_arquivoBackup, _arquivo, overwrite: true); } catch { }
             }
         }
-        catch
+        if (estado is not null)
         {
-            // Cache corrompido não pode impedir o app de abrir.
+            Estado = estado;
+            Estado.CursoresPorEmpresa ??= [];
+            if (!string.IsNullOrWhiteSpace(Estado.EmpresaId) && Estado.Cursor > 0 &&
+                !Estado.CursoresPorEmpresa.ContainsKey(Estado.EmpresaId))
+                Estado.CursoresPorEmpresa[Estado.EmpresaId] = Estado.Cursor;
+        }
+        else
+        {
             Estado = new EstadoLocal();
         }
+
         // Tokens em arquivo DPAPI separado (fora do JSON de cache).
         Estado.Acesso = null;
         Estado.Refresh = null;
-        try
+        var tokens = TentarLerTokens(_arquivoTokens);
+        if (tokens is null)
         {
-            if (!File.Exists(_arquivoTokens)) return;
-            var protegido = File.ReadAllBytes(_arquivoTokens);
-            var texto = Encoding.UTF8.GetString(ProtectedData.Unprotect(protegido, null, DataProtectionScope.CurrentUser));
-            var par = texto.Split('\n', 2);
-            if (par.Length == 2) { Estado.Acesso = par[0]; Estado.Refresh = par[1]; }
+            tokens = TentarLerTokens(_arquivoTokensBackup);
+            if (tokens is not null)
+            {
+                try { File.Copy(_arquivoTokensBackup, _arquivoTokens, overwrite: true); } catch { }
+            }
         }
-        catch { Estado.Acesso = null; Estado.Refresh = null; }
+        if (tokens is { } par)
+        {
+            Estado.Acesso = par.Acesso;
+            Estado.Refresh = par.Refresh;
+        }
     }
 
     public void Salvar()
@@ -74,18 +160,20 @@ public sealed class ArmazenamentoLocal
         var semTokens = JsonSerializer.Deserialize<EstadoLocal>(copia, Opcoes) ?? new EstadoLocal();
         semTokens.Acesso = null;
         semTokens.Refresh = null;
-        File.WriteAllText(_arquivo, JsonSerializer.Serialize(semTokens, Opcoes));
+        var jsonBytes = Encoding.UTF8.GetBytes(JsonSerializer.Serialize(semTokens, Opcoes));
+        GravarAtomico(_arquivo, _arquivoBackup, jsonBytes);
         try
         {
             if (string.IsNullOrWhiteSpace(Estado.Acesso) && string.IsNullOrWhiteSpace(Estado.Refresh))
             {
-                File.Delete(_arquivoTokens);
+                if (File.Exists(_arquivoTokens)) File.Delete(_arquivoTokens);
+                if (File.Exists(_arquivoTokensBackup)) File.Delete(_arquivoTokensBackup);
             }
             else
             {
                 var texto = $"{Estado.Acesso ?? ""}\n{Estado.Refresh ?? ""}";
-                File.WriteAllBytes(_arquivoTokens,
-                    ProtectedData.Protect(Encoding.UTF8.GetBytes(texto), null, DataProtectionScope.CurrentUser));
+                var bytesProtegidos = ProtectedData.Protect(Encoding.UTF8.GetBytes(texto), null, DataProtectionScope.CurrentUser);
+                GravarAtomico(_arquivoTokens, _arquivoTokensBackup, bytesProtegidos);
             }
         }
         catch { /* token não persistido continua em memória */ }
@@ -165,6 +253,8 @@ public sealed class ArmazenamentoLocal
         public int Ordem { get; set; }
         public long Revisao { get; set; }
         public string CaminhoLocal { get; set; } = "";
+        public string UrlRemota { get; set; } = "";
+        public string MimeType { get; set; } = "image/jpeg";
         public string Anotacoes { get; set; } = "[]";
         public bool Pendente { get; set; }
     }
