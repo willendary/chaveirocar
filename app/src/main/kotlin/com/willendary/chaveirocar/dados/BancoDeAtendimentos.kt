@@ -5,6 +5,7 @@ import android.content.Context
 import android.database.Cursor
 import android.database.sqlite.SQLiteDatabase
 import android.database.sqlite.SQLiteOpenHelper
+import com.willendary.chaveirocar.catalogo.CatalogoFichasPadrao
 import com.willendary.chaveirocar.modelo.Atendimento
 import com.willendary.chaveirocar.modelo.CategoriaFoto
 import com.willendary.chaveirocar.modelo.FichaTecnica
@@ -73,6 +74,7 @@ class BancoDeAtendimentos(contexto: Context) :
     banco.execSQL("CREATE INDEX idx_fotos_atendimento ON fotos(atendimento_id)")
     criarTabelaFichas(banco)
     banco.execSQL("CREATE INDEX idx_fichas_veiculo ON fichas_tecnicas(marca, modelo)")
+    banco.execSQL("CREATE INDEX idx_fichas_segmento ON fichas_tecnicas(segmento)")
     criarTabelasSync(banco)
   }
 
@@ -101,6 +103,7 @@ class BancoDeAtendimentos(contexto: Context) :
       """
       CREATE TABLE fichas_tecnicas (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
+        segmento TEXT NOT NULL DEFAULT 'AUTOMOTIVO',
         equipamento TEXT NOT NULL DEFAULT '',
         marca TEXT NOT NULL DEFAULT '',
         modelo TEXT NOT NULL DEFAULT '',
@@ -315,6 +318,12 @@ class BancoDeAtendimentos(contexto: Context) :
           criado_em INTEGER NOT NULL
         )""",
       )
+    }
+    if (versaoAntiga < 10) {
+      adicionarColunaSeAusente(banco, "fichas_tecnicas", "segmento TEXT NOT NULL DEFAULT 'AUTOMOTIVO'")
+      if (tabelaExiste(banco, "fichas_tecnicas")) {
+        banco.execSQL("CREATE INDEX IF NOT EXISTS idx_fichas_segmento ON fichas_tecnicas(segmento)")
+      }
     }
   }
 
@@ -704,19 +713,49 @@ class BancoDeAtendimentos(contexto: Context) :
     if (cursor.moveToFirst()) cursor.getInt(0) else 0
   }
 
-  fun listarFichas(consulta: String = ""): List<FichaTecnica> {
+  fun listarFichas(consulta: String = "", segmento: SegmentoAtendimento? = null): List<FichaTecnica> {
     val tokens = normalizar(consulta).split(' ').filter { it.isNotBlank() }
-    val condicoes = tokens.map { "busca LIKE ?" }
+    val condicoes = mutableListOf<String>()
+    val argumentos = mutableListOf<String>()
+    if (segmento != null) {
+      condicoes.add("segmento = ?")
+      argumentos.add(segmento.name)
+    }
+    tokens.forEach { token ->
+      condicoes.add("busca LIKE ?")
+      argumentos.add("%$token%")
+    }
     val onde = if (condicoes.isEmpty()) "" else " WHERE " + condicoes.joinToString(" AND ")
     return readableDatabase.rawQuery(
       "SELECT * FROM fichas_tecnicas$onde " +
         "ORDER BY lower(marca), lower(modelo), ano, lower(sistema), id",
-      tokens.map { "%$it%" }.toTypedArray(),
+      argumentos.toTypedArray(),
     ).use { cursor ->
       buildList {
         while (cursor.moveToNext()) add(cursor.paraFicha())
       }
     }
+  }
+
+  /** Localiza fichas da empresa e do catálogo padrão compatíveis com o veículo ou fechadura. */
+  fun buscarFichasDoVeiculo(
+    marca: String,
+    modelo: String,
+    segmento: SegmentoAtendimento = SegmentoAtendimento.AUTOMOTIVO,
+  ): List<FichaTecnica> {
+    val marcaNorm = normalizar(marca)
+    val modeloNorm = normalizar(modelo)
+    val daEmpresa = listarFichas(segmento = segmento).filter { ficha ->
+      if (marcaNorm.isBlank() && modeloNorm.isBlank()) return@filter false
+      val fMarca = normalizar(ficha.marca)
+      val fModelo = normalizar(ficha.modelo)
+      val bateMarca = marcaNorm.isBlank() || fMarca.contains(marcaNorm) || marcaNorm.contains(fMarca)
+      val bateModelo = modeloNorm.isBlank() ||
+        fModelo.contains(modeloNorm) ||
+        modeloNorm.split(' ').any { parte -> parte.length >= 3 && fModelo.contains(parte) }
+      bateMarca && bateModelo
+    }
+    return daEmpresa + CatalogoFichasPadrao.buscarParaVeiculo(marca, modelo, segmento)
   }
 
   fun obterFicha(id: Long): FichaTecnica? =
@@ -728,6 +767,7 @@ class BancoDeAtendimentos(contexto: Context) :
   fun salvarFicha(ficha: FichaTecnica): Long {
     val agora = System.currentTimeMillis()
     val valores = ContentValues().apply {
+      put("segmento", ficha.segmento.name)
       put("equipamento", ficha.equipamento.trim())
       put("marca", ficha.marca.trim())
       put("modelo", ficha.modelo.trim())
@@ -787,6 +827,8 @@ class BancoDeAtendimentos(contexto: Context) :
   }
 
   private fun montarBuscaDaFicha(ficha: FichaTecnica): String = listOf(
+    ficha.segmento.name,
+    ficha.segmento.rotulo,
     ficha.equipamento,
     ficha.marca,
     ficha.modelo,
@@ -803,9 +845,12 @@ class BancoDeAtendimentos(contexto: Context) :
     ficha.origem,
   ).joinToString(" ")
 
-  private fun Cursor.paraFicha(): FichaTecnica =
-    FichaTecnica(
+  private fun Cursor.paraFicha(): FichaTecnica {
+    val idxSegmento = getColumnIndex("segmento")
+    val segmento = if (idxSegmento >= 0) SegmentoAtendimento.de(getString(idxSegmento)) else SegmentoAtendimento.AUTOMOTIVO
+    return FichaTecnica(
       id = getLong(getColumnIndexOrThrow("id")),
+      segmento = segmento,
       equipamento = getString(getColumnIndexOrThrow("equipamento")),
       marca = getString(getColumnIndexOrThrow("marca")),
       modelo = getString(getColumnIndexOrThrow("modelo")),
@@ -824,6 +869,7 @@ class BancoDeAtendimentos(contexto: Context) :
       origem = getString(getColumnIndexOrThrow("origem")),
       atualizadoEm = getLong(getColumnIndexOrThrow("atualizado_em")),
     )
+  }
 
   private fun consultar(sql: String, argumentos: Array<String>): List<Atendimento> =
     readableDatabase.rawQuery(sql, argumentos).use { cursor ->
@@ -949,13 +995,23 @@ class BancoDeAtendimentos(contexto: Context) :
     readableDatabase.query("sync_excluidos", arrayOf("uuid"), "uuid = ?", arrayOf(uuid),
       null, null, null).use { it.moveToFirst() }
 
-  /** Aplica registro remoto sem gerar nova saída; limpa pendência. */
+  /** Aplica registro remoto sem gerar nova saída; preserva edição local pendente compatível. */
   fun aplicarRemoto(atendimento: Atendimento, uuid: String, revisao: Long): Long {
     val local = obterPorUuid(uuid)
     if (local == null) {
       val valores = valoresDeSync(atendimento, uuid, revisao)
       valores.put("criado_em", System.currentTimeMillis())
       return writableDatabase.insert("atendimentos", null, valores)
+    }
+    if (sincPendenteDe(local.id) && revisao <= revisaoRemotaDe(local.id)) {
+      if (revisao > revisaoRemotaDe(local.id)) {
+        writableDatabase.update(
+          "atendimentos",
+          ContentValues().apply { put("revisao_remota", revisao) },
+          "id = ?", arrayOf(local.id.toString()),
+        )
+      }
+      return local.id
     }
     writableDatabase.update(
       "atendimentos", valoresDeSync(atendimento, uuid, revisao),
@@ -964,16 +1020,26 @@ class BancoDeAtendimentos(contexto: Context) :
     return local.id
   }
 
-  fun marcarEnviado(id: Long, revisao: Long) {
-    writableDatabase.update(
-      "atendimentos",
-      ContentValues().apply {
-        put("revisao_remota", revisao)
+  private fun marcarEntidadeEnviada(tabela: String, id: Long, revisao: Long, opIdEnviado: String?) {
+    val opAtual = readableDatabase.rawQuery(
+      "SELECT op_id_pendente FROM $tabela WHERE id = ? LIMIT 1",
+      arrayOf(id.toString()),
+    ).use { cursor -> if (cursor.moveToFirst()) cursor.getString(0).orEmpty() else "" }
+    val mesmoOp = opIdEnviado.isNullOrBlank() || opAtual.isBlank() || opAtual == opIdEnviado
+    val valores = ContentValues().apply {
+      if (revisao > 0L) put("revisao_remota", revisao)
+      if (mesmoOp) {
         put("sinc_pendente", 0)
         put("op_id_pendente", "")
-      },
-      "id = ?", arrayOf(id.toString()),
-    )
+      }
+    }
+    if (valores.size() > 0) {
+      writableDatabase.update(tabela, valores, "id = ?", arrayOf(id.toString()))
+    }
+  }
+
+  fun marcarEnviado(id: Long, revisao: Long, opIdEnviado: String? = null) {
+    marcarEntidadeEnviada("atendimentos", id, revisao, opIdEnviado)
   }
 
   fun excluirPorUuid(uuid: String) {
@@ -1108,9 +1174,22 @@ class BancoDeAtendimentos(contexto: Context) :
     return lista
   }
 
+  // Helpers internos usados pelas extensões de fichas no fim do arquivo.
+  internal fun atualizarRevisaoRemotaTabela(tabela: String, id: Long, revisao: Long) {
+    writableDatabase.update(
+      tabela,
+      ContentValues().apply { put("revisao_remota", revisao) },
+      "id = ?", arrayOf(id.toString()),
+    )
+  }
+
+  internal fun concluirEnvioTabela(tabela: String, id: Long, revisao: Long, opIdEnviado: String?) {
+    marcarEntidadeEnviada(tabela, id, revisao, opIdEnviado)
+  }
+
   companion object {
     const val NOME = "chaveirocar.db"
-    const val VERSAO = 9
+    const val VERSAO = 10
   }
 }
 
@@ -1136,26 +1215,24 @@ fun BancoDeAtendimentos.pendentesFichas(): List<FichaTecnica> =
   this.listarFichas().filter { sincPendenteFicha(it.id) }
 
 fun BancoDeAtendimentos.aplicarFichaRemota(ficha: FichaTecnica, uuid: String, revisao: Long): Long {
-  val valores = valoresFichaDeSync(ficha, uuid, revisao)
   val local = obterFichaPorUuid(uuid)
   if (local == null) {
+    val valores = valoresFichaDeSync(ficha, uuid, revisao)
     valores.put("criado_em", System.currentTimeMillis())
     return writableDatabase.insert("fichas_tecnicas", null, valores)
   }
+  val conhecida = revisaoRemotaFicha(local.id)
+  if (sincPendenteFicha(local.id) && revisao <= conhecida) {
+    if (revisao > conhecida) atualizarRevisaoRemotaTabela("fichas_tecnicas", local.id, revisao)
+    return local.id
+  }
+  val valores = valoresFichaDeSync(ficha, uuid, revisao)
   writableDatabase.update("fichas_tecnicas", valores, "id = ?", arrayOf(local.id.toString()))
   return local.id
 }
 
-fun BancoDeAtendimentos.marcarFichaEnviada(id: Long, revisao: Long) {
-  writableDatabase.update(
-    "fichas_tecnicas",
-    ContentValues().apply {
-      put("revisao_remota", revisao)
-      put("sinc_pendente", 0)
-      put("op_id_pendente", "")
-    },
-    "id = ?", arrayOf(id.toString()),
-  )
+fun BancoDeAtendimentos.marcarFichaEnviada(id: Long, revisao: Long, opIdEnviado: String? = null) {
+  concluirEnvioTabela("fichas_tecnicas", id, revisao, opIdEnviado)
 }
 
 fun BancoDeAtendimentos.excluirFichaPorUuid(uuid: String) {
@@ -1241,6 +1318,7 @@ fun BancoDeAtendimentos.excluirFotoPorUuid(uuid: String) {
 
 private fun valoresFichaDeSync(ficha: FichaTecnica, uuid: String, revisao: Long): ContentValues =
   ContentValues().apply {
+    put("segmento", ficha.segmento.name)
     put("equipamento", ficha.equipamento.trim())
     put("marca", ficha.marca.trim())
     put("modelo", ficha.modelo.trim())
@@ -1258,7 +1336,7 @@ private fun valoresFichaDeSync(ficha: FichaTecnica, uuid: String, revisao: Long)
     put("confirmado", if (ficha.confirmado) 1 else 0)
     put("origem", ficha.origem.trim())
     put("busca", com.willendary.chaveirocar.util.normalizar(
-      listOf(ficha.equipamento, ficha.marca, ficha.modelo, ficha.ano, ficha.sistema,
+      listOf(ficha.segmento.name, ficha.segmento.rotulo, ficha.equipamento, ficha.marca, ficha.modelo, ficha.ano, ficha.sistema,
         ficha.descricao, ficha.chip, ficha.chave, ficha.telecomando, ficha.frequencia,
         ficha.avisos, ficha.funcoes, ficha.manual, ficha.origem).joinToString(" ")))
     put("atualizado_em", System.currentTimeMillis())

@@ -24,41 +24,54 @@
             <Border Background="{StaticResource CorSuperficie}" BorderBrush="{StaticResource CorBorda}"
                     BorderThickness="1" CornerRadius="10" Padding="22,18">
                 <StackPanel>
+                    <Border x:Name="BannerOficial" Background="{StaticResource CorPrimariaSuave}" CornerRadius="8"
+                            Padding="12,10" Margin="0,0,0,14" Visibility="Collapsed">
+                        <TextBlock Text="Baseada no catálogo padrão: ao salvar será criada uma cópia editável da sua empresa sem alterar o catálogo oficial."
+                                   Foreground="{StaticResource CorPrimariaEscura}" FontSize="12.5" FontWeight="SemiBold" TextWrapping="Wrap"/>
+                    </Border>
                     <TextBlock Text="Identificação do Veículo / Equipamento" FontSize="16" FontWeight="Bold"
                                Foreground="{StaticResource CorTextoPrimario}" Margin="0,0,0,10"/>
                     <UniformGrid Columns="2">
                         <StackPanel Margin="0,0,10,10">
+                            <TextBlock Text="Modalidade / Área" FontSize="12.5" FontWeight="SemiBold"
+                                       Foreground="{StaticResource CorTextoSecundario}" Margin="0,0,0,4"/>
+                            <ComboBox x:Name="Segmento" SelectedIndex="0">
+                                <ComboBoxItem Content="Veicular" Tag="AUTOMOTIVO"/>
+                                <ComboBoxItem Content="Residencial" Tag="RESIDENCIAL"/>
+                            </ComboBox>
+                        </StackPanel>
+                        <StackPanel Margin="10,0,0,10">
                             <TextBlock Text="Equipamento" FontSize="12.5" FontWeight="SemiBold"
                                        Foreground="{StaticResource CorTextoSecundario}" Margin="0,0,0,4"/>
                             <TextBox x:Name="Equipamento"/>
                         </StackPanel>
-                        <StackPanel Margin="10,0,0,10">
+                        <StackPanel Margin="0,0,10,10">
                             <TextBlock Text="Marca" FontSize="12.5" FontWeight="SemiBold"
                                        Foreground="{StaticResource CorTextoSecundario}" Margin="0,0,0,4"/>
                             <TextBox x:Name="Marca"/>
                         </StackPanel>
-                        <StackPanel Margin="0,0,10,10">
+                        <StackPanel Margin="10,0,0,10">
                             <TextBlock Text="Modelo" FontSize="12.5" FontWeight="SemiBold"
                                        Foreground="{StaticResource CorTextoSecundario}" Margin="0,0,0,4"/>
                             <TextBox x:Name="Modelo"/>
                         </StackPanel>
-                        <StackPanel Margin="10,0,0,10">
+                        <StackPanel Margin="0,0,10,10">
                             <TextBlock Text="Ano" FontSize="12.5" FontWeight="SemiBold"
                                        Foreground="{StaticResource CorTextoSecundario}" Margin="0,0,0,4"/>
                             <TextBox x:Name="Ano"/>
                         </StackPanel>
-                        <StackPanel Margin="0,0,10,10">
+                        <StackPanel Margin="10,0,0,10">
                             <TextBlock Text="Sistema" FontSize="12.5" FontWeight="SemiBold"
                                        Foreground="{StaticResource CorTextoSecundario}" Margin="0,0,0,4"/>
                             <TextBox x:Name="Sistema"/>
                         </StackPanel>
-                        <StackPanel Margin="10,0,0,10">
+                        <StackPanel Margin="0,0,10,10">
                             <TextBlock Text="Origem" FontSize="12.5" FontWeight="SemiBold"
                                        Foreground="{StaticResource CorTextoSecundario}" Margin="0,0,0,4"/>
                             <TextBox x:Name="Origem"/>
                         </StackPanel>
                         <CheckBox x:Name="Confirmado" Content="Informação técnica revisada e confirmada"
-                                  FontWeight="SemiBold" VerticalAlignment="Center" Margin="0,8,0,10"/>
+                                  FontWeight="SemiBold" VerticalAlignment="Center" Margin="10,8,0,10"/>
                     </UniformGrid>
 
                     <TextBlock Text="Especificações de Chave e Transponder" FontSize="16" FontWeight="Bold"

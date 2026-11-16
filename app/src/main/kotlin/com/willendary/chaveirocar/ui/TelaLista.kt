@@ -163,6 +163,8 @@ fun TelaLista(
   onNovo: () -> Unit,
   versaoSincronia: Int = 0,
   sincronizando: Boolean = false,
+  modalidadeAtiva: SegmentoAtendimento? = null,
+  onTrocarArea: (() -> Unit)? = null,
 ) {
   var registros by remember { mutableStateOf<List<Atendimento>>(emptyList()) }
   var carregando by remember { mutableStateOf(true) }
@@ -170,7 +172,7 @@ fun TelaLista(
   var tentativa by remember { mutableStateOf(0) }
   var filtrosAbertos by rememberSaveable { mutableStateOf(false) }
 
-  LaunchedEffect(filtro, tentativa, versaoSincronia) {
+  LaunchedEffect(filtro, tentativa, versaoSincronia, modalidadeAtiva) {
     carregando = true
     erroCarga = false
     try {
@@ -181,7 +183,7 @@ fun TelaLista(
           desde = filtro.desde(),
           ate = filtro.ate(),
           somenteComFotos = filtro.somenteComFotos,
-          segmento = filtro.segmento,
+          segmento = modalidadeAtiva ?: filtro.segmento,
         )
       }
     } catch (cancelado: kotlinx.coroutines.CancellationException) {
@@ -212,8 +214,22 @@ fun TelaLista(
       contentPadding = PaddingValues(start = 20.dp, end = 20.dp, top = 12.dp, bottom = 100.dp),
       verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
+      if (modalidadeAtiva != null && onTrocarArea != null) {
+        item {
+          BarraModalidadeAtiva(
+            modalidade = modalidadeAtiva,
+            onTrocarArea = onTrocarArea,
+            modificador = Modifier.padding(horizontal = 0.dp),
+          )
+        }
+      }
       item {
-        PainelDestaque("Cada serviço,\nsempre à mão.", "Seu histórico, códigos e soluções em um só lugar.", "SUA OFICINA ORGANIZADA")
+        PainelDestaque(
+          if (modalidadeAtiva == SegmentoAtendimento.RESIDENCIAL) "Serviços residenciais,\nsempre à mão."
+          else "Cada serviço,\nsempre à mão.",
+          "Seu histórico, códigos e soluções em um só lugar.",
+          if (modalidadeAtiva != null) "ÁREA ${modalidadeAtiva.rotulo.uppercase()}" else "SUA OFICINA ORGANIZADA",
+        )
       }
       item {
         OutlinedTextField(
@@ -234,27 +250,29 @@ fun TelaLista(
           ),
         )
       }
-      item {
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-          FilterChip(
-            selected = filtro.segmento == null,
-            onClick = { aoMudarFiltro(filtro.copy(segmento = null)) },
-            label = { Text("Todos") },
-          )
-          SegmentoAtendimento.entries.forEach { seg ->
+      if (modalidadeAtiva == null) {
+        item {
+          Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             FilterChip(
-              selected = filtro.segmento == seg,
-              onClick = {
-                val novoSegmento = if (filtro.segmento == seg) null else seg
-                val novoTipo = if (novoSegmento != null && filtro.tipo != null && filtro.tipo !in TipoServico.doSegmento(novoSegmento)) {
-                  null
-                } else {
-                  filtro.tipo
-                }
-                aoMudarFiltro(filtro.copy(segmento = novoSegmento, tipo = novoTipo))
-              },
-              label = { Text(seg.rotulo) },
+              selected = filtro.segmento == null,
+              onClick = { aoMudarFiltro(filtro.copy(segmento = null)) },
+              label = { Text("Todos") },
             )
+            SegmentoAtendimento.entries.forEach { seg ->
+              FilterChip(
+                selected = filtro.segmento == seg,
+                onClick = {
+                  val novoSegmento = if (filtro.segmento == seg) null else seg
+                  val novoTipo = if (novoSegmento != null && filtro.tipo != null && filtro.tipo !in TipoServico.doSegmento(novoSegmento)) {
+                    null
+                  } else {
+                    filtro.tipo
+                  }
+                  aoMudarFiltro(filtro.copy(segmento = novoSegmento, tipo = novoTipo))
+                },
+                label = { Text(seg.rotulo) },
+              )
+            }
           }
         }
       }
@@ -273,7 +291,7 @@ fun TelaLista(
         }
       }
       if (filtrosAbertos) item {
-        val tiposDisponiveis = filtro.segmento?.let { TipoServico.doSegmento(it) } ?: TipoServico.entries
+        val tiposDisponiveis = (modalidadeAtiva ?: filtro.segmento)?.let { TipoServico.doSegmento(it) } ?: TipoServico.entries
         Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)) {
           Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Text("Tipo de serviço", style = MaterialTheme.typography.labelLarge)

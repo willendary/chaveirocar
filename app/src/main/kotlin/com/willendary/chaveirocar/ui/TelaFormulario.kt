@@ -106,6 +106,8 @@ fun TelaFormulario(
   base: Atendimento? = null,
   onSalvo: (Long) -> Unit,
   onVoltar: () -> Unit,
+  segmentoFixo: Boolean = false,
+  onVerFicha: ((Atendimento) -> Unit)? = null,
 ) {
   val contexto = LocalContext.current
   val escopo = rememberCoroutineScope()
@@ -523,16 +525,29 @@ fun TelaFormulario(
         .padding(horizontal = 16.dp, vertical = 8.dp),
       verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-      Card(modifier = Modifier.fillMaxWidth()) {
-        Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-          Text("Tipo de atendimento", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
-          Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            SegmentoAtendimento.entries.forEach { seg ->
-              FilterChip(
-                selected = atendimento.segmento == seg,
-                onClick = { solicitarTrocaSegmento(seg) },
-                label = { Text(seg.rotulo) },
-              )
+      if (segmentoFixo && id == 0L) {
+        Card(modifier = Modifier.fillMaxWidth()) {
+          Row(
+            modifier = Modifier.fillMaxWidth().padding(14.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween,
+          ) {
+            Text("Modalidade do serviço", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
+            Selo(atendimento.segmento.rotulo)
+          }
+        }
+      } else {
+        Card(modifier = Modifier.fillMaxWidth()) {
+          Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text("Tipo de atendimento", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+              SegmentoAtendimento.entries.forEach { seg ->
+                FilterChip(
+                  selected = atendimento.segmento == seg,
+                  onClick = { solicitarTrocaSegmento(seg) },
+                  label = { Text(seg.rotulo) },
+                )
+              }
             }
           }
         }
@@ -572,6 +587,11 @@ fun TelaFormulario(
 
         OutlinedButton(onClick = { mostrarCatalogo = true }, modifier = Modifier.fillMaxWidth()) {
           Text("Buscar marca, modelo e ano no catálogo")
+        }
+        if (onVerFicha != null) {
+          OutlinedButton(onClick = { onVerFicha(atendimento) }, modifier = Modifier.fillMaxWidth()) {
+            Text("Ver ficha técnica / manual")
+          }
         }
 
         CampoTexto(

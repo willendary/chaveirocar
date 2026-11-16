@@ -72,7 +72,7 @@ object MotorSinc {
         val status = r.optString("status")
         val opId = r.optString("opId")
         val registro = r.optJSONObject("registro")
-        val revisao = registro?.optLong("revisao") ?: 0L
+        val revisao = r.optLong("revisao").takeIf { it > 0L } ?: registro?.optLong("revisao") ?: 0L
         when (status) {
           "aplicado" -> {
             enviadas++
@@ -81,7 +81,7 @@ object MotorSinc {
             when (entidade) {
               "ficha" -> {
                 val local = banco.obterFichaPorUuid(uuid ?: "") ?: continue
-                banco.marcarFichaEnviada(local.id, revisao)
+                banco.marcarFichaEnviada(local.id, revisao, opId)
               }
               "foto" -> {
                 val saida = saidas.firstOrNull { it.opId == opId }
@@ -89,7 +89,7 @@ object MotorSinc {
               }
               else -> {
                 val local = banco.obterPorUuid(uuid ?: "")
-                if (local != null) banco.marcarEnviado(local.id, revisao)
+                if (local != null) banco.marcarEnviado(local.id, revisao, opId)
                 val saida = saidas.firstOrNull { it.opId == opId }
                 if (saida != null) banco.confirmarSaida(opId, saida.uuid)
               }

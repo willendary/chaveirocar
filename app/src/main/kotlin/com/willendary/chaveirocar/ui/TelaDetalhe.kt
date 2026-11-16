@@ -80,6 +80,7 @@ fun TelaDetalhe(
   onDuplicar: (Atendimento) -> Unit,
   onExcluido: () -> Unit,
   onVoltar: () -> Unit,
+  onVerFicha: ((Atendimento) -> Unit)? = null,
 ) {
   val contexto = LocalContext.current
   val escopo = rememberCoroutineScope()
@@ -294,6 +295,11 @@ fun TelaDetalhe(
       }
 
       Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        if (onVerFicha != null) {
+          OutlinedButton(onClick = { onVerFicha(registro) }, modifier = Modifier.fillMaxWidth()) {
+            Text("Consultar ficha técnica e manual")
+          }
+        }
         Button(onClick = { onEditar(registro.id) }, modifier = Modifier.fillMaxWidth()) { Text("Editar atendimento") }
         OutlinedButton(onClick = { onDuplicar(registro) }, modifier = Modifier.fillMaxWidth()) {
           Text(if (residencial) "Novo atendimento (mesmo local)" else "Novo atendimento (mesmo carro)")

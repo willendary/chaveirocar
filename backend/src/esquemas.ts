@@ -43,10 +43,78 @@ export const UsuarioSchema = Type.Object({
   emailVerificado: Type.Boolean(),
 });
 
+export const SEGMENTOS_ATENDIMENTO = ["AUTOMOTIVO", "RESIDENCIAL"] as const;
+export type SegmentoAtendimento = (typeof SEGMENTOS_ATENDIMENTO)[number];
+export const SegmentoAtendimentoSchema = Type.Union(
+  SEGMENTOS_ATENDIMENTO.map((valor) => Type.Literal(valor)),
+);
+
+export const STATUS_ASSINATURA = [
+  "ATIVA",
+  "PENDENTE_PAGAMENTO",
+  "FALHA_PAGAMENTO",
+  "CANCELADA",
+] as const;
+export type StatusAssinatura = (typeof STATUS_ASSINATURA)[number];
+export const StatusAssinaturaSchema = Type.Union(
+  STATUS_ASSINATURA.map((valor) => Type.Literal(valor)),
+);
+
 export const EmpresaSchema = Type.Object({
   id: ID,
   nome: Type.String(),
   papel: PapelSchema,
+  planoCodigo: Type.Optional(Type.String()),
+  modulosAtivos: Type.Optional(Type.Array(SegmentoAtendimentoSchema)),
+  assinaturaStatus: Type.Optional(StatusAssinaturaSchema),
+  proximaRenovacaoEm: Type.Optional(Type.Union([Type.Integer(), Type.Null()])),
+});
+
+export const MudancaAssinaturaAgendadaSchema = Type.Object({
+  solicitacaoId: Type.String(),
+  acao: Type.Union([
+    Type.Literal("CONTRATAR"),
+    Type.Literal("ALTERAR"),
+    Type.Literal("CANCELAR"),
+  ]),
+  modulos: Type.Array(SegmentoAtendimentoSchema),
+  solicitadoEm: Type.Integer(),
+});
+
+export const AssinaturaRespostaSchema = Type.Object({
+  empresaId: ID,
+  planoCodigo: Type.String(),
+  modulosContratados: Type.Array(SegmentoAtendimentoSchema),
+  modulosAtivos: Type.Array(SegmentoAtendimentoSchema),
+  status: StatusAssinaturaSchema,
+  proximaRenovacaoEm: Type.Union([Type.Integer(), Type.Null()]),
+  mudancaAgendada: Type.Union([MudancaAssinaturaAgendadaSchema, Type.Null()]),
+  podeGerenciar: Type.Boolean(),
+  ambienteHomologacao: Type.Boolean(),
+  duplicado: Type.Optional(Type.Boolean()),
+});
+
+export const SolicitarAssinaturaEntradaSchema = Type.Object({
+  acao: Type.Union([
+    Type.Literal("CONTRATAR"),
+    Type.Literal("ALTERAR"),
+    Type.Literal("CANCELAR"),
+  ]),
+  modulos: Type.Optional(Type.Array(SegmentoAtendimentoSchema, { maxItems: 2 })),
+});
+
+export const EventoAssinaturaEntradaSchema = Type.Object({
+  eventoId: Type.String({ minLength: 3, maxLength: 120 }),
+  tipo: Type.Union([
+    Type.Literal("PAGAMENTO_CONFIRMADO"),
+    Type.Literal("PAGAMENTO_PENDENTE"),
+    Type.Literal("FALHA_PAGAMENTO"),
+    Type.Literal("RENOVACAO_CONFIRMADA"),
+    Type.Literal("ASSINATURA_CANCELADA"),
+    Type.Literal("REEMBOLSO_PROCESSADO"),
+  ]),
+  modulos: Type.Optional(Type.Array(SegmentoAtendimentoSchema, { maxItems: 2 })),
+  proximaRenovacaoEm: Type.Optional(Type.Union([Type.Integer({ minimum: 0 }), Type.Null()])),
 });
 
 export const MembroSchema = Type.Object({
@@ -67,12 +135,6 @@ export const ConviteSchema = Type.Object({
   canceladoEm: Type.Union([Type.Integer(), Type.Null()]),
   expirado: Type.Boolean(),
 });
-
-export const SEGMENTOS_ATENDIMENTO = ["AUTOMOTIVO", "RESIDENCIAL"] as const;
-export type SegmentoAtendimento = (typeof SEGMENTOS_ATENDIMENTO)[number];
-export const SegmentoAtendimentoSchema = Type.Union(
-  SEGMENTOS_ATENDIMENTO.map((valor) => Type.Literal(valor)),
-);
 
 export const TIPOS_SERVICO = [
   "CHAVE_CODIFICADA",
@@ -180,6 +242,7 @@ export const ListaAtendimentosSchema = Type.Object({
 });
 
 export const DadosFichaSchema = Type.Object({
+  segmento: Type.Optional(SegmentoAtendimentoSchema),
   equipamento: Type.Optional(Type.String({ maxLength: 120 })),
   marca: Type.Optional(Type.String({ maxLength: 120 })),
   modelo: Type.Optional(Type.String({ maxLength: 120 })),
@@ -208,6 +271,7 @@ export const FichaEntradaSchema = Type.Intersect([
 export const FichaRespostaSchema = Type.Object({
   id: ID,
   empresaId: ID,
+  segmento: SegmentoAtendimentoSchema,
   equipamento: Type.String(),
   marca: Type.String(),
   modelo: Type.String(),

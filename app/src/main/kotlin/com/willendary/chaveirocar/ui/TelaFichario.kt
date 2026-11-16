@@ -30,11 +30,13 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
@@ -80,10 +82,13 @@ fun TelaFichario(
   onAbrirModelo: (ResumoModelo) -> Unit,
   onAbrirResidencial: (ResumoResidencial) -> Unit = {},
   versaoSincronia: Int = 0,
+  segmentoFixo: SegmentoAtendimento? = null,
+  onTrocarArea: (() -> Unit)? = null,
 ) {
   val contexto = LocalContext.current
   var busca by remember { mutableStateOf("") }
-  var segmento by remember { mutableStateOf(SegmentoAtendimento.AUTOMOTIVO) }
+  var segmentoEstado by remember { mutableStateOf(segmentoFixo ?: SegmentoAtendimento.AUTOMOTIVO) }
+  val segmento = segmentoFixo ?: segmentoEstado
   var modelos by remember { mutableStateOf<List<ResumoModelo>>(emptyList()) }
   var residenciais by remember { mutableStateOf<List<ResumoResidencial>>(emptyList()) }
   var carregado by remember { mutableStateOf(false) }
@@ -137,6 +142,9 @@ fun TelaFichario(
     containerColor = MaterialTheme.colorScheme.background,
   ) { espacamento ->
     Column(modifier = Modifier.conteudoResponsivo().padding(espacamento)) {
+      if (segmentoFixo != null && onTrocarArea != null) {
+        BarraModalidadeAtiva(segmentoFixo, onTrocarArea)
+      }
       OutlinedTextField(
         value = busca,
         onValueChange = { busca = it },
@@ -154,20 +162,24 @@ fun TelaFichario(
         ),
       )
 
-      Row(
-        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
-      ) {
-        FilterChip(
-          selected = segmento == SegmentoAtendimento.AUTOMOTIVO,
-          onClick = { segmento = SegmentoAtendimento.AUTOMOTIVO },
-          label = { Text("Veículos (${modelos.size})") },
-        )
-        FilterChip(
-          selected = segmento == SegmentoAtendimento.RESIDENCIAL,
-          onClick = { segmento = SegmentoAtendimento.RESIDENCIAL },
-          label = { Text("Residencial (${residenciais.size})") },
-        )
+      if (segmentoFixo == null) {
+        Row(
+          modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
+          horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+          FilterChip(
+            selected = segmento == SegmentoAtendimento.AUTOMOTIVO,
+            onClick = { segmentoEstado = SegmentoAtendimento.AUTOMOTIVO },
+            label = { Text("Veículos (${modelos.size})") },
+          )
+          FilterChip(
+            selected = segmento == SegmentoAtendimento.RESIDENCIAL,
+            onClick = { segmentoEstado = SegmentoAtendimento.RESIDENCIAL },
+            label = { Text("Residencial (${residenciais.size})") },
+          )
+        }
+      } else {
+        Spacer(Modifier.height(8.dp))
       }
 
       when {
@@ -298,6 +310,7 @@ fun TelaFicharioModelo(
   ano: String,
   onAbrirServico: (Long) -> Unit,
   onVoltar: () -> Unit,
+  onVerFicha: (() -> Unit)? = null,
 ) {
   val contexto = LocalContext.current
   var servicos by remember { mutableStateOf<List<Atendimento>>(emptyList()) }
@@ -367,6 +380,12 @@ fun TelaFicharioModelo(
               color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
           }
+        }
+      }
+
+      if (onVerFicha != null) {
+        OutlinedButton(onClick = onVerFicha, modifier = Modifier.fillMaxWidth()) {
+          Text("Consultar ficha técnica e manual deste veículo")
         }
       }
 

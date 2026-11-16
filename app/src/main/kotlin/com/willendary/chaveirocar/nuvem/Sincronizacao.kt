@@ -44,6 +44,7 @@ object Sincronizacao {
 
   fun dadosDeFicha(ficha: com.willendary.chaveirocar.modelo.FichaTecnica): JSONObject =
     JSONObject().apply {
+      put("segmento", ficha.segmento.name)
       put("equipamento", ficha.equipamento)
       put("marca", ficha.marca)
       put("modelo", ficha.modelo)
@@ -63,6 +64,7 @@ object Sincronizacao {
 
   fun fichaDeRemoto(remoto: JSONObject): com.willendary.chaveirocar.modelo.FichaTecnica =
     com.willendary.chaveirocar.modelo.FichaTecnica(
+      segmento = SegmentoAtendimento.de(remoto.optString("segmento")),
       equipamento = remoto.optString("equipamento"),
       marca = remoto.optString("marca"),
       modelo = remoto.optString("modelo"),

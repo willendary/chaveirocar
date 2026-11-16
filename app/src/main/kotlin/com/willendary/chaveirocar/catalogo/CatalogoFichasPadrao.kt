@@ -1,0 +1,318 @@
+package com.willendary.chaveirocar.catalogo
+
+import com.willendary.chaveirocar.modelo.FichaTecnica
+import com.willendary.chaveirocar.modelo.SegmentoAtendimento
+import com.willendary.chaveirocar.util.normalizar
+
+/**
+ * Catálogo inicial de fichas técnicas padrão e manuais resumidos disponíveis offline.
+ * Usa IDs negativos fixos para não conflitar com os registros da empresa no SQLite (id > 0).
+ */
+object CatalogoFichasPadrao {
+
+  const val ORIGEM_OFICIAL = "CATALOGO_OFICIAL"
+
+  private val todas: List<FichaTecnica> = listOf(
+    FichaTecnica(
+      id = -1001L,
+      segmento = SegmentoAtendimento.AUTOMOTIVO,
+      equipamento = "OBDMap / Xhorse VVDI",
+      marca = "Volkswagen",
+      modelo = "Gol / Voyage / Saveiro (G5 / G6)",
+      ano = "2009-2016",
+      sistema = "Immo 4 · Painel VDO / Marelli",
+      descricao = "Linha VW G5 e G6 com painel imobilizador integrado (VDO 24C32/24C64 ou Marelli 9S12).",
+      chip = "ID48 (TP23 VW CAN)",
+      chave = "Lâmina HU66 · Lishi HU66",
+      telecomando = "3 botões VW 5K0 / KD VW G6",
+      frequencia = "433,92 MHz",
+      avisos = "Em painéis Marelli ou perda total (All Keys Lost) pode exigir leitura de memória/processador em bancada antes de gerar chave.",
+      funcoes = "Adicionar chave, programar telecomando (canal 01 adaptação), pré-codificar TP23.",
+      manual = "1. Identifique se o painel é VDO ou Magneti Marelli.\n2. Em adição com chave válida, faça pré-codificação do ID48 para TP23 VW e leia os dados de imobilizador via OBD.\n3. Em perda total, coloque em modo serviço lendo a EEPROM (24C32/24C64) ou MCU em bancada.\n4. Após gravar o transponder, programe o telecomando no módulo Conforto/Central (canal 01).",
+      confirmado = true,
+      origem = ORIGEM_OFICIAL,
+    ),
+    FichaTecnica(
+      id = -1002L,
+      segmento = SegmentoAtendimento.AUTOMOTIVO,
+      equipamento = "Xhorse VVDI2 / Autel IM508",
+      marca = "Volkswagen",
+      modelo = "Polo / Virtus / T-Cross / Nivus",
+      ano = "2018-2025",
+      sistema = "MQB / Immo 5",
+      descricao = "Plataforma MQB com painel digital ou analógico VDO/JCI e chave canivete ou presencial.",
+      chip = "MQB AES / ID48 / Hitag Pro",
+      chave = "Lâmina HU66 ou HU162T (8/9 cortes) · Lishi HU66 / HU162T",
+      telecomando = "MQB 3 botões (5G0 / 2G0)",
+      frequencia = "433,92 MHz",
+      avisos = "Perda total MQB exige arquivo de sincronização (sync data) e atenção para não corromper o cluster durante leitura.",
+      funcoes = "Leitura de immo data, geração de chave revendedora, aprendizado via OBD.",
+      manual = "1. Confira o perfil exato da lâmina (HU66 ou HU162T).\n2. Conecte bateria auxiliar estabilizada acima de 12,5V.\n3. Leia o Immo Data via OBD ou adaptador sem solda.\n4. Gere o transponder/chave revendedora com o CS obtido e conclua o aprendizado de todas as chaves na mesma sessão.",
+      confirmado = true,
+      origem = ORIGEM_OFICIAL,
+    ),
+    FichaTecnica(
+      id = -1003L,
+      segmento = SegmentoAtendimento.AUTOMOTIVO,
+      equipamento = "OBDMap / Gamarra",
+      marca = "Fiat",
+      modelo = "Palio / Strada / Uno / Siena",
+      ano = "2001-2017",
+      sistema = "Fiat Code 2 (BC Delphi / Marelli)",
+      descricao = "Body Computer com EEPROM 93C66 ou processador 9S12 dependendo do ano e versão.",
+      chip = "ID48 Megamos (pré-codificado)",
+      chave = "Lâmina SIP22 · Lishi SIP22",
+      telecomando = "Telecomando integrado no BC (precodificação conjunta)",
+      frequencia = "433,92 MHz",
+      avisos = "Em Fiat Code 2 a chave precisa ser pré-codificada com os bytes do Body Computer antes de apresentar por diagnose; chaves não programadas na mesma sessão são bloqueadas.",
+      funcoes = "Extração de PIN code, pré-codificação do ID48 e programação de até 8 chaves.",
+      manual = "1. Leia a EEPROM 93C66 (Delphi) ou arquivo do BC (Marelli).\n2. Extraia o código eletrônico (PIN de 5 dígitos) e os dados de pré-codificação.\n3. Grave os dados no transponder ID48 virgem.\n4. Via tomada OBD, execute o aprendizado informando o PIN com todas as chaves do cliente em mãos.",
+      confirmado = true,
+      origem = ORIGEM_OFICIAL,
+    ),
+    FichaTecnica(
+      id = -1004L,
+      segmento = SegmentoAtendimento.AUTOMOTIVO,
+      equipamento = "Autel IM508 / Keydiy KD-X2",
+      marca = "Fiat",
+      modelo = "Argo / Cronos / Pulse / Toro",
+      ano = "2018-2025",
+      sistema = "Fiat BSI Continental / Marelli (Hitag AES)",
+      descricao = "Sistemas modernos FCA com módulo SGW nos anos mais recentes.",
+      chip = "ID4A (Hitag AES PCF7939M)",
+      chave = "Lâmina SIP22 · Lishi SIP22",
+      telecomando = "Canivete 3 botões ou Smart Key 4 botões",
+      frequencia = "433,92 MHz FSK",
+      avisos = "Veículos 2020+ possuem Security Gateway (SGW): utilize cabo bypass direto no módulo para liberar gravação.",
+      funcoes = "Leitura de senha, pré-codificação e gravação de chave canivete ou presencial.",
+      manual = "1. Localize o conector SGW (atrás do porta-luvas ou coluna de direção) se o carro for 2020+.\n2. Conecte o cabo bypass SGW.\n3. Leia o PIN do BSI e faça o aprendizado via OBD.\n4. Em chave presencial, aproxime a chave da antena de emergência (console central ou botão Start).",
+      confirmado = true,
+      origem = ORIGEM_OFICIAL,
+    ),
+    FichaTecnica(
+      id = -1005L,
+      segmento = SegmentoAtendimento.AUTOMOTIVO,
+      equipamento = "OBDMap / Xhorse Key Tool Max",
+      marca = "Chevrolet",
+      modelo = "Onix / Prisma / Cobalt / Spin",
+      ano = "2013-2019",
+      sistema = "GM BCM (24C16 / 24C32)",
+      descricao = "Linha GM com Body Control Module (BCM) e chave canivete integrada.",
+      chip = "ID46 (PCF7937E / PCF7936)",
+      chave = "Lâmina HU100 · Lishi HU100",
+      telecomando = "Canivete GM 2 ou 3 botões (integrado ao transponder)",
+      frequencia = "433,92 MHz ASK",
+      avisos = "O telecomando grava automaticamente junto com o transponder quando usa placa original ou universal configurada para GM Brasil.",
+      funcoes = "Leitura de senha via OBD (ou pinça 24C16 no BCM) e gravação de chaves.",
+      manual = "1. Extraia o PIN de 4 dígitos via OBD ou diretamente na EEPROM 24C16 do BCM.\n2. Utilize chave canivete ID46 específica para GM.\n3. Inicie o procedimento de adição ou perda total (aguardar ciclo de 10 minutos se aplicável no modelo).\n4. Teste travas elétricas e partida.",
+      confirmado = true,
+      origem = ORIGEM_OFICIAL,
+    ),
+    FichaTecnica(
+      id = -1006L,
+      segmento = SegmentoAtendimento.AUTOMOTIVO,
+      equipamento = "OBDMap / Autel IM508",
+      marca = "Ford",
+      modelo = "Ka / EcoSport / New Fiesta",
+      ano = "2014-2021",
+      sistema = "Ford PATS / BCM",
+      descricao = "Sistema PATS com incode/outcode automático ou calculado.",
+      chip = "ID63 (4D-63 80-bit) ou ID49 (Smart Key)",
+      chave = "Lâmina HU101 · Lishi HU101",
+      telecomando = "Integrado ou separado 3 botões",
+      frequencia = "433,92 MHz / 315 MHz (conferir etiqueta)",
+      avisos = "Em perda total são necessárias ao menos 2 chaves com chips diferentes para fechar o ciclo de programação PATS.",
+      funcoes = "Apagar chaves perdidas, adicionar chave e programar telecomando.",
+      manual = "1. Confira no aparelho se o sistema é chave lâmina (4D63 80-bit) ou presença (ID49).\n2. Em perda total, tenha 2 transponders distintos preparados.\n3. Para telecomando separado em modelos compatíveis: vire a ignição de 0 para II quatro vezes em 6 segundos até o bip e aperte um botão do controle.",
+      confirmado = true,
+      origem = ORIGEM_OFICIAL,
+    ),
+    FichaTecnica(
+      id = -1007L,
+      segmento = SegmentoAtendimento.AUTOMOTIVO,
+      equipamento = "OBDMap / Keydiy KD-X2",
+      marca = "Renault",
+      modelo = "Sandero / Logan / Duster / Kwid",
+      ano = "2012-2024",
+      sistema = "UCH Continental / Valeo",
+      descricao = "Linha Renault nacional com UCH e transponder PCF7936/PCF7946 ou AES (Kwid/novos).",
+      chip = "ID46 (PCF7936 / PCF7946) ou ID4A (Kwid/novos)",
+      chave = "Lâmina NE72 / VA2 / HU136 · Lishi VA2 / NE72",
+      telecomando = "2 botões (integrado PCF7946/7961)",
+      frequencia = "433,92 MHz",
+      avisos = "Em UCH novos há risco de bloqueio temporário por tentativas repetidas de senha; mantenha a bateria acima de 12,4V.",
+      funcoes = "Leitura de código ISK/PIN via OBD e gravação de chaves.",
+      manual = "1. Identifique se é chave seca com transponder separado (PCF7936) ou telecomando integrado (PCF7946/7961).\n2. Leia a senha via OBD.\n3. Execute a programação apresentando todas as chaves na ignição conforme instruído na tela.",
+      confirmado = true,
+      origem = ORIGEM_OFICIAL,
+    ),
+    FichaTecnica(
+      id = -1008L,
+      segmento = SegmentoAtendimento.AUTOMOTIVO,
+      equipamento = "Xhorse VVDI / Keydiy KD-X2",
+      marca = "Hyundai",
+      modelo = "HB20 / HB20S / Creta",
+      ano = "2013-2024",
+      sistema = "Immo Kefico / Smartra / Smart Key",
+      descricao = "Modelos nacionais Hyundai com leitura de PIN por OBD ou chassi.",
+      chip = "ID46 (PCF7936) / ID47 / ID4A (versões mais novas)",
+      chave = "Lâmina TOY49 / HY22 / HYN14R · Lishi HYN14R / HY22",
+      telecomando = "Canivete 3 botões ou presença",
+      frequencia = "433,92 MHz FSK",
+      avisos = "Diferenciar HB20 com chave simples/canivete (ID46/47) de versões com partida por botão (Smart Key ID47/4A).",
+      funcoes = "Leitura de PIN, programação de transponder e telecomando.",
+      manual = "1. Confira o perfil da lâmina (corte lateral ou pantográfica HY22).\n2. Leia o PIN de 6 dígitos via OBD ou tabela pelo chassi/ECU.\n3. Programe primeiro o transponder via OBD e em seguida o telecomando na função específica.",
+      confirmado = true,
+      origem = ORIGEM_OFICIAL,
+    ),
+    FichaTecnica(
+      id = -1009L,
+      segmento = SegmentoAtendimento.AUTOMOTIVO,
+      equipamento = "Autel IM508 / Xhorse VVDI",
+      marca = "Toyota",
+      modelo = "Corolla / Hilux / Etios",
+      ano = "2009-2023",
+      sistema = "Toyota G / H / Smart Key",
+      descricao = "Sistemas Toyota com reset de imobilizador ou adição direta.",
+      chip = "4D67 / 4D72 (G) / 8A (H) / Smart 8A",
+      chave = "Lâmina TOY43 / TOY48 · Lishi TOY43 / TOY48",
+      telecomando = "2 ou 3 botões (on-board em alguns modelos)",
+      frequencia = "433,92 MHz / 314 MHz",
+      avisos = "Chips G e H exigem identificação exata pela letra estampada na lâmina ou leitura em clonadora antes da programação.",
+      funcoes = "Reset de imobilizador, adição de chave mestre, sincronização de telecomando.",
+      manual = "1. Leia a chave original (se houver) para confirmar se é 4D67, G ou H (8A).\n2. Use função Add Key quando há chave mestre.\n3. Em perda total em modelos com imobilizador separado, realize o reset com jumper/OBD ou leitura da caixa imobilizadora.",
+      confirmado = true,
+      origem = ORIGEM_OFICIAL,
+    ),
+    FichaTecnica(
+      id = -1010L,
+      segmento = SegmentoAtendimento.AUTOMOTIVO,
+      equipamento = "Xhorse VVDI / OBDMap",
+      marca = "Honda",
+      modelo = "Civic / Fit / HR-V / City",
+      ano = "2007-2022",
+      sistema = "Honda Immo / Smart Entry",
+      descricao = "Sistema Honda com adição direta de chaves sem exigir PIN externo na maioria dos modelos.",
+      chip = "ID46 (PCF7936) / ID47 (Hitag 3)",
+      chave = "Lâmina HON66 · Lishi HON66",
+      telecomando = "2 ou 3 botões (grava junto em modelos modernos)",
+      frequencia = "433,92 MHz",
+      avisos = "No procedimento Honda All Keys Lost siga exatamente o tempo de liga/desliga da ignição exibido pelo scanner.",
+      funcoes = "Adicionar chave, apagar chaves perdidas, programar controle remoto.",
+      manual = "1. Confirme se a lâmina é HON66.\n2. Em adição/perda total via OBD, siga o ciclo de ignição ON/OFF solicitado pelo programador.\n3. Em modelos com chip separado, sincronize o telecomando após o chip reconhecido no painel.",
+      confirmado = true,
+      origem = ORIGEM_OFICIAL,
+    ),
+    // Fichas padrão Residenciais
+    FichaTecnica(
+      id = -2001L,
+      segmento = SegmentoAtendimento.RESIDENCIAL,
+      equipamento = "Manual Fabricante",
+      marca = "Intelbras",
+      modelo = "FR 101 / FR 201 / FR 220",
+      ano = "Linha FR",
+      sistema = "Fechadura Digital (Senha + Tag RFID 13,56 MHz)",
+      descricao = "Fechaduras digitais de sobrepor com teclado touch e suporte a chaveiros RFID.",
+      chip = "Tag RFID Mifare 13,56 MHz",
+      chave = "Sem chave mecânica (alimentação externa 9V em emergência)",
+      telecomando = "Tag adesiva / chaveiro de proximidade",
+      frequencia = "13,56 MHz",
+      avisos = "Nunca deixe a porta fechar durante o cadastro de senha mestre; mantenha as pilhas alcalinas AA novas (não recarregáveis).",
+      funcoes = "Alterar senha mestre, cadastrar até 100 tags RFID, ativar travamento automático e reset de fábrica.",
+      manual = "1. Abra a tampa de pilhas e pressione o botão interno de cadastro (REG/PROG).\n2. Digite a senha mestre atual seguida de # (padrão de fábrica costuma ser 1234).\n3. Para cadastrar Tag RFID: aproxime os chaveiros em sequência e finalize pressionando o botão interno novamente.\n4. Em bateria esgotada, encoste uma bateria 9V nos polos frontais para despertar o teclado.",
+      confirmado = true,
+      origem = ORIGEM_OFICIAL,
+    ),
+    FichaTecnica(
+      id = -2002L,
+      segmento = SegmentoAtendimento.RESIDENCIAL,
+      equipamento = "Manual Fabricante",
+      marca = "Yale",
+      modelo = "YDF 40 / YRD 226 / YRD 256",
+      ano = "Linha Digital",
+      sistema = "Fechadura Digital de Embutir / Sobrepor",
+      descricao = "Fechaduras digitais com menu guiado por voz e cadastro por código mestre.",
+      chip = "Cartão / Tag RFID (modelos compatíveis)",
+      chave = "YRD/YDF conforme modelo (modelos com cilindro usam perfil Yale)",
+      telecomando = "Módulo Zigbee/Bluetooth opcional",
+      frequencia = "13,56 MHz (tags)",
+      avisos = "Ao resetar para fábrica é obrigatório criar uma nova Senha Mestre imediatamente para liberar as demais funções.",
+      funcoes = "Definir senha mestre, incluir/excluir usuários, ajustar volume e travamento automático.",
+      manual = "1. Toque no teclado com a palma da mão para ativar.\n2. Digite a Senha Mestre seguida da tecla * ou engrenagem.\n3. Escolha a opção 1 para gerenciar usuários (senhas, biometrias ou cartões conforme modelo).\n4. Siga a voz orientadora e finalize pressionando *.",
+      confirmado = true,
+      origem = ORIGEM_OFICIAL,
+    ),
+    FichaTecnica(
+      id = -2003L,
+      segmento = SegmentoAtendimento.RESIDENCIAL,
+      equipamento = "Catálogo Gold / Jas / Silca",
+      marca = "Papaiz / Stam / Pado",
+      modelo = "Travas Tetra e Cilindros Multiponto",
+      ano = "Residencial",
+      sistema = "Cilindro Tetra (4 lados) e Multiponto",
+      descricao = "Referência de conversão de brutos e procedimentos de troca de segredo/abertura.",
+      chip = "Mecânica (sem chip)",
+      chave = "Stam Tetra: Gold 1044 / Jas 387 · Papaiz Tetra: Gold 1030 · Multiponto conforme gabarito",
+      telecomando = "Não se aplica",
+      frequencia = "Mecânica",
+      avisos = "Em chaves tetra, confira o sentido dos 4 entalhes e a espessura da haste antes de copiar na máquina.",
+      funcoes = "Abertura com micha tetra / multiponto, confecção de chave pelo cilindro e troca de segredo.",
+      manual = "1. Identifique a marca e o perfil do bruto no catálogo (Gold/Jas/Land/Silca).\n2. Para trava tetra com chave perdida, verifique os 4 lados do cilindro e alinhe os pinos com micha tetra específica.\n3. Na troca de segredo de cilindro euro-perfil ou tetra, organize os pinos e contrapinos na bandeja na ordem exata de desmontagem.",
+      confirmado = true,
+      origem = ORIGEM_OFICIAL,
+    ),
+    FichaTecnica(
+      id = -2004L,
+      segmento = SegmentoAtendimento.RESIDENCIAL,
+      equipamento = "Manual Centrais de Portão",
+      marca = "PPA / Rossi / Garen",
+      modelo = "Centrais Pop / Facility / NKX / Fit",
+      ano = "Automatizadores",
+      sistema = "Receptor RF 433,92 MHz (Code Learning / Rolling Code)",
+      descricao = "Guia rápido de gravação e apagamento de controles remotos em placas de portão.",
+      chip = "HCS Rolling Code / Code Learning HT6P20B",
+      chave = "Controle TX 433,92 MHz",
+      telecomando = "PPA/Garen (Code Learning/HCS) · Rossi (Rolling Code próprio)",
+      frequencia = "433,92 MHz",
+      avisos = "Placas Rossi utilizam protocolo Rolling Code próprio (não aceitam controles Code Learning comuns). Antes de apagar toda a memória confirme com o condomínio/morador.",
+      funcoes = "Gravar controle TX, apagar memória de controles e conferir LED de programação.",
+      manual = "PPA (Pop/Facility):\n1. Pressione e solte o botão LEARN/PROG na placa (LED acende).\n2. Aperte o botão do controle remoto (LED pisca confirmando).\n\nGaren:\n1. Pressione o botão TX na central.\n2. Aperte o botão do controle desejado até o LED piscar rápido.\n\nRossi (NKX/DZ):\n1. Pressione e solte o botão APRENDE/PROG na central.\n2. Aperte o botão do controle Rossi e aguarde o LED confirmar/apagar.",
+      confirmado = true,
+      origem = ORIGEM_OFICIAL,
+    ),
+  )
+
+  fun fichas(segmento: SegmentoAtendimento? = null, busca: String = ""): List<FichaTecnica> {
+    val tokens = normalizar(busca).split(' ').filter { it.isNotBlank() }
+    return todas.filter { ficha ->
+      (segmento == null || ficha.segmento == segmento) &&
+        tokens.all { termo ->
+          normalizar(
+            listOf(
+              ficha.equipamento, ficha.marca, ficha.modelo, ficha.ano, ficha.sistema,
+              ficha.descricao, ficha.chip, ficha.chave, ficha.telecomando, ficha.frequencia,
+              ficha.avisos, ficha.funcoes, ficha.manual,
+            ).joinToString(" "),
+          ).contains(termo)
+        }
+    }
+  }
+
+  fun obterPorId(id: Long): FichaTecnica? = todas.firstOrNull { it.id == id }
+
+  fun buscarParaVeiculo(marca: String, modelo: String, segmento: SegmentoAtendimento): List<FichaTecnica> {
+    val marcaNorm = normalizar(marca)
+    val modeloNorm = normalizar(modelo)
+    if (marcaNorm.isBlank() && modeloNorm.isBlank()) return emptyList()
+    return todas.filter { ficha ->
+      if (ficha.segmento != segmento) return@filter false
+      val fMarca = normalizar(ficha.marca)
+      val fModelo = normalizar(ficha.modelo)
+      val bateMarca = marcaNorm.isBlank() || fMarca.contains(marcaNorm) || marcaNorm.contains(fMarca)
+      val bateModelo = modeloNorm.isBlank() ||
+        fModelo.contains(modeloNorm) ||
+        modeloNorm.split(' ').any { parte -> parte.length >= 3 && fModelo.contains(parte) }
+      bateMarca && bateModelo
+    }
+  }
+}

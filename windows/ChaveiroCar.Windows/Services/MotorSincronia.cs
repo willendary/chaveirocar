@@ -1,4 +1,5 @@
 using System.IO;
+using System.Net.Http;
 using System.Text.Json;
 
 namespace ChaveiroCar.Windows.Services;
@@ -29,10 +30,13 @@ public static class MotorSincronia
         var conflitos = 0;
         var falhas = 0;
 
+        await CurarConflitosLegadosAsync(local, api, empresaId);
+
         // PUSH atendimentos + fichas (lote idempotente) e exclusões.
         if (local.Estado.Outbox.Count > 0)
         {
-            var operacoes = local.Estado.Outbox.Select(op =>
+            var loteEnviado = local.Estado.Outbox.ToList();
+            var operacoes = loteEnviado.Select(op =>
             {
                 var entidade = op.Entidade;
                 if (op.Tipo == "exclusao")
@@ -48,35 +52,45 @@ public static class MotorSincronia
             var resposta = await api.EnviarLoteAsync(empresaId, operacoes);
             foreach (var resultado in resposta.Resultados)
             {
-                var op = local.Estado.Outbox.FirstOrDefault(o => o.OpId == resultado.OpId);
-                if (op is null) continue;
+                var opEnviada = loteEnviado.FirstOrDefault(o => o.OpId == resultado.OpId);
+                if (opEnviada is null) continue;
+                var opAtual = local.Estado.Outbox.FirstOrDefault(o => o.Uuid == opEnviada.Uuid && o.Tipo == opEnviada.Tipo);
                 switch (resultado.Status)
                 {
                     case "aplicado":
                         enviadas++;
-                        if (op.Dados is not null)
+                        var novaRevisao = resultado.Revisao > 0 ? resultado.Revisao : ExtrairRevisao(resultado.Registro);
+                        if (opAtual is not null && opAtual.OpId != resultado.OpId)
                         {
-                            op.Dados.Revisao = resultado.Revisao;
-                            op.Dados.Pendente = false;
+                            // Edição mais recente foi enfileirada enquanto este lote estava em trânsito:
+                            // atualiza a revisão base da próxima tentativa sem descartar a pendência local.
+                            AtualizarRevisaoNoItem(local, opEnviada.Entidade, opEnviada.Uuid, novaRevisao, pendente: true);
+                            opAtual.BaseRevisao = Math.Max(opAtual.BaseRevisao, novaRevisao);
+                            if (opAtual.Dados is not null) opAtual.Dados.Revisao = opAtual.BaseRevisao;
+                            if (opAtual.DadosFicha is not null) opAtual.DadosFicha.Revisao = opAtual.BaseRevisao;
                         }
-                        if (op.DadosFicha is not null)
+                        else
                         {
-                            op.DadosFicha.Revisao = resultado.Revisao;
-                            op.DadosFicha.Pendente = false;
+                            AtualizarRevisaoNoItem(local, opEnviada.Entidade, opEnviada.Uuid, novaRevisao, pendente: false);
+                            local.Estado.Conflitos.RemoveAll(c => c.Uuid == opEnviada.Uuid);
+                            if (opAtual is not null) local.Estado.Outbox.Remove(opAtual);
                         }
-                        if (op.DadosFoto is not null)
-                        {
-                            op.DadosFoto.Revisao = resultado.Revisao;
-                            op.DadosFoto.Pendente = false;
-                        }
-                        local.Estado.Conflitos.RemoveAll(c => c.Uuid == op.Uuid);
-                        local.Estado.Outbox.Remove(op);
                         break;
                     case "conflito":
-                        conflitos++;
-                        RegistrarConflito(local, op.Entidade, op.Uuid, resultado.Revisao,
-                            RegistroExcluido(resultado.Registro));
-                        local.Estado.Outbox.Remove(op);
+                        var excluidoRemoto = RegistroExcluido(resultado.Registro);
+                        var revisaoServidor = resultado.Revisao > 0 ? resultado.Revisao : ExtrairRevisao(resultado.Registro);
+                        if (opAtual is not null && opAtual.OpId != resultado.OpId && !excluidoRemoto && revisaoServidor > 0)
+                        {
+                            opAtual.BaseRevisao = Math.Max(opAtual.BaseRevisao, revisaoServidor);
+                            AtualizarRevisaoNoItem(local, opEnviada.Entidade, opEnviada.Uuid, revisaoServidor, pendente: true);
+                            falhas++;
+                        }
+                        else
+                        {
+                            conflitos++;
+                            RegistrarConflito(local, opEnviada.Entidade, opEnviada.Uuid, revisaoServidor, excluidoRemoto);
+                            local.Estado.Outbox.RemoveAll(o => o.OpId == resultado.OpId);
+                        }
                         break;
                     default:
                         falhas++;
@@ -146,14 +160,17 @@ public static class MotorSincronia
 
     public static void EnfileirarUpsert(ArmazenamentoLocal local, Atendimento item)
     {
-        item.Pendente = true;
         var existente = local.Estado.Atendimentos.FirstOrDefault(a => a.Uuid == item.Uuid);
+        var opExistente = local.Estado.Outbox.FirstOrDefault(o => o.Uuid == item.Uuid && o.Tipo == "upsert");
+        item.Revisao = Math.Max(item.Revisao, Math.Max(existente?.Revisao ?? 0, opExistente?.BaseRevisao ?? 0));
+        item.Pendente = true;
         if (existente is null) local.Estado.Atendimentos.Add(item);
         else
         {
             var indice = local.Estado.Atendimentos.IndexOf(existente);
             local.Estado.Atendimentos[indice] = item;
         }
+        local.Estado.Conflitos.RemoveAll(c => c.Uuid == item.Uuid);
         local.Estado.Outbox.RemoveAll(o => o.Uuid == item.Uuid && o.Tipo == "upsert");
         local.Estado.Outbox.Add(new ArmazenamentoLocal.OperacaoPendente
         {
@@ -168,10 +185,13 @@ public static class MotorSincronia
 
     public static void EnfileirarFicha(ArmazenamentoLocal local, ArmazenamentoLocal.Ficha ficha)
     {
-        ficha.Pendente = true;
         var existente = local.Estado.Fichas.FirstOrDefault(f => f.Uuid == ficha.Uuid);
+        var opExistente = local.Estado.Outbox.FirstOrDefault(o => o.Uuid == ficha.Uuid && o.Tipo == "upsert");
+        ficha.Revisao = Math.Max(ficha.Revisao, Math.Max(existente?.Revisao ?? 0, opExistente?.BaseRevisao ?? 0));
+        ficha.Pendente = true;
         if (existente is null) local.Estado.Fichas.Add(ficha);
         else local.Estado.Fichas[local.Estado.Fichas.IndexOf(existente)] = ficha;
+        local.Estado.Conflitos.RemoveAll(c => c.Uuid == ficha.Uuid);
         local.Estado.Outbox.RemoveAll(o => o.Uuid == ficha.Uuid && o.Tipo == "upsert");
         local.Estado.Outbox.Add(new ArmazenamentoLocal.OperacaoPendente
         {
@@ -225,7 +245,7 @@ public static class MotorSincronia
                     foto.Pendente = true;
                 }
             }
-            else ficha.Revisao = conflito.RevisaoServidor;
+            else ficha.Revisao = Math.Max(1, Math.Max(conflito.RevisaoServidor, ficha.Revisao));
             EnfileirarFicha(local, ficha);
             return;
         }
@@ -246,7 +266,7 @@ public static class MotorSincronia
                 foto.Pendente = true;
             }
         }
-        else atendimento.Revisao = conflito.RevisaoServidor;
+        else atendimento.Revisao = Math.Max(1, Math.Max(conflito.RevisaoServidor, atendimento.Revisao));
         EnfileirarUpsert(local, atendimento);
     }
 
@@ -315,6 +335,105 @@ public static class MotorSincronia
         });
     }
 
+    private static async Task CurarConflitosLegadosAsync(
+        ArmazenamentoLocal local,
+        ClienteApi api,
+        string empresaId)
+    {
+        var presos = local.Estado.Conflitos
+            .Where(c => c.RevisaoServidor <= 0 && !c.ServidorExcluido)
+            .ToList();
+        if (presos.Count == 0) return;
+
+        foreach (var conflito in presos)
+        {
+            try
+            {
+                if (conflito.Entidade == "ficha")
+                {
+                    var remota = await api.ObterFichaAsync(empresaId, conflito.Uuid);
+                    conflito.RevisaoServidor = Math.Max(1, remota.Revisao);
+                    var fichaLocal = local.Estado.Fichas.FirstOrDefault(f => f.Uuid == conflito.Uuid);
+                    if (fichaLocal is not null && fichaLocal.Revisao == 0 && remota.Revisao <= 1)
+                    {
+                        ManterLocal(local, conflito);
+                    }
+                }
+                else
+                {
+                    var remoto = await api.ObterAtendimentoAsync(empresaId, conflito.Uuid);
+                    conflito.RevisaoServidor = Math.Max(1, remoto.Revisao);
+                    var atendLocal = local.Estado.Atendimentos.FirstOrDefault(a => a.Uuid == conflito.Uuid);
+                    if (atendLocal is not null && atendLocal.Revisao == 0 && remoto.Revisao <= 1)
+                    {
+                        ManterLocal(local, conflito);
+                    }
+                }
+            }
+            catch (HttpRequestException ex) when (ex.StatusCode == System.Net.HttpStatusCode.NotFound)
+            {
+                local.Estado.Conflitos.RemoveAll(c => c.Uuid == conflito.Uuid);
+            }
+            catch
+            {
+                // Sem conexão: mantém até a próxima sincronização.
+            }
+        }
+        local.Salvar();
+    }
+
+    private static void AtualizarRevisaoNoItem(
+        ArmazenamentoLocal local,
+        string entidade,
+        string uuid,
+        long novaRevisao,
+        bool pendente)
+    {
+        if (entidade == "ficha")
+        {
+            var ficha = local.Estado.Fichas.FirstOrDefault(f => f.Uuid == uuid);
+            if (ficha is not null)
+            {
+                if (novaRevisao > 0) ficha.Revisao = Math.Max(ficha.Revisao, novaRevisao);
+                ficha.Pendente = pendente;
+            }
+            return;
+        }
+        if (entidade == "foto")
+        {
+            var foto = local.Estado.Fotos.FirstOrDefault(f => f.Uuid == uuid);
+            if (foto is not null)
+            {
+                if (novaRevisao > 0) foto.Revisao = Math.Max(foto.Revisao, novaRevisao);
+                foto.Pendente = pendente;
+            }
+            return;
+        }
+        var atendimento = local.Estado.Atendimentos.FirstOrDefault(a => a.Uuid == uuid);
+        if (atendimento is not null)
+        {
+            if (novaRevisao > 0) atendimento.Revisao = Math.Max(atendimento.Revisao, novaRevisao);
+            atendimento.Pendente = pendente;
+        }
+    }
+
+    private static long ExtrairRevisao(string? registro)
+    {
+        if (string.IsNullOrWhiteSpace(registro)) return 0;
+        try
+        {
+            using var json = JsonDocument.Parse(registro);
+            return json.RootElement.TryGetProperty("revisao", out var rev) &&
+                   rev.ValueKind == JsonValueKind.Number
+                ? rev.GetInt64()
+                : 0;
+        }
+        catch
+        {
+            return 0;
+        }
+    }
+
     private static bool RegistroExcluido(string? registro)
     {
         if (string.IsNullOrWhiteSpace(registro)) return false;
@@ -333,7 +452,8 @@ public static class MotorSincronia
     private static void ReceberAtendimento(
         ArmazenamentoLocal local, Atendimento remoto, ref int recebidas, ref int conflitos)
     {
-        var pendente = local.Estado.Outbox.Any(o => o.Uuid == remoto.Uuid);
+        var opPendente = local.Estado.Outbox.FirstOrDefault(o => o.Uuid == remoto.Uuid);
+        var pendente = opPendente is not null;
         var existente = local.Estado.Atendimentos.FirstOrDefault(a => a.Uuid == remoto.Uuid);
 
         if (remoto.ExcluidoEm is not null)
@@ -350,8 +470,17 @@ public static class MotorSincronia
             return;
         }
 
-        if (pendente && existente is not null && remoto.Revisao != existente.Revisao)
+        if (pendente && existente is not null)
         {
+            var baseConhecida = Math.Max(existente.Revisao, opPendente!.BaseRevisao);
+            if (remoto.Revisao <= baseConhecida)
+            {
+                existente.Revisao = Math.Max(existente.Revisao, remoto.Revisao);
+                opPendente.BaseRevisao = Math.Max(opPendente.BaseRevisao, remoto.Revisao);
+                if (opPendente.Dados is not null)
+                    opPendente.Dados.Revisao = Math.Max(opPendente.Dados.Revisao, remoto.Revisao);
+                return;
+            }
             RegistrarConflito(local, "atendimento", remoto.Uuid, remoto.Revisao);
             conflitos++;
             return;
@@ -361,7 +490,7 @@ public static class MotorSincronia
         {
             local.Estado.Atendimentos.Add(remoto);
         }
-        else
+        else if (remoto.Revisao >= existente.Revisao)
         {
             var indice = local.Estado.Atendimentos.IndexOf(existente);
             remoto.Pendente = existente.Pendente;
@@ -373,7 +502,8 @@ public static class MotorSincronia
     private static void ReceberFicha(
         ArmazenamentoLocal local, ArmazenamentoLocal.Ficha remota, ref int recebidas, ref int conflitos)
     {
-        var pendente = local.Estado.Outbox.Any(o => o.Uuid == remota.Uuid);
+        var opPendente = local.Estado.Outbox.FirstOrDefault(o => o.Uuid == remota.Uuid);
+        var pendente = opPendente is not null;
         var existente = local.Estado.Fichas.FirstOrDefault(a => a.Uuid == remota.Uuid);
 
         if (remota.ExcluidoEm is not null)
@@ -390,15 +520,24 @@ public static class MotorSincronia
             return;
         }
 
-        if (pendente && existente is not null && remota.Revisao != existente.Revisao)
+        if (pendente && existente is not null)
         {
+            var baseConhecida = Math.Max(existente.Revisao, opPendente!.BaseRevisao);
+            if (remota.Revisao <= baseConhecida)
+            {
+                existente.Revisao = Math.Max(existente.Revisao, remota.Revisao);
+                opPendente.BaseRevisao = Math.Max(opPendente.BaseRevisao, remota.Revisao);
+                if (opPendente.DadosFicha is not null)
+                    opPendente.DadosFicha.Revisao = Math.Max(opPendente.DadosFicha.Revisao, remota.Revisao);
+                return;
+            }
             RegistrarConflito(local, "ficha", remota.Uuid, remota.Revisao);
             conflitos++;
             return;
         }
 
         if (existente is null) local.Estado.Fichas.Add(remota);
-        else
+        else if (remota.Revisao >= existente.Revisao)
         {
             var indice = local.Estado.Fichas.IndexOf(existente);
             remota.Pendente = existente.Pendente;

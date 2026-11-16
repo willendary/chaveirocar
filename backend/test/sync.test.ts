@@ -43,14 +43,55 @@ describe("sync", () => {
     const depois = await ambiente.app.inject({ method: "GET", url: `/api/v1/empresas/${id}/atendimentos/${a.id}`, headers: h });
     expect(depois.json().revisao).toBe(2);
 
-    // base divergente -> conflito, sem LWW silencioso
+    // base divergente -> conflito, sem LWW silencioso (inclui revisao no resultado)
     const push3 = await ambiente.app.inject({
       method: "POST", url: `/api/v1/empresas/${id}/sync`, headers: h,
       payload: { operacoes: [{ opId: randomUUID(), entidade: "atendimento", tipo: "upsert", id: a.id, baseRevisao: 1, dados: { placa: "SYN1C23", modelo: "HB20", solucao: "atrasada" } }] },
     });
     expect(push3.json().resultados[0].status).toBe("conflito");
+    expect(push3.json().resultados[0].revisao).toBe(2);
     const intacto = await ambiente.app.inject({ method: "GET", url: `/api/v1/empresas/${id}/atendimentos/${a.id}`, headers: h });
     expect(intacto.json().solucao).toBe("via sync");
+  });
+
+  it("cura criação e edição rápida do mesmo criador antes de receber revisão 1", async () => {
+    const conta = await cadastrar(ambiente.app, { email: "sync3@exemplo.com" });
+    const id = conta.empresas[0]!.id;
+    const h = conta.cabecalho;
+    const { randomUUID } = await import("node:crypto");
+    const uuid = randomUUID();
+
+    const op1 = await ambiente.app.inject({
+      method: "POST",
+      url: `/api/v1/empresas/${id}/sync`,
+      headers: h,
+      payload: {
+        operacoes: [{
+          opId: randomUUID(), entidade: "atendimento", tipo: "upsert", id: uuid, baseRevisao: 0,
+          dados: { placa: "FAS1T23", modelo: "Gol", solucao: "primeira" },
+        }],
+      },
+    });
+    expect(op1.statusCode).toBe(200);
+    expect(op1.json().resultados[0].status).toBe("aplicado");
+    expect(op1.json().resultados[0].revisao).toBe(1);
+
+    const op2 = await ambiente.app.inject({
+      method: "POST",
+      url: `/api/v1/empresas/${id}/sync`,
+      headers: h,
+      payload: {
+        operacoes: [{
+          opId: randomUUID(), entidade: "atendimento", tipo: "upsert", id: uuid, baseRevisao: 0,
+          dados: { placa: "FAS1T23", modelo: "Gol", solucao: "editado sem aguardar rev" },
+        }],
+      },
+    });
+    expect(op2.statusCode).toBe(200);
+    expect(op2.json().resultados[0].status).toBe("aplicado");
+    expect(op2.json().resultados[0].revisao).toBe(2);
+    const atual = await ambiente.app.inject({ method: "GET", url: `/api/v1/empresas/${id}/atendimentos/${uuid}`, headers: h });
+    expect(atual.json().solucao).toBe("editado sem aguardar rev");
   });
 
   it("pull com cursor não devolve o já entregue", async () => {

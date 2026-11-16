@@ -23,12 +23,19 @@
                     </Border>
                     <StackPanel VerticalAlignment="Center" Margin="0,0,24,0">
                         <TextBlock Text="ChaveiroCar" Foreground="White" FontSize="18" FontWeight="Bold"/>
-                        <TextBlock Text="Gestão Automotiva e Residencial" Foreground="#FF94A3B8" FontSize="11"/>
+                        <TextBlock Text="Gestão Veicular e Residencial" Foreground="#FF94A3B8" FontSize="11"/>
                     </StackPanel>
                     <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
                         <TextBlock Text="Empresa:" Foreground="#FFCBD5E1" VerticalAlignment="Center" Margin="0,0,8,0" FontSize="12.5"/>
-                        <ComboBox x:Name="Empresas" Width="220" Margin="0" SelectionChanged="Empresa_Mudou"/>
+                        <ComboBox x:Name="Empresas" Width="210" Margin="0" SelectionChanged="Empresa_Mudou"/>
                     </StackPanel>
+                    <Border x:Name="SeloModalidadeAtiva" Background="#FF134E4A" CornerRadius="6" Padding="10,5"
+                            Margin="12,0,0,0" VerticalAlignment="Center" Visibility="Collapsed">
+                        <TextBlock x:Name="TxtModalidadeAtiva" Text="Área: Veicular" Foreground="#FF5EEAD4"
+                                   FontWeight="SemiBold" FontSize="12"/>
+                    </Border>
+                    <Button x:Name="BtnTrocarArea" Content="Trocar área" Click="TrocarArea_Click"
+                            Margin="8,0,0,0" Visibility="Collapsed"/>
                 </StackPanel>
 
                 <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center">
@@ -36,6 +43,7 @@
                         <TextBlock x:Name="EmailUsuario" Text="" Foreground="#FFE2E8F0" FontSize="12" VerticalAlignment="Center"/>
                     </Border>
                     <Button Content="Atualizações" Click="VerificarAtualizacoes_Click" Margin="0,0,8,0"/>
+                    <Button Content="Plano e módulos" Click="Plano_Click" Margin="0,0,8,0"/>
                     <Button Content="Equipe e acessos" Click="Equipe_Click" Margin="0,0,8,0"/>
                     <Button Content="Sair da conta" Click="Sair_Click"/>
                 </StackPanel>
@@ -43,35 +51,38 @@
         </Border>
 
         <!-- Barra de Ferramentas e Filtros -->
-        <Border Grid.Row="1" Background="{StaticResource CorSuperficie}"
+        <Border x:Name="PainelToolbar" Grid.Row="1" Background="{StaticResource CorSuperficie}"
                 BorderBrush="{StaticResource CorBorda}" BorderThickness="1"
                 CornerRadius="10" Margin="20,16,20,12" Padding="16,12">
             <DockPanel LastChildFill="False">
                 <StackPanel DockPanel.Dock="Left" Orientation="Horizontal" VerticalAlignment="Center">
-                    <TextBlock Text="Segmento:" VerticalAlignment="Center" Margin="0,0,8,0"
-                               Foreground="{StaticResource CorTextoSecundario}" FontWeight="SemiBold" FontSize="12.5"/>
-                    <ComboBox x:Name="FiltroSegmento" Width="150" Margin="0,0,12,0" SelectedIndex="0" SelectionChanged="FiltroSegmento_Mudou">
-                        <ComboBoxItem Content="Todos os serviços" Tag=""/>
-                        <ComboBoxItem Content="Automotivo" Tag="AUTOMOTIVO"/>
-                        <ComboBoxItem Content="Residencial" Tag="RESIDENCIAL"/>
-                    </ComboBox>
+                    <StackPanel x:Name="PainelFiltroSegmento" Orientation="Horizontal" VerticalAlignment="Center">
+                        <TextBlock Text="Segmento:" VerticalAlignment="Center" Margin="0,0,8,0"
+                                   Foreground="{StaticResource CorTextoSecundario}" FontWeight="SemiBold" FontSize="12.5"/>
+                        <ComboBox x:Name="FiltroSegmento" Width="150" Margin="0,0,12,0" SelectedIndex="0" SelectionChanged="FiltroSegmento_Mudou">
+                            <ComboBoxItem Content="Todos os serviços" Tag=""/>
+                            <ComboBoxItem Content="Veicular" Tag="AUTOMOTIVO"/>
+                            <ComboBoxItem Content="Residencial" Tag="RESIDENCIAL"/>
+                        </ComboBox>
+                    </StackPanel>
                     <TextBox x:Name="Busca" Width="280" Margin="0,0,8,0" KeyDown="Busca_KeyDown"
-                             ToolTip="Pesquisar por placa, veículo, cliente, fechadura ou endereço"/>
+                             ToolTip="Pesquisar por placa, veículo, cliente, fechadura, chip ou endereço"/>
                     <Button Content="Pesquisar" Click="Pesquisar_Click"/>
                 </StackPanel>
 
                 <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center">
-                    <Button Content="+ Novo atendimento" Click="Novo_Click" Style="{StaticResource BotaoPrimario}" Margin="0,0,8,0"/>
-                    <Button Content="Editar" Click="Editar_Click" Margin="0,0,8,0"/>
+                    <Button x:Name="BtnNovoAtendimento" Content="+ Novo atendimento" Click="Novo_Click" Style="{StaticResource BotaoPrimario}" Margin="0,0,8,0"/>
+                    <Button x:Name="BtnEditarAtendimento" Content="Editar" Click="Editar_Click" Margin="0,0,8,0"/>
+                    <Button Content="Ver ficha técnica" Click="VerFichaAtendimento_Click" Margin="0,0,8,0"/>
                     <Button Content="Recibo WhatsApp" Click="ReciboWhatsApp_Click" Margin="0,0,8,0"/>
                     <Button Content="Exportar PDF" Click="ExportarPdf_Click" Margin="0,0,8,0"/>
-                    <Button Content="Excluir" Click="Excluir_Click" Style="{StaticResource BotaoPerigo}"/>
+                    <Button x:Name="BtnExcluirAtendimento" Content="Excluir" Click="Excluir_Click" Style="{StaticResource BotaoPerigo}"/>
                 </StackPanel>
             </DockPanel>
         </Border>
 
         <!-- Área Principal com Abas e Tabelas Formatadas -->
-        <Border Grid.Row="2" Background="{StaticResource CorSuperficie}"
+        <Border x:Name="PainelConteudo" Grid.Row="2" Background="{StaticResource CorSuperficie}"
                 BorderBrush="{StaticResource CorBorda}" BorderThickness="1"
                 CornerRadius="10" Margin="20,0,20,14" Padding="12">
             <TabControl x:Name="AbasPrincipal" BorderThickness="0" Background="Transparent">
@@ -98,11 +109,12 @@
                     <Grid Margin="0,8,0,0">
                         <Grid.RowDefinitions>
                             <RowDefinition Height="Auto"/>
-                            <RowDefinition Height="*"/>
+                            <RowDefinition x:Name="RowDefFicharioVeiculos" Height="*"/>
                             <RowDefinition Height="Auto"/>
-                            <RowDefinition Height="*"/>
+                            <RowDefinition x:Name="RowDefFicharioResidencial" Height="*"/>
                         </Grid.RowDefinitions>
-                        <TextBlock Grid.Row="0" Text="Histórico consolidado de veículos (por marca e modelo)"
+                        <TextBlock Grid.Row="0" x:Name="TituloFicharioVeiculos"
+                                   Text="Histórico consolidado de veículos (por marca e modelo)"
                                    FontWeight="SemiBold" Foreground="{StaticResource CorTextoPrimario}" Margin="2,0,0,6"/>
                         <DataGrid Grid.Row="1" x:Name="GradeFicharioVeiculos" AutoGenerateColumns="False"
                                   IsReadOnly="True" CanUserAddRows="False" SelectionMode="Single">
@@ -118,7 +130,8 @@
                             </DataGrid.Columns>
                         </DataGrid>
 
-                        <TextBlock Grid.Row="2" Text="Histórico consolidado residencial (por local e fechadura)"
+                        <TextBlock Grid.Row="2" x:Name="TituloFicharioResidencial"
+                                   Text="Histórico consolidado residencial (por local e fechadura)"
                                    FontWeight="SemiBold" Foreground="{StaticResource CorTextoPrimario}" Margin="2,12,0,6"/>
                         <DataGrid Grid.Row="3" x:Name="GradeFicharioResidencial" AutoGenerateColumns="False"
                                   IsReadOnly="True" CanUserAddRows="False" SelectionMode="Single">
@@ -140,23 +153,25 @@
                 <TabItem Header="  Fichas Técnicas  " Padding="12,6" FontWeight="SemiBold">
                     <DockPanel Margin="0,8,0,0">
                         <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Margin="0,0,0,10">
-                            <Button Content="+ Nova ficha técnica" Click="NovaFicha_Click" Style="{StaticResource BotaoPrimario}"/>
-                            <Button Content="Editar ficha" Click="EditarFicha_Click" Margin="8,0,0,0"/>
-                            <Button Content="Excluir ficha" Click="ExcluirFicha_Click" Style="{StaticResource BotaoPerigo}" Margin="8,0,0,0"/>
+                            <Button x:Name="BtnNovaFicha" Content="+ Nova ficha técnica" Click="NovaFicha_Click" Style="{StaticResource BotaoPrimario}"/>
+                            <Button Content="Ver ficha e manual" Click="VerManualFicha_Click" Margin="8,0,0,0"/>
+                            <Button x:Name="BtnEditarFicha" Content="Editar / complementar" Click="EditarFicha_Click" Margin="8,0,0,0"/>
+                            <Button x:Name="BtnNovoAtendimentoFicha" Content="+ Novo atendimento com esta ficha" Click="NovoServicoDaFicha_Click" Margin="8,0,0,0"/>
+                            <Button x:Name="BtnExcluirFicha" Content="Excluir ficha" Click="ExcluirFicha_Click" Style="{StaticResource BotaoPerigo}" Margin="8,0,0,0"/>
                         </StackPanel>
                         <DataGrid x:Name="GradeFichas" AutoGenerateColumns="False"
                                   IsReadOnly="True" CanUserAddRows="False" SelectionMode="Single"
                                   MouseDoubleClick="GradeFichas_DoubleClick">
                             <DataGrid.Columns>
+                                <DataGridTextColumn Header="Origem" Binding="{Binding OrigemFormatada}" Width="130"/>
                                 <DataGridTextColumn Header="Marca" Binding="{Binding Marca}" Width="130"/>
-                                <DataGridTextColumn Header="Modelo" Binding="{Binding Modelo}" Width="160"/>
+                                <DataGridTextColumn Header="Modelo" Binding="{Binding Modelo}" Width="170"/>
                                 <DataGridTextColumn Header="Ano" Binding="{Binding Ano}" Width="90"/>
                                 <DataGridTextColumn Header="Equipamento" Binding="{Binding Equipamento}" Width="140"/>
-                                <DataGridTextColumn Header="Sistema" Binding="{Binding Sistema}" Width="140"/>
+                                <DataGridTextColumn Header="Sistema" Binding="{Binding Sistema}" Width="150"/>
                                 <DataGridTextColumn Header="Chip" Binding="{Binding Chip}" Width="120"/>
-                                <DataGridTextColumn Header="Chave" Binding="{Binding Chave}" Width="120"/>
-                                <DataGridTextColumn Header="Telecomando" Binding="{Binding Telecomando}" Width="130"/>
-                                <DataGridTextColumn Header="Frequência" Binding="{Binding Frequencia}" Width="100"/>
+                                <DataGridTextColumn Header="Chave" Binding="{Binding Chave}" Width="130"/>
+                                <DataGridTextColumn Header="Manual" Binding="{Binding ManualFormatado}" Width="125"/>
                                 <DataGridTextColumn Header="Confirmado" Binding="{Binding ConfirmadoFormatado}" Width="*"/>
                             </DataGrid.Columns>
                         </DataGrid>
@@ -189,6 +204,80 @@
                     </DockPanel>
                 </TabItem>
             </TabControl>
+        </Border>
+
+        <!-- Entrada por Modalidade (Veicular / Residencial) -->
+        <Border x:Name="PainelEscolhaModalidade" Grid.Row="1" Grid.RowSpan="2"
+                Background="{StaticResource CorFundoJanela}" Padding="28,22">
+            <ScrollViewer VerticalScrollBarVisibility="Auto">
+                <StackPanel MaxWidth="980" HorizontalAlignment="Center">
+                    <Border Background="{StaticResource CorCabecalho}" CornerRadius="12" Padding="24,20" Margin="0,0,0,16">
+                        <DockPanel LastChildFill="False">
+                            <StackPanel DockPanel.Dock="Left" MaxWidth="680">
+                                <TextBlock Text="ENTRADA POR MODALIDADE" Foreground="#FF5EEAD4" FontSize="11.5" FontWeight="Bold"/>
+                                <TextBlock Text="Qual área você vai usar agora?" Foreground="White" FontSize="22" FontWeight="Bold" Margin="0,4,0,4"/>
+                                <TextBlock Text="Acesse atendimentos, histórico, fichário e manuais técnicos direto pela área desejada sem precisar criar um serviço."
+                                           Foreground="#FFCBD5E1" FontSize="13" TextWrapping="Wrap"/>
+                            </StackPanel>
+                            <StackPanel DockPanel.Dock="Right" VerticalAlignment="Center">
+                                <TextBlock x:Name="ResumoPlanoEscolha" Text="Plano ativo" Foreground="#FFE2E8F0" FontSize="12.5"
+                                           HorizontalAlignment="Right" Margin="0,0,0,8"/>
+                                <Button Content="Gerenciar plano e módulos" Click="Plano_Click" HorizontalAlignment="Right"/>
+                            </StackPanel>
+                        </DockPanel>
+                    </Border>
+
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="18"/>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
+
+                        <Border Grid.Column="0" Background="{StaticResource CorSuperficie}" BorderBrush="{StaticResource CorBorda}"
+                                BorderThickness="1" CornerRadius="12" Padding="22,20">
+                            <StackPanel>
+                                <DockPanel LastChildFill="False" Margin="0,0,0,10">
+                                    <TextBlock DockPanel.Dock="Left" Text="Veicular" FontSize="20" FontWeight="Bold"
+                                               Foreground="{StaticResource CorTextoPrimario}" VerticalAlignment="Center"/>
+                                    <Border DockPanel.Dock="Right" x:Name="BadgeVeicularEscolha" Background="{StaticResource CorPrimariaSuave}"
+                                            CornerRadius="6" Padding="10,4">
+                                        <TextBlock x:Name="TxtBadgeVeicularEscolha" Text="Disponível no plano"
+                                                   Foreground="{StaticResource CorPrimariaEscura}" FontWeight="SemiBold" FontSize="11.5"/>
+                                    </Border>
+                                </DockPanel>
+                                <TextBlock Text="Chaves codificadas, chips/transponders, telecomandos, abertura veicular, fichário de modelos e consulta técnica com manuais offline."
+                                           Foreground="{StaticResource CorTextoSecundario}" FontSize="13" TextWrapping="Wrap" MinHeight="60" Margin="0,0,0,16"/>
+                                <Button x:Name="BtnEntrarVeicular" Content="Entrar em Veicular" Style="{StaticResource BotaoPrimario}"
+                                        Click="EntrarVeicular_Click" Margin="0,0,0,8"/>
+                                <Button x:Name="BtnConsultaVeicular" Content="Fichas técnicas e manuais"
+                                        Click="ConsultarVeicularInicial_Click"/>
+                            </StackPanel>
+                        </Border>
+
+                        <Border Grid.Column="2" Background="{StaticResource CorSuperficie}" BorderBrush="{StaticResource CorBorda}"
+                                BorderThickness="1" CornerRadius="12" Padding="22,20">
+                            <StackPanel>
+                                <DockPanel LastChildFill="False" Margin="0,0,0,10">
+                                    <TextBlock DockPanel.Dock="Left" Text="Residencial" FontSize="20" FontWeight="Bold"
+                                               Foreground="{StaticResource CorTextoPrimario}" VerticalAlignment="Center"/>
+                                    <Border DockPanel.Dock="Right" x:Name="BadgeResidencialEscolha" Background="{StaticResource CorPrimariaSuave}"
+                                            CornerRadius="6" Padding="10,4">
+                                        <TextBlock x:Name="TxtBadgeResidencialEscolha" Text="Disponível no plano"
+                                                   Foreground="{StaticResource CorPrimariaEscura}" FontWeight="SemiBold" FontSize="11.5"/>
+                                    </Border>
+                                </DockPanel>
+                                <TextBlock Text="Aberturas residenciais, cilindros, travas tetra/multiponto, fechaduras digitais, controles de portão e histórico por local."
+                                           Foreground="{StaticResource CorTextoSecundario}" FontSize="13" TextWrapping="Wrap" MinHeight="60" Margin="0,0,0,16"/>
+                                <Button x:Name="BtnEntrarResidencial" Content="Entrar em Residencial" Style="{StaticResource BotaoPrimario}"
+                                        Click="EntrarResidencial_Click" Margin="0,0,0,8"/>
+                                <Button x:Name="BtnConsultaResidencial" Content="Fichas e manuais residenciais"
+                                        Click="ConsultarResidencialInicial_Click"/>
+                            </StackPanel>
+                        </Border>
+                    </Grid>
+                </StackPanel>
+            </ScrollViewer>
         </Border>
 
         <!-- Barra de Status Inferior -->

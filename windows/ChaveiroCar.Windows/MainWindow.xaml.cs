@@ -18,7 +18,10 @@ public partial class MainWindow : Window
     private readonly DispatcherTimer _timerSincronia = new() { Interval = TimeSpan.FromSeconds(20) };
     private ClienteApi? _api;
     private List<ClienteApi.Empresa> _empresas = [];
+    private string? _modalidadeAtiva;
     private bool _sincronizando;
+    private bool _sincronizarNovamente;
+    private bool _editandoModal;
     private DateTimeOffset _ultimaSincronia = DateTimeOffset.MinValue;
 
     public bool SaiuDaConta { get; private set; }
@@ -35,8 +38,14 @@ public partial class MainWindow : Window
         Loaded += MainWindow_Loaded;
         Activated += MainWindow_Activated;
         Closed += MainWindow_Closed;
-        _timerSincronia.Tick += async (_, _) => await Sincronizar();
+        _timerSincronia.Tick += async (_, _) =>
+        {
+            if (!_editandoModal && !TemDialogoModalAberto()) await Sincronizar();
+        };
     }
+
+    private bool TemDialogoModalAberto() =>
+        _editandoModal || OwnedWindows.Cast<Window>().Any(w => w.IsVisible);
 
     private void CarregarIconeSeguro()
     {
@@ -62,8 +71,9 @@ public partial class MainWindow : Window
         }
 
         RecarregarGrade();
+        AtualizarInterfaceModalidade();
         AtualizarStatus();
-        var versaoAtual = System.Reflection.Assembly.GetEntryAssembly()?.GetName().Version?.ToString(3) ?? "1.11.4";
+        var versaoAtual = System.Reflection.Assembly.GetEntryAssembly()?.GetName().Version?.ToString(3) ?? "1.12.0";
         TxtVersaoApp.Text = $"ChaveiroCar Desktop v{versaoAtual}";
         await Inicializar();
         _timerSincronia.Start();
@@ -72,7 +82,7 @@ public partial class MainWindow : Window
 
     private async void MainWindow_Activated(object? sender, EventArgs e)
     {
-        if (DateTimeOffset.UtcNow - _ultimaSincronia >= TimeSpan.FromSeconds(5))
+        if (!TemDialogoModalAberto() && DateTimeOffset.UtcNow - _ultimaSincronia >= TimeSpan.FromSeconds(5))
         {
             await Sincronizar();
         }
@@ -172,6 +182,7 @@ public partial class MainWindow : Window
         try
         {
             _empresas = (await _api.EmpresasAsync()).ToList();
+            RegistrarEmpresas(_empresas);
             Empresas.ItemsSource = _empresas;
             Empresas.DisplayMemberPath = "Nome";
             var atual = _empresas.FirstOrDefault(x => x.Id == _local.Estado.EmpresaId) ?? _empresas.FirstOrDefault();
@@ -181,6 +192,7 @@ public partial class MainWindow : Window
                 _local.Estado.EmpresaId = atual.Id;
                 _local.Salvar();
             }
+            AtualizarInterfaceModalidade();
             await Sincronizar();
         }
         catch (HttpRequestException ex) when (ex.StatusCode == System.Net.HttpStatusCode.Unauthorized)
@@ -192,6 +204,7 @@ public partial class MainWindow : Window
         {
             Status.Text = "Modo offline ativo: exibindo dados sincronizados neste computador.";
         }
+        AtualizarInterfaceModalidade();
         RecarregarGrade();
         AtualizarStatus();
     }
@@ -205,8 +218,126 @@ public partial class MainWindow : Window
         return Task.CompletedTask;
     }
 
+    private HashSet<string> ModulosAtivosAtuais() =>
+        _local.Estado.ModulosAtivosDaEmpresa(_local.Estado.EmpresaId);
+
+    private bool PodeEditarEmpresa()
+    {
+        var empresa = _empresas.FirstOrDefault(x => x.Id == _local.Estado.EmpresaId)
+                      ?? Empresas?.SelectedItem as ClienteApi.Empresa;
+        return empresa is null || !string.Equals(empresa.Papel, "leitor", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private void RegistrarEmpresas(IEnumerable<ClienteApi.Empresa> empresas)
+    {
+        foreach (var emp in empresas)
+        {
+            _local.Estado.RegistrarAssinaturaEmpresa(
+                emp.Id,
+                emp.PlanoCodigo,
+                emp.AssinaturaStatus,
+                emp.ModulosAtivos,
+                emp.ProximaRenovacaoEm);
+        }
+        _local.Salvar();
+    }
+
+    private void AtualizarInterfaceModalidade()
+    {
+        if (PainelEscolhaModalidade is null || PainelToolbar is null || PainelConteudo is null) return;
+
+        var modulos = ModulosAtivosAtuais();
+        var veicAtivo = modulos.Contains("AUTOMOTIVO");
+        var resAtivo = modulos.Contains("RESIDENCIAL");
+
+        if (_modalidadeAtiva is not null && !modulos.Contains(_modalidadeAtiva))
+        {
+            _modalidadeAtiva = null;
+        }
+
+        if (ResumoPlanoEscolha is not null)
+        {
+            var status = _local.Estado.StatusAssinaturaDaEmpresa(_local.Estado.EmpresaId);
+            var ativosTxt = modulos.Count == 0
+                ? "Nenhum módulo ativo"
+                : string.Join(" + ", modulos.Select(m => m == "RESIDENCIAL" ? "Residencial" : "Veicular"));
+            ResumoPlanoEscolha.Text = status == "ATIVA" ? $"Ativo: {ativosTxt}" : $"{status} · {ativosTxt}";
+        }
+
+        AtualizarCartaoModalidade(
+            veicAtivo, BadgeVeicularEscolha, TxtBadgeVeicularEscolha,
+            BtnEntrarVeicular, BtnConsultaVeicular,
+            "Entrar em Veicular", "Contratar / Ativar Veicular");
+        AtualizarCartaoModalidade(
+            resAtivo, BadgeResidencialEscolha, TxtBadgeResidencialEscolha,
+            BtnEntrarResidencial, BtnConsultaResidencial,
+            "Entrar em Residencial", "Contratar / Ativar Residencial");
+
+        var escolhendo = _modalidadeAtiva is null;
+        PainelEscolhaModalidade.Visibility = escolhendo ? Visibility.Visible : Visibility.Collapsed;
+        PainelToolbar.Visibility = escolhendo ? Visibility.Collapsed : Visibility.Visible;
+        PainelConteudo.Visibility = escolhendo ? Visibility.Collapsed : Visibility.Visible;
+        SeloModalidadeAtiva.Visibility = escolhendo ? Visibility.Collapsed : Visibility.Visible;
+        BtnTrocarArea.Visibility = escolhendo ? Visibility.Collapsed : Visibility.Visible;
+        PainelFiltroSegmento.Visibility = Visibility.Collapsed;
+
+        if (!escolhendo)
+        {
+            var emVeicular = _modalidadeAtiva == "AUTOMOTIVO";
+            TxtModalidadeAtiva.Text = emVeicular ? "Área: Veicular" : "Área: Residencial";
+            TituloFicharioVeiculos.Visibility = emVeicular ? Visibility.Visible : Visibility.Collapsed;
+            GradeFicharioVeiculos.Visibility = emVeicular ? Visibility.Visible : Visibility.Collapsed;
+            RowDefFicharioVeiculos.Height = emVeicular ? new GridLength(1, GridUnitType.Star) : new GridLength(0);
+
+            TituloFicharioResidencial.Visibility = emVeicular ? Visibility.Collapsed : Visibility.Visible;
+            GradeFicharioResidencial.Visibility = emVeicular ? Visibility.Collapsed : Visibility.Visible;
+            RowDefFicharioResidencial.Height = emVeicular ? new GridLength(0) : new GridLength(1, GridUnitType.Star);
+
+            var podeEditar = PodeEditarEmpresa();
+            BtnNovoAtendimento.IsEnabled = podeEditar;
+            BtnEditarAtendimento.IsEnabled = podeEditar;
+            BtnExcluirAtendimento.IsEnabled = podeEditar;
+            BtnNovaFicha.IsEnabled = podeEditar;
+            BtnEditarFicha.IsEnabled = podeEditar;
+            BtnNovoAtendimentoFicha.IsEnabled = podeEditar;
+            BtnExcluirFicha.IsEnabled = podeEditar;
+        }
+    }
+
+    private void AtualizarCartaoModalidade(
+        bool disponivel,
+        Border? badge,
+        TextBlock? txtBadge,
+        Button? btnEntrar,
+        Button? btnConsulta,
+        string textoDisponivel,
+        string textoIndisponivel)
+    {
+        if (txtBadge is not null)
+        {
+            txtBadge.Text = disponivel ? "Disponível no plano" : "Não contratado";
+            txtBadge.Foreground = disponivel
+                ? (Brush)FindResource("CorPrimariaEscura")
+                : new SolidColorBrush(Color.FromRgb(146, 64, 14));
+        }
+        if (badge is not null)
+        {
+            badge.Background = disponivel
+                ? (Brush)FindResource("CorPrimariaSuave")
+                : new SolidColorBrush(Color.FromRgb(254, 243, 199));
+        }
+        if (btnEntrar is not null)
+        {
+            btnEntrar.Content = disponivel ? textoDisponivel : textoIndisponivel;
+        }
+        if (btnConsulta is not null)
+        {
+            btnConsulta.Visibility = disponivel ? Visibility.Visible : Visibility.Collapsed;
+        }
+    }
+
     private string SegmentoSelecionado() =>
-        (FiltroSegmento?.SelectedItem as ComboBoxItem)?.Tag?.ToString() ?? "";
+        _modalidadeAtiva ?? (FiltroSegmento?.SelectedItem as ComboBoxItem)?.Tag?.ToString() ?? "";
 
     private void RecarregarGrade()
     {
@@ -215,7 +346,7 @@ public partial class MainWindow : Window
         var termo = normalizar(Busca.Text);
         var seg = SegmentoSelecionado();
         var itens = _local.Estado.Atendimentos
-            .Where(a => (string.IsNullOrEmpty(seg) || a.Segmento == seg) &&
+            .Where(a => a.ExcluidoEm is null && (string.IsNullOrEmpty(seg) || a.Segmento == seg) &&
                 (termo.Length == 0 ||
                 normalizar($"{a.Placa} {a.Marca} {a.Modelo} {a.TipoLocal} {a.AmbientePorta} {a.MarcaFechadura} {a.ModeloFechadura} {a.TipoCilindro} {a.EnderecoLocal} {a.ClienteNome}").Contains(termo)))
             .OrderByDescending(a => a.DataServico)
@@ -266,10 +397,16 @@ public partial class MainWindow : Window
             .OrderByDescending(f => f.Servicos)
             .ToList();
 
-        GradeFichas.ItemsSource = _local.Estado.Fichas
-            .Where(f => termo.Length == 0 ||
-                normalizar($"{f.Equipamento} {f.Marca} {f.Modelo} {f.Ano} {f.Chip}").Contains(termo))
-            .OrderBy(f => f.Marca)
+        var fichasEmpresa = _local.Estado.Fichas
+            .Where(f => f.ExcluidoEm is null &&
+                (string.IsNullOrEmpty(seg) || string.Equals(f.Segmento, seg, StringComparison.OrdinalIgnoreCase)) &&
+                (termo.Length == 0 ||
+                normalizar($"{f.Equipamento} {f.Marca} {f.Modelo} {f.Ano} {f.Sistema} {f.Chip} {f.Chave} {f.Manual}").Contains(termo)));
+        var fichasCatalogo = CatalogoFichasPadrao.Listar(string.IsNullOrEmpty(seg) ? null : seg, Busca.Text);
+        GradeFichas.ItemsSource = fichasEmpresa
+            .Concat(fichasCatalogo)
+            .OrderBy(f => f.EhCatalogoOficial ? 1 : 0)
+            .ThenBy(f => f.Marca)
             .ThenBy(f => f.Modelo)
             .ToList();
         GradeConflitos.ItemsSource = _local.Estado.Conflitos.ToList();
@@ -326,7 +463,12 @@ public partial class MainWindow : Window
 
     private async Task Sincronizar()
     {
-        if (_sincronizando || _api is null || string.IsNullOrWhiteSpace(_local.Estado.EmpresaId)) return;
+        if (_api is null || string.IsNullOrWhiteSpace(_local.Estado.EmpresaId)) return;
+        if (_sincronizando)
+        {
+            _sincronizarNovamente = true;
+            return;
+        }
         _sincronizando = true;
         if (StatusDot is not null)
         {
@@ -335,6 +477,13 @@ public partial class MainWindow : Window
         string? mensagem = null;
         try
         {
+            var empresasAtualizadas = (await _api.EmpresasAsync()).ToList();
+            if (empresasAtualizadas.Count > 0)
+            {
+                _empresas = empresasAtualizadas;
+                RegistrarEmpresas(_empresas);
+                AtualizarInterfaceModalidade();
+            }
             var resumo = await MotorSincronia.SincronizarAsync(_local, _api, _local.Estado.EmpresaId);
             await SalvarTokens();
             _ultimaSincronia = DateTimeOffset.UtcNow;
@@ -366,8 +515,14 @@ public partial class MainWindow : Window
         finally
         {
             _sincronizando = false;
+            AtualizarInterfaceModalidade();
             RecarregarGrade();
             AtualizarStatus(mensagem);
+            if (_sincronizarNovamente && _api is not null && !SaiuDaConta && !TemDialogoModalAberto())
+            {
+                _sincronizarNovamente = false;
+                _ = Sincronizar();
+            }
         }
     }
 
@@ -384,12 +539,55 @@ public partial class MainWindow : Window
         {
             _local.Estado.EmpresaId = empresa.Id;
             _local.Salvar();
+            AtualizarInterfaceModalidade();
+            RecarregarGrade();
             await Sincronizar();
         }
     }
 
     private Atendimento? Selecionado() => Grade.SelectedItem as Atendimento;
     private ArmazenamentoLocal.Ficha? FichaSelecionada() => GradeFichas.SelectedItem as ArmazenamentoLocal.Ficha;
+
+    private void EntrarVeicular_Click(object sender, RoutedEventArgs e) => EntrarNaArea("AUTOMOTIVO", 0);
+    private void ConsultarVeicularInicial_Click(object sender, RoutedEventArgs e) => EntrarNaArea("AUTOMOTIVO", 2);
+    private void EntrarResidencial_Click(object sender, RoutedEventArgs e) => EntrarNaArea("RESIDENCIAL", 0);
+    private void ConsultarResidencialInicial_Click(object sender, RoutedEventArgs e) => EntrarNaArea("RESIDENCIAL", 2);
+
+    private void EntrarNaArea(string seg, int abaInicial)
+    {
+        if (!ModulosAtivosAtuais().Contains(seg))
+        {
+            Plano_Click(this, new RoutedEventArgs());
+            return;
+        }
+        _modalidadeAtiva = seg;
+        AbasPrincipal.SelectedIndex = abaInicial;
+        AtualizarInterfaceModalidade();
+        RecarregarGrade();
+    }
+
+    private void TrocarArea_Click(object sender, RoutedEventArgs e)
+    {
+        _modalidadeAtiva = null;
+        AtualizarInterfaceModalidade();
+    }
+
+    private void Plano_Click(object sender, RoutedEventArgs e)
+    {
+        if (_api is null || string.IsNullOrWhiteSpace(_local.Estado.EmpresaId))
+        {
+            Status.Text = "Selecione uma empresa ativa para consultar o plano.";
+            return;
+        }
+        var janela = new PlanoWindow(_api, _local, _local.Estado.EmpresaId) { Owner = this };
+        janela.ShowDialog();
+        AtualizarInterfaceModalidade();
+        RecarregarGrade();
+        if (janela.Atualizado)
+        {
+            _ = Sincronizar();
+        }
+    }
 
     private void Grade_DoubleClick(object sender, MouseButtonEventArgs e)
     {
@@ -398,11 +596,12 @@ public partial class MainWindow : Window
 
     private void GradeFichas_DoubleClick(object sender, MouseButtonEventArgs e)
     {
-        if (FichaSelecionada() is not null) EditarFicha_Click(sender, e);
+        if (FichaSelecionada() is not null) VerManualFicha_Click(sender, e);
     }
 
     private void Novo_Click(object sender, RoutedEventArgs e)
     {
+        if (!PodeEditarEmpresa()) return;
         var seg = SegmentoSelecionado() == "RESIDENCIAL" ? "RESIDENCIAL" : "AUTOMOTIVO";
         var item = new Atendimento
         {
@@ -411,17 +610,12 @@ public partial class MainWindow : Window
             DataServico = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(),
             TiposServico = [seg == "RESIDENCIAL" ? "ABERTURA_RESIDENCIAL" : "CHAVE_CODIFICADA"],
         };
-        var editor = new AtendimentoEditorWindow(item, []) { Owner = this };
-        if (editor.ShowDialog() != true || editor.Resultado is null) return;
-        MotorSincronia.EnfileirarUpsert(_local, editor.Resultado);
-        AdicionarFotos(editor.ResultadoFotos);
-        RecarregarGrade();
-        AtualizarStatus();
-        _ = Sincronizar();
+        AbrirEditorAtendimento(item, []);
     }
 
     private void Editar_Click(object sender, RoutedEventArgs e)
     {
+        if (!PodeEditarEmpresa()) return;
         var item = Selecionado();
         if (item is null)
         {
@@ -429,10 +623,36 @@ public partial class MainWindow : Window
             return;
         }
         var fotos = _local.Estado.Fotos.Where(f => f.AtendimentoUuid == item.Uuid).ToList();
-        var editor = new AtendimentoEditorWindow(item, fotos) { Owner = this };
-        if (editor.ShowDialog() != true || editor.Resultado is null) return;
-        MotorSincronia.EnfileirarUpsert(_local, editor.Resultado);
-        AdicionarFotos(editor.ResultadoFotos);
+        AbrirEditorAtendimento(item, fotos);
+    }
+
+    private void AbrirEditorAtendimento(Atendimento item, IReadOnlyList<ArmazenamentoLocal.FotoLocal> fotos)
+    {
+        AtendimentoEditorWindow? editor = null;
+        bool confirmado = false;
+        _editandoModal = true;
+        try
+        {
+            editor = new AtendimentoEditorWindow(
+                item,
+                fotos,
+                segmentoFixo: _modalidadeAtiva is not null,
+                aoVerFicha: rascunho => AbrirFichaParaAtendimento(rascunho, (Window?)editor ?? this, permitirAcoes: false))
+            {
+                Owner = this,
+            };
+            confirmado = editor.ShowDialog() == true && editor.Resultado is not null;
+            if (confirmado && editor.Resultado is not null)
+            {
+                MotorSincronia.EnfileirarUpsert(_local, editor.Resultado);
+                AdicionarFotos(editor.ResultadoFotos);
+            }
+        }
+        finally
+        {
+            _editandoModal = false;
+        }
+        if (!confirmado) return;
         RecarregarGrade();
         AtualizarStatus();
         _ = Sincronizar();
@@ -598,29 +818,93 @@ public partial class MainWindow : Window
 
     private void NovaFicha_Click(object sender, RoutedEventArgs e)
     {
-        var ficha = new ArmazenamentoLocal.Ficha { Uuid = Guid.NewGuid().ToString() };
-        var editor = new FichaEditorWindow(ficha, []) { Owner = this };
-        if (editor.ShowDialog() != true || editor.Resultado is null) return;
-        MotorSincronia.EnfileirarFicha(_local, editor.Resultado);
-        AdicionarFotos(editor.ResultadoFotos);
-        RecarregarGrade();
-        AtualizarStatus();
-        _ = Sincronizar();
+        if (!PodeEditarEmpresa()) return;
+        var seg = string.IsNullOrWhiteSpace(_modalidadeAtiva) ? "AUTOMOTIVO" : _modalidadeAtiva;
+        var ficha = new ArmazenamentoLocal.Ficha
+        {
+            Uuid = Guid.NewGuid().ToString(),
+            Segmento = seg,
+        };
+        AbrirEditorFicha(ficha, [], copiaDeOficial: false);
     }
 
     private void EditarFicha_Click(object sender, RoutedEventArgs e)
     {
+        if (!PodeEditarEmpresa()) return;
         var ficha = FichaSelecionada();
         if (ficha is null)
         {
-            Status.Text = "Selecione uma ficha técnica para editar.";
+            Status.Text = "Selecione uma ficha técnica para editar ou complementar.";
             return;
         }
-        var fotos = _local.Estado.Fotos.Where(f => f.FichaUuid == ficha.Uuid).ToList();
-        var editor = new FichaEditorWindow(ficha, fotos) { Owner = this };
-        if (editor.ShowDialog() != true || editor.Resultado is null) return;
-        MotorSincronia.EnfileirarFicha(_local, editor.Resultado);
-        AdicionarFotos(editor.ResultadoFotos);
+        EditarOuComplementarFicha(ficha);
+    }
+
+    private void EditarOuComplementarFicha(ArmazenamentoLocal.Ficha ficha)
+    {
+        if (!PodeEditarEmpresa()) return;
+        ArmazenamentoLocal.Ficha baseEdicao;
+        IReadOnlyList<ArmazenamentoLocal.FotoLocal> fotos;
+        var copiaDeOficial = ficha.EhCatalogoOficial;
+        if (copiaDeOficial)
+        {
+            baseEdicao = new ArmazenamentoLocal.Ficha
+            {
+                Uuid = Guid.NewGuid().ToString(),
+                Segmento = ficha.Segmento,
+                Equipamento = ficha.Equipamento,
+                Marca = ficha.Marca,
+                Modelo = ficha.Modelo,
+                Ano = ficha.Ano,
+                Sistema = ficha.Sistema,
+                Descricao = ficha.Descricao,
+                Chip = ficha.Chip,
+                Chave = ficha.Chave,
+                Telecomando = ficha.Telecomando,
+                Frequencia = ficha.Frequencia,
+                Avisos = ficha.Avisos,
+                Funcoes = ficha.Funcoes,
+                Manual = ficha.Manual,
+                Confirmado = ficha.Confirmado,
+                Origem = "Anotação da empresa (baseada no catálogo oficial)",
+                Revisao = 0,
+            };
+            fotos = [];
+        }
+        else
+        {
+            baseEdicao = ficha;
+            fotos = _local.Estado.Fotos.Where(f => f.FichaUuid == ficha.Uuid).ToList();
+        }
+        AbrirEditorFicha(baseEdicao, fotos, copiaDeOficial);
+    }
+
+    private void AbrirEditorFicha(
+        ArmazenamentoLocal.Ficha baseEdicao,
+        IReadOnlyList<ArmazenamentoLocal.FotoLocal> fotos,
+        bool copiaDeOficial)
+    {
+        bool confirmado = false;
+        _editandoModal = true;
+        try
+        {
+            var editor = new FichaEditorWindow(
+                baseEdicao,
+                fotos,
+                segmentoFixo: _modalidadeAtiva is not null,
+                copiaDeOficial: copiaDeOficial) { Owner = this };
+            confirmado = editor.ShowDialog() == true && editor.Resultado is not null;
+            if (confirmado && editor.Resultado is not null)
+            {
+                MotorSincronia.EnfileirarFicha(_local, editor.Resultado);
+                AdicionarFotos(editor.ResultadoFotos);
+            }
+        }
+        finally
+        {
+            _editandoModal = false;
+        }
+        if (!confirmado) return;
         RecarregarGrade();
         AtualizarStatus();
         _ = Sincronizar();
@@ -628,14 +912,336 @@ public partial class MainWindow : Window
 
     private void ExcluirFicha_Click(object sender, RoutedEventArgs e)
     {
+        if (!PodeEditarEmpresa()) return;
         var ficha = FichaSelecionada();
         if (ficha is null) return;
+        if (ficha.EhCatalogoOficial)
+        {
+            MessageBox.Show(
+                "Fichas do catálogo padrão não podem ser excluídas. Use \"Editar / complementar\" para salvar uma anotação própria da empresa.",
+                "ChaveiroCar",
+                MessageBoxButton.OK,
+                MessageBoxImage.Information);
+            return;
+        }
         if (MessageBox.Show($"Excluir ficha {ficha.Marca} {ficha.Modelo}?", "ChaveiroCar",
                 MessageBoxButton.YesNo, MessageBoxImage.Question) != MessageBoxResult.Yes) return;
         MotorSincronia.EnfileirarExclusao(_local, ficha.Uuid, ficha.Revisao, "ficha");
         RecarregarGrade();
         AtualizarStatus();
         _ = Sincronizar();
+    }
+
+    private void VerManualFicha_Click(object sender, RoutedEventArgs e)
+    {
+        var ficha = FichaSelecionada();
+        if (ficha is null)
+        {
+            Status.Text = "Selecione uma ficha técnica para visualizar o manual.";
+            return;
+        }
+        MostrarVisualizadorFicha(ficha, this, permitirAcoes: true);
+    }
+
+    private void VerFichaAtendimento_Click(object sender, RoutedEventArgs e)
+    {
+        var item = Selecionado();
+        if (item is null)
+        {
+            Status.Text = "Selecione um atendimento para consultar a ficha técnica relacionada.";
+            return;
+        }
+        AbrirFichaParaAtendimento(item, this, permitirAcoes: true);
+    }
+
+    private void NovoServicoDaFicha_Click(object sender, RoutedEventArgs e)
+    {
+        var ficha = FichaSelecionada();
+        if (ficha is null)
+        {
+            Status.Text = "Selecione uma ficha técnica para iniciar um atendimento.";
+            return;
+        }
+        CriarAtendimentoDeFicha(ficha);
+    }
+
+    private void CriarAtendimentoDeFicha(ArmazenamentoLocal.Ficha ficha)
+    {
+        if (!PodeEditarEmpresa()) return;
+        if (!ModulosAtivosAtuais().Contains(ficha.Segmento))
+        {
+            Plano_Click(this, new RoutedEventArgs());
+            return;
+        }
+        _modalidadeAtiva = ficha.Segmento;
+        AtualizarInterfaceModalidade();
+        var abertura = string.Join(" · ",
+            new[] { ficha.Sistema, ficha.Chip, ficha.Chave }.Where(s => !string.IsNullOrWhiteSpace(s)));
+        var item = new Atendimento
+        {
+            Uuid = Guid.NewGuid().ToString(),
+            Segmento = ficha.Segmento,
+            Marca = ficha.Segmento == "RESIDENCIAL" ? "" : ficha.Marca,
+            Modelo = ficha.Segmento == "RESIDENCIAL" ? "" : ficha.Modelo,
+            Ano = ficha.Segmento == "RESIDENCIAL" ? "" : ficha.Ano,
+            MarcaFechadura = ficha.Segmento == "RESIDENCIAL" ? ficha.Marca : "",
+            ModeloFechadura = ficha.Segmento == "RESIDENCIAL" ? ficha.Modelo : "",
+            Ferramenta = ficha.Equipamento,
+            Abertura = abertura,
+            ChipTransponder = ficha.Segmento == "RESIDENCIAL" ? "" : ficha.Chip,
+            DataServico = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(),
+            TiposServico = [ficha.Segmento == "RESIDENCIAL" ? "ABERTURA_RESIDENCIAL" : "CHAVE_CODIFICADA"],
+        };
+        AbrirEditorAtendimento(item, []);
+    }
+
+    private void AbrirFichaParaAtendimento(Atendimento item, Window owner, bool permitirAcoes)
+    {
+        var fichas = CatalogoFichasPadrao.BuscarParaAtendimento(
+            item,
+            _local.Estado.Fichas.Where(f => f.ExcluidoEm is null));
+        if (fichas.Count == 1)
+        {
+            MostrarVisualizadorFicha(fichas[0], owner, permitirAcoes);
+            return;
+        }
+        if (fichas.Count > 1)
+        {
+            var escolhida = MostrarEscolhaFicha(fichas, owner);
+            if (escolhida is not null)
+            {
+                MostrarVisualizadorFicha(escolhida, owner, permitirAcoes);
+            }
+            return;
+        }
+
+        if (ReferenceEquals(owner, this))
+        {
+            var termo = string.Join(" ",
+                (item.Segmento == "RESIDENCIAL"
+                    ? new[] { item.MarcaFechadura, item.ModeloFechadura }
+                    : new[] { item.Marca, item.Modelo })
+                .Where(s => !string.IsNullOrWhiteSpace(s)));
+            Busca.Text = termo;
+            AbasPrincipal.SelectedIndex = 2;
+            RecarregarGrade();
+            Status.Text = "Nenhuma ficha exata encontrada; consulta técnica aberta com a busca.";
+        }
+        else
+        {
+            MessageBox.Show(
+                owner,
+                "Nenhuma ficha exata encontrada no catálogo para este veículo/fechadura. Salve ou volte para consultar na aba Fichas Técnicas.",
+                "ChaveiroCar",
+                MessageBoxButton.OK,
+                MessageBoxImage.Information);
+        }
+    }
+
+    private static ArmazenamentoLocal.Ficha? MostrarEscolhaFicha(
+        List<ArmazenamentoLocal.Ficha> opcoes,
+        Window owner)
+    {
+        ArmazenamentoLocal.Ficha? escolhida = null;
+        var dialogo = new Window
+        {
+            Title = "Escolha a ficha técnica",
+            Width = 540,
+            Height = 360,
+            WindowStartupLocation = WindowStartupLocation.CenterOwner,
+            Owner = owner,
+            Background = (Brush)Application.Current.FindResource("CorFundoJanela"),
+        };
+        var list = new ListBox
+        {
+            ItemsSource = opcoes.Select(f =>
+                new KeyValuePair<ArmazenamentoLocal.Ficha, string>(
+                    f,
+                    $"{f.Marca} {f.Modelo} {f.Ano} — {f.Equipamento} ({f.OrigemFormatada})".Trim())).ToList(),
+            DisplayMemberPath = "Value",
+            Margin = new Thickness(0, 0, 0, 12),
+        };
+        list.MouseDoubleClick += (_, _) =>
+        {
+            if (list.SelectedItem is KeyValuePair<ArmazenamentoLocal.Ficha, string> par)
+            {
+                escolhida = par.Key;
+                dialogo.DialogResult = true;
+            }
+        };
+        var btnAbrir = new Button
+        {
+            Content = "Abrir ficha selecionada",
+            Style = (Style)Application.Current.FindResource("BotaoPrimario"),
+            Width = 170,
+        };
+        btnAbrir.Click += (_, _) =>
+        {
+            if (list.SelectedItem is KeyValuePair<ArmazenamentoLocal.Ficha, string> par)
+            {
+                escolhida = par.Key;
+                dialogo.DialogResult = true;
+            }
+        };
+        var root = new DockPanel { Margin = new Thickness(16) };
+        DockPanel.SetDock(btnAbrir, Dock.Bottom);
+        btnAbrir.HorizontalAlignment = HorizontalAlignment.Right;
+        root.Children.Add(btnAbrir);
+        root.Children.Add(list);
+        dialogo.Content = root;
+        if (list.Items.Count > 0) list.SelectedIndex = 0;
+        return dialogo.ShowDialog() == true ? escolhida : null;
+    }
+
+    private void MostrarVisualizadorFicha(
+        ArmazenamentoLocal.Ficha ficha,
+        Window owner,
+        bool permitirAcoes)
+    {
+        var dialogo = new Window
+        {
+            Title = $"Ficha Técnica — {ficha.Marca} {ficha.Modelo}".Trim(),
+            Width = 720,
+            Height = 640,
+            MinWidth = 560,
+            MinHeight = 460,
+            WindowStartupLocation = WindowStartupLocation.CenterOwner,
+            Owner = owner,
+            Background = (Brush)Application.Current.FindResource("CorFundoJanela"),
+        };
+
+        var root = new Grid();
+        root.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+        root.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
+        root.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+
+        var header = new Border
+        {
+            Background = (Brush)Application.Current.FindResource("CorCabecalho"),
+            Padding = new Thickness(20, 14, 20, 14),
+        };
+        var headerStack = new StackPanel();
+        headerStack.Children.Add(new TextBlock
+        {
+            Text = $"{ficha.Marca} {ficha.Modelo} {ficha.Ano}".Trim(),
+            Foreground = Brushes.White,
+            FontSize = 18,
+            FontWeight = FontWeights.Bold,
+        });
+        headerStack.Children.Add(new TextBlock
+        {
+            Text = $"{ficha.SegmentoFormatado} · {ficha.OrigemFormatada} · {ficha.Equipamento}".Trim(' ', '·'),
+            Foreground = new SolidColorBrush(Color.FromRgb(94, 234, 212)),
+            FontSize = 12,
+            Margin = new Thickness(0, 2, 0, 0),
+        });
+        header.Child = headerStack;
+        Grid.SetRow(header, 0);
+        root.Children.Add(header);
+
+        var scroll = new ScrollViewer
+        {
+            VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
+            Margin = new Thickness(16),
+        };
+        var corpo = new StackPanel();
+        void AddCampo(string rotulo, string valor, bool monoespaco = false)
+        {
+            if (string.IsNullOrWhiteSpace(valor)) return;
+            corpo.Children.Add(new TextBlock
+            {
+                Text = rotulo,
+                FontWeight = FontWeights.SemiBold,
+                Foreground = (Brush)Application.Current.FindResource("CorTextoSecundario"),
+                FontSize = 12,
+                Margin = new Thickness(0, 6, 0, 2),
+            });
+            corpo.Children.Add(new TextBox
+            {
+                Text = valor,
+                IsReadOnly = true,
+                TextWrapping = TextWrapping.Wrap,
+                AcceptsReturn = true,
+                VerticalContentAlignment = VerticalAlignment.Top,
+                FontFamily = monoespaco ? new FontFamily("Consolas") : new FontFamily("Segoe UI"),
+            });
+        }
+        AddCampo("Sistema / Módulo", ficha.Sistema);
+        AddCampo("Chip / Transponder", ficha.Chip, monoespaco: true);
+        AddCampo("Chave / Lâmina", ficha.Chave);
+        AddCampo("Telecomando", ficha.Telecomando);
+        AddCampo("Frequência", ficha.Frequencia);
+        AddCampo("Descrição", ficha.Descricao);
+        AddCampo("Funções documentadas", ficha.Funcoes);
+        AddCampo("Avisos importantes", ficha.Avisos);
+        AddCampo("Manual / procedimento (disponível offline)", ficha.Manual);
+        AddCampo("Aviso de consulta", "Ficha apenas informativa: não executa operações na central nem altera atendimentos existentes.");
+
+        scroll.Content = new Border
+        {
+            Background = (Brush)Application.Current.FindResource("CorSuperficie"),
+            BorderBrush = (Brush)Application.Current.FindResource("CorBorda"),
+            BorderThickness = new Thickness(1),
+            CornerRadius = new CornerRadius(10),
+            Padding = new Thickness(18, 12, 18, 16),
+            Child = corpo,
+        };
+        Grid.SetRow(scroll, 1);
+        root.Children.Add(scroll);
+
+        var footer = new Border
+        {
+            Background = (Brush)Application.Current.FindResource("CorSuperficie"),
+            BorderBrush = (Brush)Application.Current.FindResource("CorBorda"),
+            BorderThickness = new Thickness(0, 1, 0, 0),
+            Padding = new Thickness(18, 12, 18, 12),
+        };
+        var footerDock = new DockPanel { LastChildFill = false };
+        var acoesEsq = new StackPanel { Orientation = Orientation.Horizontal };
+        if (!string.IsNullOrWhiteSpace(ficha.Manual))
+        {
+            var btnCopiar = new Button { Content = "Copiar manual", Margin = new Thickness(0, 0, 8, 0) };
+            btnCopiar.Click += (_, _) => Clipboard.SetText(ficha.Manual);
+            acoesEsq.Children.Add(btnCopiar);
+        }
+        if (permitirAcoes && PodeEditarEmpresa())
+        {
+            var btnEditar = new Button
+            {
+                Content = ficha.EhCatalogoOficial ? "Complementar para a empresa" : "Editar ficha",
+                Margin = new Thickness(0, 0, 8, 0),
+            };
+            btnEditar.Click += (_, _) =>
+            {
+                dialogo.Close();
+                EditarOuComplementarFicha(ficha);
+            };
+            acoesEsq.Children.Add(btnEditar);
+
+            var btnCriar = new Button
+            {
+                Content = "+ Novo atendimento com esta ficha",
+                Style = (Style)Application.Current.FindResource("BotaoPrimario"),
+            };
+            btnCriar.Click += (_, _) =>
+            {
+                dialogo.Close();
+                CriarAtendimentoDeFicha(ficha);
+            };
+            acoesEsq.Children.Add(btnCriar);
+        }
+        DockPanel.SetDock(acoesEsq, Dock.Left);
+        footerDock.Children.Add(acoesEsq);
+
+        var btnFechar = new Button { Content = "Fechar", IsCancel = true, Width = 100 };
+        DockPanel.SetDock(btnFechar, Dock.Right);
+        footerDock.Children.Add(btnFechar);
+
+        footer.Child = footerDock;
+        Grid.SetRow(footer, 2);
+        root.Children.Add(footer);
+        dialogo.Content = root;
+        dialogo.ShowDialog();
     }
 
     private void Equipe_Click(object sender, RoutedEventArgs e)

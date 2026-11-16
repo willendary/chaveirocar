@@ -52,3 +52,17 @@ export function textoObrigatorio(valor: string, campo: string): string {
   if (!limpo) throw new Error(`O campo ${campo} é obrigatório.`);
   return limpo;
 }
+
+export function baseRevisaoCompativel(
+  baseRevisao: number | undefined,
+  revisaoAtual: number,
+  criadoPor: unknown,
+  atualizadoPor: unknown,
+  usuarioId: string,
+): boolean {
+  if (baseRevisao === undefined) return false;
+  const base = Number(baseRevisao);
+  if (base === revisaoAtual) return true;
+  const ultimoAutor = String(atualizadoPor ?? criadoPor ?? "");
+  return base === 0 && String(criadoPor ?? "") === usuarioId && ultimoAutor === usuarioId;
+}

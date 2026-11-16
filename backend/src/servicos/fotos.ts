@@ -2,9 +2,11 @@ import type { Banco } from "../banco.js";
 import { agora } from "../banco.js";
 import type { Armazenamento } from "../storage.js";
 import { erros } from "../erros.js";
+import type { SegmentoAtendimento } from "../esquemas.js";
 import { novoId, sha256Bytes } from "../util/id.js";
 import { texto, inteiro } from "../util/texto.js";
 import { registrarMudanca } from "../dominio/comum.js";
+import { exigirModuloAtivo } from "./assinaturas.js";
 
 export type CategoriaFoto = "CARRO" | "PROCEDIMENTO";
 
@@ -105,17 +107,42 @@ async function garantirAlvo(
   empresaId: string,
   atendimentoId: string | null,
   fichaId: string | null,
-): Promise<void> {
+): Promise<SegmentoAtendimento> {
   if (Boolean(atendimentoId) === Boolean(fichaId)) {
     throw erros.validacao("A foto deve pertencer a um atendimento ou a uma ficha, nunca aos dois.");
   }
   const tabela = atendimentoId ? "atendimentos" : "fichas_tecnicas";
   const id = atendimentoId ?? fichaId!;
   const resultado = await banco.execute({
-    sql: `SELECT id FROM ${tabela} WHERE id = ? AND empresa_id = ? AND excluido_em IS NULL`,
+    sql: `SELECT id, segmento FROM ${tabela} WHERE id = ? AND empresa_id = ? AND excluido_em IS NULL`,
     args: [id, empresaId],
   });
-  if (!resultado.rows[0]) throw erros.naoEncontrado("Registro da foto não encontrado.");
+  const linha = resultado.rows[0];
+  if (!linha) throw erros.naoEncontrado("Registro da foto não encontrado.");
+  const segmento: SegmentoAtendimento =
+    linha.segmento === "RESIDENCIAL" ? "RESIDENCIAL" : "AUTOMOTIVO";
+  await exigirModuloAtivo(banco, empresaId, segmento);
+  return segmento;
+}
+
+async function exigirModuloDaFoto(
+  banco: Banco,
+  empresaId: string,
+  atendimentoId: string | null,
+  fichaId: string | null,
+): Promise<void> {
+  const tabela = atendimentoId ? "atendimentos" : "fichas_tecnicas";
+  const id = atendimentoId ?? fichaId;
+  if (!id) return;
+  const resultado = await banco.execute({
+    sql: `SELECT segmento FROM ${tabela} WHERE id = ? AND empresa_id = ?`,
+    args: [id, empresaId],
+  });
+  const linha = resultado.rows[0];
+  if (!linha) return;
+  const segmento: SegmentoAtendimento =
+    linha.segmento === "RESIDENCIAL" ? "RESIDENCIAL" : "AUTOMOTIVO";
+  await exigirModuloAtivo(banco, empresaId, segmento);
 }
 
 export async function adicionarFoto(
@@ -158,6 +185,7 @@ export async function adicionarFoto(
   });
   const linhaExistente = existente.rows[0];
   if (linhaExistente) {
+    await garantirAlvo(banco, contexto.empresaId, atendimentoId, fichaId);
     const mesmoAlvo =
       String(linhaExistente.empresa_id) === contexto.empresaId &&
       (linhaExistente.atendimento_id == null ? null : String(linhaExistente.atendimento_id)) === atendimentoId &&
@@ -316,6 +344,7 @@ export async function lerFoto(
   });
   const linha = resultado.rows[0] as unknown as LinhaFoto | undefined;
   if (!linha) throw erros.naoEncontrado("Foto não encontrada.");
+  await exigirModuloDaFoto(banco, empresaId, linha.atendimento_id, linha.ficha_id);
   const bytes = await storage.ler(linha.storage_key);
   return { foto: paraFoto(linha), bytes };
 }
@@ -346,6 +375,7 @@ export async function atualizarFoto(
   entrada: { baseRevisao: number; categoria?: string; legenda?: string; ordem?: number; anotacoes?: string },
 ): Promise<Foto> {
   const atual = await obterFoto(banco, contexto.empresaId, id);
+  await exigirModuloDaFoto(banco, contexto.empresaId, atual.atendimentoId, atual.fichaId);
   if (atual.revisao !== entrada.baseRevisao) {
     throw erros.conflito("A foto foi alterada por outra pessoa.", { registro: atual });
   }
@@ -391,6 +421,7 @@ export async function excluirFoto(
   baseRevisao: number,
 ): Promise<Foto> {
   const atual = await obterFoto(banco, contexto.empresaId, id, true);
+  await exigirModuloDaFoto(banco, contexto.empresaId, atual.atendimentoId, atual.fichaId);
   if (atual.excluidoEm !== null) {
     if (atual.revisao === baseRevisao) return atual;
     throw erros.conflito("A foto já foi excluída.", { registro: atual });

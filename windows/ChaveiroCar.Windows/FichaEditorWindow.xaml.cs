@@ -20,11 +20,15 @@ public partial class FichaEditorWindow : Window
 
     public FichaEditorWindow(
         ArmazenamentoLocal.Ficha original,
-        IEnumerable<ArmazenamentoLocal.FotoLocal> fotos)
+        IEnumerable<ArmazenamentoLocal.FotoLocal> fotos,
+        bool segmentoFixo = false,
+        bool copiaDeOficial = false)
     {
         _original = Copiar(original);
         _fotosExistentes = fotos.Select(Copiar).ToList();
         InitializeComponent();
+        Segmento.IsEnabled = !segmentoFixo;
+        BannerOficial.Visibility = copiaDeOficial ? Visibility.Visible : Visibility.Collapsed;
         FotosExistentes.ItemsSource = _fotosExistentes;
         FotosNovas.ItemsSource = _fotosNovas;
         Preencher();
@@ -37,6 +41,7 @@ public partial class FichaEditorWindow : Window
 
     private void Preencher()
     {
+        Segmento.SelectedIndex = _original.Segmento == "RESIDENCIAL" ? 1 : 0;
         Equipamento.Text = _original.Equipamento;
         Marca.Text = _original.Marca;
         Modelo.Text = _original.Modelo;
@@ -99,7 +104,7 @@ public partial class FichaEditorWindow : Window
         if (FotosExistentes.SelectedItem is not ArmazenamentoLocal.FotoLocal foto) return;
         if (!File.Exists(foto.CaminhoLocal))
         {
-            Erro.Text = "Foto indisponível localmente. Sincronize para baixá-la.";
+            Erro.Text = "Foto indisponÃ­vel localmente. Sincronize para baixÃ¡-la.";
             return;
         }
         Process.Start(new ProcessStartInfo(foto.CaminhoLocal) { UseShellExecute = true });
@@ -114,9 +119,14 @@ public partial class FichaEditorWindow : Window
             return;
         }
 
+        var segmento = (Segmento.SelectedItem as ComboBoxItem)?.Tag?.ToString() == "RESIDENCIAL"
+            ? "RESIDENCIAL"
+            : "AUTOMOTIVO";
+
         Resultado = new ArmazenamentoLocal.Ficha
         {
             Uuid = _original.Uuid,
+            Segmento = segmento,
             Equipamento = Equipamento.Text.Trim(),
             Marca = Marca.Text.Trim(),
             Modelo = Modelo.Text.Trim(),
@@ -142,6 +152,7 @@ public partial class FichaEditorWindow : Window
     private static ArmazenamentoLocal.Ficha Copiar(ArmazenamentoLocal.Ficha ficha) => new()
     {
         Uuid = ficha.Uuid,
+        Segmento = string.IsNullOrWhiteSpace(ficha.Segmento) ? "AUTOMOTIVO" : ficha.Segmento,
         Equipamento = ficha.Equipamento,
         Marca = ficha.Marca,
         Modelo = ficha.Modelo,

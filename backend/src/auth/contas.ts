@@ -1,6 +1,12 @@
 import type { Banco } from "../banco.js";
 import { agora } from "../banco.js";
 import { erros } from "../erros.js";
+import type { SegmentoAtendimento, StatusAssinatura } from "../esquemas.js";
+import {
+  calcularModulosEfetivos,
+  normalizarStatusAssinatura,
+  parseModulosArmazenados,
+} from "../servicos/assinaturas.js";
 import { gerarHashSenha, senhaAceitavel } from "./senha.js";
 import { emailValido, normalizarEmail, novoId } from "../util/id.js";
 import { texto } from "../util/texto.js";
@@ -87,18 +93,29 @@ export async function criarUsuario(
   };
 }
 
+export interface ResumoEmpresaUsuario {
+  id: string;
+  nome: string;
+  papel: string;
+  planoCodigo: string;
+  modulosAtivos: SegmentoAtendimento[];
+  assinaturaStatus: StatusAssinatura;
+  proximaRenovacaoEm: number | null;
+}
+
 export async function criarEmpresa(
   banco: Banco,
   usuarioId: string,
   nome: string,
-): Promise<{ id: string; nome: string; papel: "proprietario" }> {
+): Promise<ResumoEmpresaUsuario & { papel: "proprietario" }> {
   const nomeEmpresa = texto(nome, 120) || "Minha empresa";
   const id = novoId();
   const instante = agora();
   const transacao = await banco.transaction("write");
   try {
     await transacao.execute({
-      sql: "INSERT INTO empresas (id, nome, criado_em, atualizado_em) VALUES (?, ?, ?, ?)",
+      sql: `INSERT INTO empresas (id, nome, plano_codigo, modulos_ativos, assinatura_status, criado_em, atualizado_em)
+            VALUES (?, ?, 'COMPLETO', '["AUTOMOTIVO","RESIDENCIAL"]', 'ATIVA', ?, ?)`,
       args: [id, nomeEmpresa, instante, instante],
     });
     await transacao.execute({
@@ -111,25 +128,45 @@ export async function criarEmpresa(
     await transacao.rollback().catch(() => undefined);
     throw erro;
   }
-  return { id, nome: nomeEmpresa, papel: "proprietario" };
+  return {
+    id,
+    nome: nomeEmpresa,
+    papel: "proprietario",
+    planoCodigo: "COMPLETO",
+    modulosAtivos: ["AUTOMOTIVO", "RESIDENCIAL"],
+    assinaturaStatus: "ATIVA",
+    proximaRenovacaoEm: null,
+  };
 }
 
 export async function listarEmpresasDoUsuario(
   banco: Banco,
   usuarioId: string,
-): Promise<Array<{ id: string; nome: string; papel: string }>> {
+): Promise<ResumoEmpresaUsuario[]> {
   const resultado = await banco.execute({
-    sql: `SELECT e.id, e.nome, m.papel FROM membros m
+    sql: `SELECT e.id, e.nome, m.papel, e.plano_codigo, e.modulos_ativos, e.assinatura_status, e.proxima_renovacao_em
+          FROM membros m
           JOIN empresas e ON e.id = m.empresa_id
           WHERE m.usuario_id = ? AND m.excluido_em IS NULL AND e.excluido_em IS NULL
           ORDER BY e.nome`,
     args: [usuarioId],
   });
-  return resultado.rows.map((linha) => ({
-    id: String(linha.id),
-    nome: String(linha.nome),
-    papel: String(linha.papel),
-  }));
+  return resultado.rows.map((linha) => {
+    const status = normalizarStatusAssinatura(linha.assinatura_status);
+    const modulosContratados = parseModulosArmazenados(linha.modulos_ativos);
+    return {
+      id: String(linha.id),
+      nome: String(linha.nome),
+      papel: String(linha.papel),
+      planoCodigo: String(linha.plano_codigo || "COMPLETO"),
+      modulosAtivos: calcularModulosEfetivos(status, modulosContratados),
+      assinaturaStatus: status,
+      proximaRenovacaoEm:
+        linha.proxima_renovacao_em === null || linha.proxima_renovacao_em === undefined
+          ? null
+          : Number(linha.proxima_renovacao_em),
+    };
+  });
 }
 
 export interface PerfilGoogle {
@@ -244,7 +281,7 @@ export async function entrarOuCriarUsuarioGoogle(
   nomeEmpresa?: string,
 ): Promise<{
   usuario: Usuario;
-  empresas: Array<{ id: string; nome: string; papel: string }>;
+  empresas: ResumoEmpresaUsuario[];
   criado: boolean;
 }> {
   const email = validarEmail(perfil.email);

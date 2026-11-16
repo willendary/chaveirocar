@@ -56,6 +56,7 @@ interface AtendimentoBackup {
 
 interface FichaBackup {
   id?: unknown;
+  segmento?: unknown;
   equipamento?: unknown;
   marca?: unknown;
   modelo?: unknown;
@@ -330,8 +331,10 @@ export async function importarBackupAndroid(
       continue;
     }
 
+    const segmentoFicha = texto(item.segmento, 20) === "RESIDENCIAL" ? "RESIDENCIAL" : "AUTOMOTIVO";
     const ficha = await salvarFicha(banco, contexto, {
       id: idNovo,
+      segmento: segmentoFicha,
       equipamento: texto(item.equipamento, 120),
       marca: texto(item.marca, 120),
       modelo: texto(item.modelo, 120),

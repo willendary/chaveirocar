@@ -4,7 +4,7 @@ import type { ContextoRotas } from "./contexto.js";
 import { respostasErro } from "./contexto.js";
 import { exigirUsuario } from "../auth/autenticacao.js";
 import { exigirMembro, exigirEscrita } from "../permissoes.js";
-import { FichaEntradaSchema, FichaRespostaSchema, ID, ListaFichasSchema } from "../esquemas.js";
+import { FichaEntradaSchema, FichaRespostaSchema, ID, ListaFichasSchema, SegmentoAtendimentoSchema, type SegmentoAtendimento } from "../esquemas.js";
 import {
   excluirFicha,
   listarFichas,
@@ -17,6 +17,7 @@ const EmpresaParams = Type.Object({ empresaId: ID });
 const FichaParams = Type.Object({ empresaId: ID, fichaId: ID });
 const ListaQuery = Type.Object({
   busca: Type.Optional(Type.String({ maxLength: 200 })),
+  segmento: Type.Optional(SegmentoAtendimentoSchema),
   pagina: Type.Optional(Type.Integer({ minimum: 1 })),
   tamanho: Type.Optional(Type.Integer({ minimum: 1, maximum: 100 })),
 });
@@ -42,7 +43,12 @@ export const rotasFichas: FastifyPluginAsync<ContextoRotas> = async (app, opcoes
       const usuario = exigirUsuario(request);
       const { empresaId } = request.params as { empresaId: string };
       await exigirMembro(banco, empresaId, usuario.usuarioId);
-      const filtros = request.query as { busca?: string; pagina?: number; tamanho?: number };
+      const filtros = request.query as {
+        busca?: string;
+        segmento?: SegmentoAtendimento;
+        pagina?: number;
+        tamanho?: number;
+      };
       return listarFichas(banco, empresaId, filtros);
     },
   );
@@ -91,7 +97,7 @@ export const rotasFichas: FastifyPluginAsync<ContextoRotas> = async (app, opcoes
       const usuario = exigirUsuario(request);
       const { empresaId, fichaId } = request.params as { empresaId: string; fichaId: string };
       await exigirMembro(banco, empresaId, usuario.usuarioId);
-      return obterFicha(banco, empresaId, fichaId);
+      return obterFicha(banco, empresaId, fichaId, false, { verificarModulo: true });
     },
   );
 

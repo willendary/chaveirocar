@@ -75,6 +75,8 @@ import com.willendary.chaveirocar.util.Erros
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import org.json.JSONArray
+import org.json.JSONObject
 
 /** Tela de login obrigatório ao abrir o aplicativo sem sessão ativa. */
 @Composable
@@ -139,6 +141,7 @@ fun SecaoContaApi(
   banco: BancoDeAtendimentos,
   aoAutenticar: () -> Unit = {},
   aoSair: () -> Unit = {},
+  aoAtualizarAssinatura: () -> Unit = {},
 ) {
   val contexto = LocalContext.current
   val preferencias = remember { Preferencias.obter(contexto) }
@@ -198,6 +201,34 @@ fun SecaoContaApi(
       .apply()
   }
 
+  fun extrairModulos(objeto: JSONObject): List<String> {
+    val array = objeto.optJSONArray("modulosAtivos") ?: return listOf("AUTOMOTIVO", "RESIDENCIAL")
+    return buildList {
+      for (i in 0 until array.length()) {
+        val mod = array.optString(i)
+        if (mod.isNotBlank()) add(mod)
+      }
+    }
+  }
+
+  fun registrarEmpresas(lista: JSONArray?) {
+    if (lista == null) return
+    for (i in 0 until lista.length()) {
+      val e = lista.optJSONObject(i) ?: continue
+      val id = e.optString("id")
+      if (id.isBlank()) continue
+      val renovacao = if (e.isNull("proximaRenovacaoEm")) null else e.optLong("proximaRenovacaoEm").takeIf { it > 0L }
+      Preferencias.guardarAssinaturaEmpresa(
+        preferencias = preferencias,
+        empresaId = id,
+        planoCodigo = e.optString("planoCodigo", "COMPLETO"),
+        status = e.optString("assinaturaStatus", "ATIVA"),
+        modulosAtivos = extrairModulos(e),
+        proximaRenovacaoEm = renovacao,
+      )
+    }
+  }
+
   fun carregarEmpresas() {
     escopo.launch {
       runCatching {
@@ -215,9 +246,11 @@ fun SecaoContaApi(
               papeis[id] = e.optString("papel")
             }
           }
-          Triple(usuario?.optBoolean("emailVerificado") ?: false, itens, papeis)
+          Pair(Triple(usuario?.optBoolean("emailVerificado") ?: false, itens, papeis), lista)
         }
-      }.onSuccess { (verificado, lista, papeis) ->
+      }.onSuccess { (dados, listaJson) ->
+        val (verificado, lista, papeis) = dados
+        registrarEmpresas(listaJson)
         emailVerificado = verificado
         empresas = lista
         papeisPorEmpresa = papeis
@@ -225,6 +258,7 @@ fun SecaoContaApi(
           empresaId = lista.first().first
           preferencias.edit().putString(Preferencias.API_EMPRESA_ID, empresaId).apply()
         }
+        aoAtualizarAssinatura()
       }.onFailure { Erros.registrar(contexto, "Conta API: empresas", it) }
     }
   }
@@ -243,14 +277,16 @@ fun SecaoContaApi(
           guardarTokens(cliente)
           logado = true
           emailVerificado = resposta.optJSONObject("usuario")?.optBoolean("emailVerificado") ?: false
-          val empresasArray = resposta.optJSONArray("empresas")
+          var empresasArray = resposta.optJSONArray("empresas")
           var idEmpresa = empresasArray?.optJSONObject(0)?.optString("id").orEmpty()
           if (idEmpresa.isBlank()) {
             runCatching {
               val lista = withContext(Dispatchers.IO) { cliente.listarEmpresas() }
+              empresasArray = lista
               idEmpresa = lista.optJSONObject(0)?.optString("id").orEmpty()
             }
           }
+          registrarEmpresas(empresasArray)
           if (idEmpresa.isNotBlank()) {
             empresaId = idEmpresa
           }
@@ -262,6 +298,7 @@ fun SecaoContaApi(
             }
             .apply()
           recarregar()
+          aoAtualizarAssinatura()
           aoAutenticar()
           Toast.makeText(contexto, "Conectado à conta ChaveiroCar", Toast.LENGTH_SHORT).show()
         }
@@ -292,13 +329,16 @@ fun SecaoContaApi(
             ?: credencial.email.orEmpty()
           email = emailConta
           emailVerificado = true
-          var idEmpresa = resposta.optJSONArray("empresas")?.optJSONObject(0)?.optString("id").orEmpty()
+          var empresasArray = resposta.optJSONArray("empresas")
+          var idEmpresa = empresasArray?.optJSONObject(0)?.optString("id").orEmpty()
           if (idEmpresa.isBlank()) {
             runCatching {
               val lista = withContext(Dispatchers.IO) { cliente.listarEmpresas() }
+              empresasArray = lista
               idEmpresa = lista.optJSONObject(0)?.optString("id").orEmpty()
             }
           }
+          registrarEmpresas(empresasArray)
           if (idEmpresa.isNotBlank()) {
             empresaId = idEmpresa
           }
@@ -311,6 +351,7 @@ fun SecaoContaApi(
             .apply()
           logado = true
           recarregar()
+          aoAtualizarAssinatura()
           aoAutenticar()
           Toast.makeText(contexto, "Conectado com Google à conta ChaveiroCar", Toast.LENGTH_SHORT).show()
         }
@@ -393,13 +434,16 @@ fun SecaoContaApi(
           guardarTokens(cliente)
           logado = true
           emailVerificado = resposta.optJSONObject("usuario")?.optBoolean("emailVerificado") ?: false
-          var idEmpresa = resposta.optJSONArray("empresas")?.optJSONObject(0)?.optString("id").orEmpty()
+          var empresasArray = resposta.optJSONArray("empresas")
+          var idEmpresa = empresasArray?.optJSONObject(0)?.optString("id").orEmpty()
           if (idEmpresa.isBlank()) {
             runCatching {
               val lista = withContext(Dispatchers.IO) { cliente.listarEmpresas() }
+              empresasArray = lista
               idEmpresa = lista.optJSONObject(0)?.optString("id").orEmpty()
             }
           }
+          registrarEmpresas(empresasArray)
           if (idEmpresa.isNotBlank()) {
             empresaId = idEmpresa
           }
@@ -409,6 +453,7 @@ fun SecaoContaApi(
             .putString(Preferencias.API_EMPRESA_ID, empresaId)
             .apply()
           recarregar()
+          aoAtualizarAssinatura()
           aoAutenticar()
           val mensagem = if (resposta.optBoolean("emailEnviado")) {
             "Conta criada. Verifique seu e-mail."
@@ -491,12 +536,15 @@ fun SecaoContaApi(
       val cliente = api()
       val resultado = runCatching {
         withContext(Dispatchers.IO) {
-          cliente.aceitarConvite(tokenConvite.trim(), nome.trim(), senha)
+          val aceito = cliente.aceitarConvite(tokenConvite.trim(), nome.trim(), senha)
+          val lista = runCatching { cliente.listarEmpresas() }.getOrNull()
+          aceito to lista
         }
       }
       entrando = false
-      resultado.onSuccess { resposta ->
+      resultado.onSuccess { (resposta, empresasLista) ->
         guardarTokens(cliente)
+        registrarEmpresas(empresasLista)
         email = resposta.optJSONObject("usuario")?.optString("email").orEmpty()
         emailVerificado = resposta.optJSONObject("usuario")?.optBoolean("emailVerificado") ?: true
         empresaId = resposta.optString("empresaId")
@@ -507,6 +555,7 @@ fun SecaoContaApi(
           .apply()
         logado = true
         modoConvite = false
+        aoAtualizarAssinatura()
         aoAutenticar()
         Toast.makeText(contexto, "Convite aceito. A empresa foi adicionada à sua conta.", Toast.LENGTH_LONG).show()
       }.onFailure {
@@ -793,6 +842,7 @@ fun SecaoContaApi(
               onClick = {
                 empresaId = id
                 preferencias.edit().putString(Preferencias.API_EMPRESA_ID, id).apply()
+                aoAtualizarAssinatura()
               },
               modifier = Modifier.fillMaxWidth(),
             ) { Text(if (id == empresaId) "✓ $nome" else nome) }

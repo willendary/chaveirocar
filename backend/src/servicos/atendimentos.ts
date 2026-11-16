@@ -4,7 +4,13 @@ import { erros } from "../erros.js";
 import type { DadosAtendimento, SegmentoAtendimento } from "../esquemas.js";
 import { normalizar, texto, inteiro, booleano, pagina, tamanhoPagina } from "../util/texto.js";
 import { normalizarPlaca, novoId } from "../util/id.js";
-import { registrarMudanca, type ExecutorSql, type TipoMudanca } from "../dominio/comum.js";
+import {
+  baseRevisaoCompativel,
+  registrarMudanca,
+  type ExecutorSql,
+  type TipoMudanca,
+} from "../dominio/comum.js";
+import { exigirModuloAtivo, obterAssinaturaEmpresa } from "./assinaturas.js";
 
 const TIPOS = new Set([
   "CHAVE_CODIFICADA",
@@ -279,14 +285,31 @@ export async function listarAtendimentos(
     incluirExcluidos?: boolean;
   } = {},
 ): Promise<{ itens: Atendimento[]; total: number; pagina: number; tamanho: number }> {
+  const segmentoFiltro =
+    filtros.segmento === "AUTOMOTIVO" || filtros.segmento === "RESIDENCIAL"
+      ? filtros.segmento
+      : undefined;
+  const assinatura = segmentoFiltro
+    ? await exigirModuloAtivo(banco, empresaId, segmentoFiltro)
+    : await obterAssinaturaEmpresa(banco, empresaId);
+  if (!segmentoFiltro && assinatura.modulosAtivos.length === 0) {
+    throw erros.moduloNaoContratado(
+      "AUTOMOTIVO",
+      "Nenhum módulo está ativo no plano desta empresa.",
+    );
+  }
+
   const numeroPagina = pagina(filtros.pagina, 1);
   const limite = tamanhoPagina(filtros.tamanho, 30);
   const condicoes = ["a.empresa_id = ?"];
   const argumentos: Array<string | number> = [empresaId];
   if (!filtros.incluirExcluidos) condicoes.push("a.excluido_em IS NULL");
-  if (filtros.segmento === "AUTOMOTIVO" || filtros.segmento === "RESIDENCIAL") {
+  if (segmentoFiltro) {
     condicoes.push("a.segmento = ?");
-    argumentos.push(filtros.segmento);
+    argumentos.push(segmentoFiltro);
+  } else if (assinatura.modulosAtivos.length < 2) {
+    condicoes.push(`a.segmento IN (${assinatura.modulosAtivos.map(() => "?").join(",")})`);
+    argumentos.push(...assinatura.modulosAtivos);
   }
   const termos = normalizar(filtros.busca).split(" ").filter(Boolean);
   for (const termo of termos) {
@@ -327,6 +350,7 @@ export async function obterAtendimento(
   empresaId: string,
   id: string,
   incluirExcluido = false,
+  opcoes: { verificarModulo?: boolean } = {},
 ): Promise<Atendimento> {
   const resultado = await banco.execute({
     sql: `SELECT ${CAMPOS} FROM atendimentos a WHERE a.id = ? AND a.empresa_id = ?${
@@ -336,7 +360,11 @@ export async function obterAtendimento(
   });
   const linha = resultado.rows[0] as unknown as LinhaAtendimento | undefined;
   if (!linha) throw erros.naoEncontrado("Atendimento não encontrado.");
-  return paraAtendimento(linha);
+  const atendimento = paraAtendimento(linha);
+  if (opcoes.verificarModulo) {
+    await exigirModuloAtivo(banco, empresaId, atendimento.segmento);
+  }
+  return atendimento;
 }
 
 export async function salvarAtendimento(
@@ -345,13 +373,19 @@ export async function salvarAtendimento(
   entrada: EntradaAtendimento,
 ): Promise<Atendimento> {
   const dados = normalizarAtendimento(entrada);
+  await exigirModuloAtivo(banco, contexto.empresaId, dados.segmento);
   const instante = agora();
   const id = entrada.id?.trim() || novoId();
   const existente = await banco.execute({
-    sql: "SELECT id, revisao, excluido_em FROM atendimentos WHERE id = ? AND empresa_id = ?",
+    sql: "SELECT id, segmento, revisao, excluido_em, criado_por, atualizado_por FROM atendimentos WHERE id = ? AND empresa_id = ?",
     args: [id, contexto.empresaId],
   });
   const linhaExistente = existente.rows[0];
+  if (linhaExistente) {
+    const segmentoAtual: SegmentoAtendimento =
+      linhaExistente.segmento === "RESIDENCIAL" ? "RESIDENCIAL" : "AUTOMOTIVO";
+    await exigirModuloAtivo(banco, contexto.empresaId, segmentoAtual);
+  }
   const registroAtual = linhaExistente
     ? await obterAtendimento(banco, contexto.empresaId, id, true)
     : null;
@@ -415,7 +449,15 @@ export async function salvarAtendimento(
           registro: registroAtual,
         });
       }
-      if (Number(entrada.baseRevisao) !== revisaoAtual) {
+      if (
+        !baseRevisaoCompativel(
+          entrada.baseRevisao,
+          revisaoAtual,
+          linhaExistente.criado_por,
+          linhaExistente.atualizado_por,
+          contexto.usuarioId,
+        )
+      ) {
         throw erros.conflito("O atendimento foi alterado por outra pessoa.", {
           registro: registroAtual,
         });
@@ -508,6 +550,7 @@ export async function excluirAtendimento(
   baseRevisao: number,
 ): Promise<Atendimento> {
   const atual = await obterAtendimento(banco, contexto.empresaId, id, true);
+  await exigirModuloAtivo(banco, contexto.empresaId, atual.segmento);
   if (atual.excluidoEm !== null) {
     if (atual.revisao === baseRevisao) return atual;
     throw erros.conflito("O atendimento já foi excluído.", { registro: atual });

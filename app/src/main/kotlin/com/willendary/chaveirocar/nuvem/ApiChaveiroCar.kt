@@ -112,6 +112,33 @@ class ApiChaveiroCar(baseUrl: String = URL_PADRAO) {
   fun listarConvites(empresaId: String): org.json.JSONArray =
     get("/api/v1/empresas/$empresaId/convites").getJSONArray("itens")
 
+  fun obterAssinatura(empresaId: String): JSONObject =
+    get("/api/v1/empresas/$empresaId/assinatura")
+
+  fun solicitarAssinatura(empresaId: String, acao: String, modulos: List<String>): JSONObject =
+    post(
+      "/api/v1/empresas/$empresaId/assinatura/solicitar",
+      JSONObject().apply {
+        put("acao", acao)
+        put("modulos", org.json.JSONArray(modulos))
+      },
+    )
+
+  fun processarEventoAssinatura(
+    empresaId: String,
+    eventoId: String,
+    tipo: String,
+    modulos: List<String> = emptyList(),
+  ): JSONObject =
+    post(
+      "/api/v1/empresas/$empresaId/assinatura/eventos",
+      JSONObject().apply {
+        put("eventoId", eventoId)
+        put("tipo", tipo)
+        if (modulos.isNotEmpty()) put("modulos", org.json.JSONArray(modulos))
+      },
+    )
+
   fun convidar(empresaId: String, email: String, papel: String): JSONObject =
     post("/api/v1/empresas/$empresaId/convites", JSONObject().put("email", email).put("papel", papel))
 

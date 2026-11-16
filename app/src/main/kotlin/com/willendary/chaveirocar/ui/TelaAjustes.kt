@@ -40,6 +40,7 @@ import com.willendary.chaveirocar.atualizacao.AtualizacaoDisponivel
 import com.willendary.chaveirocar.atualizacao.Atualizacoes
 import com.willendary.chaveirocar.dados.BancoDeAtendimentos
 import com.willendary.chaveirocar.dados.Preferencias
+import com.willendary.chaveirocar.nuvem.ApiChaveiroCar
 import com.willendary.chaveirocar.util.Biometria
 import com.willendary.chaveirocar.util.Erros
 import com.willendary.chaveirocar.util.Seguranca
@@ -55,10 +56,39 @@ fun TelaAjustes(
   onVerNovidades: () -> Unit,
   onDadosRestaurados: () -> Unit = {},
   onSairDaConta: () -> Unit = {},
+  aoAtualizarAssinatura: () -> Unit = {},
+  onVoltar: (() -> Unit)? = null,
 ) {
   val contexto = LocalContext.current
   val atividade = contexto as? FragmentActivity
   val preferencias = remember { Preferencias.obter(contexto) }
+  val preferenciasApi = remember { Preferencias.obterApi(contexto) }
+  var empresaAtualId by remember {
+    mutableStateOf(preferencias.getString(Preferencias.API_EMPRESA_ID, "").orEmpty())
+  }
+
+  fun notificarMudancaAssinatura() {
+    empresaAtualId = preferencias.getString(Preferencias.API_EMPRESA_ID, "").orEmpty()
+    aoAtualizarAssinatura()
+  }
+
+  fun criarApiAssinatura(): ApiChaveiroCar {
+    val baseSalva = preferencias.getString(Preferencias.API_BASE_URL, null).orEmpty()
+    val baseUrl = if (baseSalva.isBlank() || baseSalva.contains("10.0.2.2") || baseSalva.contains("localhost")) {
+      ApiChaveiroCar.URL_PADRAO
+    } else baseSalva
+    return ApiChaveiroCar(baseUrl).apply {
+      tokenAcesso = preferenciasApi.getString(Preferencias.API_ACESSO, null)?.ifBlank { null }
+      tokenRefresh = preferenciasApi.getString(Preferencias.API_REFRESH, null)?.ifBlank { null }
+    }
+  }
+
+  fun guardarTokensAssinatura(api: ApiChaveiroCar) {
+    preferenciasApi.edit()
+      .putString(Preferencias.API_ACESSO, api.tokenAcesso ?: "")
+      .putString(Preferencias.API_REFRESH, api.tokenRefresh ?: "")
+      .apply()
+  }
 
   var pinAtivo by remember { mutableStateOf(preferencias.getBoolean(Preferencias.PIN_ATIVO, false)) }
   var biometriaAtiva by remember {
@@ -74,7 +104,7 @@ fun TelaAjustes(
 
   Scaffold(
     topBar = {
-      CabecalhoTela("Ajustes", "Seu aplicativo, do seu jeito")
+      CabecalhoTela("Ajustes", "Seu aplicativo, do seu jeito", aoVoltar = onVoltar)
     },
     contentWindowInsets = WindowInsets(0, 0, 0, 0),
     containerColor = MaterialTheme.colorScheme.background,
@@ -137,7 +167,26 @@ fun TelaAjustes(
       }
 
       TituloSecao("Conta e equipe")
-      SecaoContaApi(banco = banco, aoSair = onSairDaConta)
+      SecaoContaApi(
+        banco = banco,
+        aoSair = onSairDaConta,
+        aoAtualizarAssinatura = ::notificarMudancaAssinatura,
+      )
+
+      if (empresaAtualId.isNotBlank()) {
+        TituloSecao("Plano e assinatura")
+        Card(modifier = Modifier.fillMaxWidth()) {
+          Column(modifier = Modifier.padding(20.dp)) {
+            SecaoPlanoAssinatura(
+              empresaId = empresaAtualId,
+              preferencias = preferencias,
+              criarApi = ::criarApiAssinatura,
+              guardarTokens = ::guardarTokensAssinatura,
+              aoAtualizarAssinatura = ::notificarMudancaAssinatura,
+            )
+          }
+        }
+      }
 
       TituloSecao("Atualizações")
       Card(modifier = Modifier.fillMaxWidth()) {

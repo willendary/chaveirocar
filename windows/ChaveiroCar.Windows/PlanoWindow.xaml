@@ -1,0 +1,98 @@
+<Window x:Class="ChaveiroCar.Windows.PlanoWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="ChaveiroCar — Plano e Módulos"
+        Height="640" Width="760" MinHeight="520" MinWidth="640"
+        WindowStartupLocation="CenterOwner" Loaded="Window_Loaded"
+        Background="{StaticResource CorFundoJanela}">
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <Border Grid.Row="0" Background="{StaticResource CorCabecalho}" Padding="24,16">
+            <StackPanel>
+                <TextBlock Text="Plano e Módulos da Empresa" Foreground="White" FontSize="19" FontWeight="Bold"/>
+                <TextBlock Text="Controle o acesso por modalidade (Veicular e Residencial) e o ciclo da assinatura."
+                           Foreground="#FF94A3B8" FontSize="12" Margin="0,2,0,0"/>
+            </StackPanel>
+        </Border>
+
+        <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" Margin="20,16,20,12">
+            <StackPanel>
+                <Border Background="{StaticResource CorSuperficie}" BorderBrush="{StaticResource CorBorda}"
+                        BorderThickness="1" CornerRadius="10" Padding="20,16" Margin="0,0,0,12">
+                    <StackPanel>
+                        <DockPanel LastChildFill="False" Margin="0,0,0,10">
+                            <TextBlock DockPanel.Dock="Left" x:Name="PlanoTexto" FontSize="17" FontWeight="Bold"
+                                       Foreground="{StaticResource CorTextoPrimario}" VerticalAlignment="Center"/>
+                            <Border DockPanel.Dock="Right" Background="{StaticResource CorPrimariaSuave}" CornerRadius="6" Padding="10,4">
+                                <TextBlock x:Name="StatusTexto" Foreground="{StaticResource CorPrimariaEscura}" FontWeight="SemiBold" FontSize="12"/>
+                            </Border>
+                        </DockPanel>
+                        <TextBlock x:Name="ModulosAtivosTexto" Foreground="{StaticResource CorTextoSecundario}" FontSize="13" Margin="0,0,0,4"/>
+                        <TextBlock x:Name="RenovacaoTexto" Foreground="{StaticResource CorTextoSecundario}" FontSize="12.5" Visibility="Collapsed" Margin="0,0,0,4"/>
+                        <TextBlock x:Name="MudancaAgendadaTexto" Foreground="#FFB45309" FontWeight="SemiBold" FontSize="12.5"
+                                   TextWrapping="Wrap" Visibility="Collapsed" Margin="0,4,0,4"/>
+                        <Button x:Name="BtnAtualizar" Content="Atualizar status" Click="Atualizar_Click"
+                                HorizontalAlignment="Left" Margin="0,8,0,0"/>
+                    </StackPanel>
+                </Border>
+
+                <Border x:Name="PainelGerenciamento" Background="{StaticResource CorSuperficie}" BorderBrush="{StaticResource CorBorda}"
+                        BorderThickness="1" CornerRadius="10" Padding="20,16" Margin="0,0,0,12">
+                    <StackPanel>
+                        <TextBlock Text="Configurar modalidades" FontSize="15" FontWeight="Bold"
+                                   Foreground="{StaticResource CorTextoPrimario}" Margin="0,0,0,8"/>
+                        <StackPanel Orientation="Horizontal" Margin="0,0,0,12">
+                            <CheckBox x:Name="CheckVeicular" Content="Veicular" FontSize="13.5" FontWeight="SemiBold" Margin="0,0,24,0"/>
+                            <CheckBox x:Name="CheckResidencial" Content="Residencial" FontSize="13.5" FontWeight="SemiBold"/>
+                        </StackPanel>
+                        <StackPanel Orientation="Horizontal">
+                            <Button x:Name="BtnSolicitar" Content="Solicitar alteração de módulos" Style="{StaticResource BotaoPrimario}"
+                                    Click="SolicitarAlteracao_Click" Margin="0,0,8,0"/>
+                            <Button x:Name="BtnReativar" Content="Reativar plano" Click="Reativar_Click" Margin="0,0,8,0"/>
+                            <Button x:Name="BtnCancelar" Content="Cancelar assinatura" Style="{StaticResource BotaoPerigo}" Click="Cancelar_Click"/>
+                        </StackPanel>
+                        <TextBlock Text="Solicitações de mudança aguardam confirmação do pagamento no servidor para liberar módulos. Seus registros e fichas nunca são apagados."
+                                   Foreground="{StaticResource CorTextoSecundario}" FontSize="12" TextWrapping="Wrap" Margin="0,10,0,0"/>
+                    </StackPanel>
+                </Border>
+
+                <TextBlock x:Name="AvisoSemPermissao"
+                           Text="Somente proprietário ou administrador da empresa pode contratar ou alterar o plano."
+                           Foreground="{StaticResource CorTextoSecundario}" FontSize="12.5" TextWrapping="Wrap"
+                           Visibility="Collapsed" Margin="4,0,4,12"/>
+
+                <Border x:Name="PainelHomologacao" Background="#FFF8FAFC" BorderBrush="{StaticResource CorBorda}"
+                        BorderThickness="1" CornerRadius="10" Padding="20,16" Visibility="Collapsed">
+                    <StackPanel>
+                        <TextBlock Text="Ambiente de Testes / Homologação (Eventos Idempotentes)" FontSize="14.5" FontWeight="Bold"
+                                   Foreground="{StaticResource CorTextoPrimario}" Margin="0,0,0,6"/>
+                        <TextBlock Text="Simule retornos de pagamento, renovação ou falha pelo backend sem cobrança real."
+                                   Foreground="{StaticResource CorTextoSecundario}" FontSize="12" TextWrapping="Wrap" Margin="0,0,0,10"/>
+                        <WrapPanel>
+                            <Button Content="Confirmar pagamento" Style="{StaticResource BotaoPrimario}" Click="EventoConfirmarPagamento_Click" Margin="0,0,8,8"/>
+                            <Button Content="Confirmar renovação" Click="EventoRenovar_Click" Margin="0,0,8,8"/>
+                            <Button Content="Simular falha no pagamento" Style="{StaticResource BotaoPerigo}" Click="EventoFalha_Click" Margin="0,0,8,8"/>
+                            <Button Content="Confirmar cancelamento" Click="EventoCancelar_Click" Margin="0,0,8,8"/>
+                            <Button Content="Simular estorno" Style="{StaticResource BotaoPerigo}" Click="EventoEstorno_Click" Margin="0,0,8,8"/>
+                        </WrapPanel>
+                    </StackPanel>
+                </Border>
+            </StackPanel>
+        </ScrollViewer>
+
+        <Border Grid.Row="2" Background="{StaticResource CorSuperficie}"
+                BorderBrush="{StaticResource CorBorda}" BorderThickness="0,1,0,0"
+                Padding="20,12">
+            <DockPanel LastChildFill="False">
+                <TextBlock DockPanel.Dock="Left" x:Name="Mensagem" Foreground="{StaticResource CorTextoSecundario}"
+                           VerticalAlignment="Center" TextWrapping="Wrap" MaxWidth="560"/>
+                <Button DockPanel.Dock="Right" Content="Fechar" IsCancel="True" Width="100"/>
+            </DockPanel>
+        </Border>
+    </Grid>
+</Window>

@@ -75,7 +75,7 @@ export const rotasFotos: FastifyPluginAsync<ContextoRotas> = async (app, opcoes)
         atendimentoId: string;
       };
       await exigirMembro(banco, empresaId, usuario.usuarioId);
-      await obterAtendimento(banco, empresaId, atendimentoId);
+      await obterAtendimento(banco, empresaId, atendimentoId, false, { verificarModulo: true });
       return { itens: await listarFotos(banco, empresaId, { atendimentoId }) };
     },
   );
@@ -139,7 +139,7 @@ export const rotasFotos: FastifyPluginAsync<ContextoRotas> = async (app, opcoes)
       const usuario = exigirUsuario(request);
       const { empresaId, fichaId } = request.params as { empresaId: string; fichaId: string };
       await exigirMembro(banco, empresaId, usuario.usuarioId);
-      await obterFicha(banco, empresaId, fichaId);
+      await obterFicha(banco, empresaId, fichaId, false, { verificarModulo: true });
       return { itens: await listarFotos(banco, empresaId, { fichaId }) };
     },
   );

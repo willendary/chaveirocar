@@ -9,6 +9,8 @@ import {
 } from "./atendimentos.js";
 import { obterFicha, salvarFicha, excluirFicha, type EntradaFicha } from "./fichas.js";
 import { obterFoto, atualizarFoto, excluirFoto } from "./fotos.js";
+import { obterAssinaturaEmpresa } from "./assinaturas.js";
+import type { SegmentoAtendimento } from "../esquemas.js";
 
 export interface ResultadoOperacao {
   opId: string;
@@ -34,6 +36,9 @@ export async function puxarMudancas(
   cursor: number,
   limite = LIMITE_PULL,
 ): Promise<LotePull> {
+  const assinatura = await obterAssinaturaEmpresa(banco, empresaId);
+  const modulosAtivos = new Set<SegmentoAtendimento>(assinatura.modulosAtivos);
+
   const resultado = await banco.execute({
     sql: `SELECT id, entidade, entidade_id FROM mudancas
           WHERE empresa_id = ? AND id > ?
@@ -55,37 +60,76 @@ export async function puxarMudancas(
   const atendimentos: unknown[] = [];
   const fichas: unknown[] = [];
   const fotos: unknown[] = [];
+  const segmentosAtendimento = new Map<string, SegmentoAtendimento>();
+  const segmentosFicha = new Map<string, SegmentoAtendimento>();
 
   const idsAtendimentos = [...(idsPorEntidade.get("atendimento") ?? [])];
-  if (idsAtendimentos.length > 0) {
+  if (idsAtendimentos.length > 0 && modulosAtivos.size > 0) {
     const resposta = await banco.execute({
       sql: `SELECT id FROM atendimentos WHERE empresa_id = ? AND id IN (${idsAtendimentos.map(() => "?").join(",")})`,
       args: [empresaId, ...idsAtendimentos],
     });
     for (const linha of resposta.rows) {
-      atendimentos.push(await obterAtendimento(banco, empresaId, String(linha.id), true));
+      const registro = await obterAtendimento(banco, empresaId, String(linha.id), true);
+      segmentosAtendimento.set(registro.id, registro.segmento);
+      if (modulosAtivos.has(registro.segmento)) {
+        atendimentos.push(registro);
+      }
     }
   }
 
   const idsFichas = [...(idsPorEntidade.get("ficha") ?? [])];
-  if (idsFichas.length > 0) {
+  if (idsFichas.length > 0 && modulosAtivos.size > 0) {
     const resposta = await banco.execute({
       sql: `SELECT id FROM fichas_tecnicas WHERE empresa_id = ? AND id IN (${idsFichas.map(() => "?").join(",")})`,
       args: [empresaId, ...idsFichas],
     });
     for (const linha of resposta.rows) {
-      fichas.push(await obterFicha(banco, empresaId, String(linha.id), true));
+      const registro = await obterFicha(banco, empresaId, String(linha.id), true);
+      segmentosFicha.set(registro.id, registro.segmento);
+      if (modulosAtivos.has(registro.segmento)) {
+        fichas.push(registro);
+      }
     }
   }
 
   const idsFotos = [...(idsPorEntidade.get("foto") ?? [])];
-  if (idsFotos.length > 0) {
+  if (idsFotos.length > 0 && modulosAtivos.size > 0) {
     const resposta = await banco.execute({
       sql: `SELECT id FROM fotos WHERE empresa_id = ? AND id IN (${idsFotos.map(() => "?").join(",")})`,
       args: [empresaId, ...idsFotos],
     });
     for (const linha of resposta.rows) {
-      fotos.push(await obterFoto(banco, empresaId, String(linha.id), true));
+      const registro = await obterFoto(banco, empresaId, String(linha.id), true);
+      let segmentoPai: SegmentoAtendimento | undefined;
+      if (registro.atendimentoId) {
+        segmentoPai = segmentosAtendimento.get(registro.atendimentoId);
+        if (!segmentoPai) {
+          const pai = await banco.execute({
+            sql: "SELECT segmento FROM atendimentos WHERE id = ? AND empresa_id = ?",
+            args: [registro.atendimentoId, empresaId],
+          });
+          if (pai.rows[0]) {
+            segmentoPai = pai.rows[0].segmento === "RESIDENCIAL" ? "RESIDENCIAL" : "AUTOMOTIVO";
+            segmentosAtendimento.set(registro.atendimentoId, segmentoPai);
+          }
+        }
+      } else if (registro.fichaId) {
+        segmentoPai = segmentosFicha.get(registro.fichaId);
+        if (!segmentoPai) {
+          const pai = await banco.execute({
+            sql: "SELECT segmento FROM fichas_tecnicas WHERE id = ? AND empresa_id = ?",
+            args: [registro.fichaId, empresaId],
+          });
+          if (pai.rows[0]) {
+            segmentoPai = pai.rows[0].segmento === "RESIDENCIAL" ? "RESIDENCIAL" : "AUTOMOTIVO";
+            segmentosFicha.set(registro.fichaId, segmentoPai);
+          }
+        }
+      }
+      if (!segmentoPai || modulosAtivos.has(segmentoPai)) {
+        fotos.push(registro);
+      }
     }
   }
 
@@ -135,10 +179,15 @@ async function guardarResultado(
 function mapearErro(opId: string, erro: unknown): ResultadoOperacao {
   if (erro instanceof ErroApi) {
     const conflito = erro.status === 409;
-    const detalhes = erro.detalhes as { registro?: unknown } | undefined;
+    const detalhes = erro.detalhes as { registro?: { revisao?: number } } | undefined;
+    const revisao =
+      conflito && typeof detalhes?.registro?.revisao === "number"
+        ? detalhes.registro.revisao
+        : undefined;
     return {
       opId,
       status: conflito ? "conflito" : "erro",
+      ...(revisao !== undefined ? { revisao } : {}),
       registro: conflito ? detalhes?.registro : undefined,
       erro: { codigo: erro.codigo, mensagem: erro.message },
     };

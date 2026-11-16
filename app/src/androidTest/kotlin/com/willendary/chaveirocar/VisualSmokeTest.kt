@@ -165,6 +165,8 @@ class VisualSmokeTest {
     Preferencias.obterApi(contexto).edit()
       .putString(Preferencias.API_ACESSO, "sessao-teste").commit()
     tela { ChaveiroCarApp() }
+    esperar("Qual área você vai usar agora?"); foto("00a-escolha-modalidade")
+    compose.onNodeWithText("Entrar em Veicular").performScrollTo().performClick()
     esperar("Acesso rápido"); foto("00-inicio-com-navegacao")
     compose.onNodeWithText("Fichário").performClick()
     // Em celulares compactos os cards do LazyColumn podem ficar fora da area visivel.

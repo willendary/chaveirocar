@@ -290,6 +290,66 @@
                                 ]
                               }
                             ]
+                          },
+                          "planoCodigo": {
+                            "type": "string"
+                          },
+                          "modulosAtivos": {
+                            "type": "array",
+                            "items": {
+                              "anyOf": [
+                                {
+                                  "type": "string",
+                                  "enum": [
+                                    "AUTOMOTIVO"
+                                  ]
+                                },
+                                {
+                                  "type": "string",
+                                  "enum": [
+                                    "RESIDENCIAL"
+                                  ]
+                                }
+                              ]
+                            }
+                          },
+                          "assinaturaStatus": {
+                            "anyOf": [
+                              {
+                                "type": "string",
+                                "enum": [
+                                  "ATIVA"
+                                ]
+                              },
+                              {
+                                "type": "string",
+                                "enum": [
+                                  "PENDENTE_PAGAMENTO"
+                                ]
+                              },
+                              {
+                                "type": "string",
+                                "enum": [
+                                  "FALHA_PAGAMENTO"
+                                ]
+                              },
+                              {
+                                "type": "string",
+                                "enum": [
+                                  "CANCELADA"
+                                ]
+                              }
+                            ]
+                          },
+                          "proximaRenovacaoEm": {
+                            "anyOf": [
+                              {
+                                "type": "integer"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
                           }
                         }
                       }
@@ -691,6 +751,66 @@
                                 ]
                               }
                             ]
+                          },
+                          "planoCodigo": {
+                            "type": "string"
+                          },
+                          "modulosAtivos": {
+                            "type": "array",
+                            "items": {
+                              "anyOf": [
+                                {
+                                  "type": "string",
+                                  "enum": [
+                                    "AUTOMOTIVO"
+                                  ]
+                                },
+                                {
+                                  "type": "string",
+                                  "enum": [
+                                    "RESIDENCIAL"
+                                  ]
+                                }
+                              ]
+                            }
+                          },
+                          "assinaturaStatus": {
+                            "anyOf": [
+                              {
+                                "type": "string",
+                                "enum": [
+                                  "ATIVA"
+                                ]
+                              },
+                              {
+                                "type": "string",
+                                "enum": [
+                                  "PENDENTE_PAGAMENTO"
+                                ]
+                              },
+                              {
+                                "type": "string",
+                                "enum": [
+                                  "FALHA_PAGAMENTO"
+                                ]
+                              },
+                              {
+                                "type": "string",
+                                "enum": [
+                                  "CANCELADA"
+                                ]
+                              }
+                            ]
+                          },
+                          "proximaRenovacaoEm": {
+                            "anyOf": [
+                              {
+                                "type": "integer"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
                           }
                         }
                       }
@@ -1090,6 +1210,66 @@
                                 "enum": [
                                   "leitor"
                                 ]
+                              }
+                            ]
+                          },
+                          "planoCodigo": {
+                            "type": "string"
+                          },
+                          "modulosAtivos": {
+                            "type": "array",
+                            "items": {
+                              "anyOf": [
+                                {
+                                  "type": "string",
+                                  "enum": [
+                                    "AUTOMOTIVO"
+                                  ]
+                                },
+                                {
+                                  "type": "string",
+                                  "enum": [
+                                    "RESIDENCIAL"
+                                  ]
+                                }
+                              ]
+                            }
+                          },
+                          "assinaturaStatus": {
+                            "anyOf": [
+                              {
+                                "type": "string",
+                                "enum": [
+                                  "ATIVA"
+                                ]
+                              },
+                              {
+                                "type": "string",
+                                "enum": [
+                                  "PENDENTE_PAGAMENTO"
+                                ]
+                              },
+                              {
+                                "type": "string",
+                                "enum": [
+                                  "FALHA_PAGAMENTO"
+                                ]
+                              },
+                              {
+                                "type": "string",
+                                "enum": [
+                                  "CANCELADA"
+                                ]
+                              }
+                            ]
+                          },
+                          "proximaRenovacaoEm": {
+                            "anyOf": [
+                              {
+                                "type": "integer"
+                              },
+                              {
+                                "type": "null"
                               }
                             ]
                           }
@@ -2211,6 +2391,66 @@
                                 "enum": [
                                   "leitor"
                                 ]
+                              }
+                            ]
+                          },
+                          "planoCodigo": {
+                            "type": "string"
+                          },
+                          "modulosAtivos": {
+                            "type": "array",
+                            "items": {
+                              "anyOf": [
+                                {
+                                  "type": "string",
+                                  "enum": [
+                                    "AUTOMOTIVO"
+                                  ]
+                                },
+                                {
+                                  "type": "string",
+                                  "enum": [
+                                    "RESIDENCIAL"
+                                  ]
+                                }
+                              ]
+                            }
+                          },
+                          "assinaturaStatus": {
+                            "anyOf": [
+                              {
+                                "type": "string",
+                                "enum": [
+                                  "ATIVA"
+                                ]
+                              },
+                              {
+                                "type": "string",
+                                "enum": [
+                                  "PENDENTE_PAGAMENTO"
+                                ]
+                              },
+                              {
+                                "type": "string",
+                                "enum": [
+                                  "FALHA_PAGAMENTO"
+                                ]
+                              },
+                              {
+                                "type": "string",
+                                "enum": [
+                                  "CANCELADA"
+                                ]
+                              }
+                            ]
+                          },
+                          "proximaRenovacaoEm": {
+                            "anyOf": [
+                              {
+                                "type": "integer"
+                              },
+                              {
+                                "type": "null"
                               }
                             ]
                           }
@@ -3984,6 +4224,66 @@
                                 ]
                               }
                             ]
+                          },
+                          "planoCodigo": {
+                            "type": "string"
+                          },
+                          "modulosAtivos": {
+                            "type": "array",
+                            "items": {
+                              "anyOf": [
+                                {
+                                  "type": "string",
+                                  "enum": [
+                                    "AUTOMOTIVO"
+                                  ]
+                                },
+                                {
+                                  "type": "string",
+                                  "enum": [
+                                    "RESIDENCIAL"
+                                  ]
+                                }
+                              ]
+                            }
+                          },
+                          "assinaturaStatus": {
+                            "anyOf": [
+                              {
+                                "type": "string",
+                                "enum": [
+                                  "ATIVA"
+                                ]
+                              },
+                              {
+                                "type": "string",
+                                "enum": [
+                                  "PENDENTE_PAGAMENTO"
+                                ]
+                              },
+                              {
+                                "type": "string",
+                                "enum": [
+                                  "FALHA_PAGAMENTO"
+                                ]
+                              },
+                              {
+                                "type": "string",
+                                "enum": [
+                                  "CANCELADA"
+                                ]
+                              }
+                            ]
+                          },
+                          "proximaRenovacaoEm": {
+                            "anyOf": [
+                              {
+                                "type": "integer"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
                           }
                         }
                       }
@@ -4283,6 +4583,66 @@
                           ]
                         }
                       ]
+                    },
+                    "planoCodigo": {
+                      "type": "string"
+                    },
+                    "modulosAtivos": {
+                      "type": "array",
+                      "items": {
+                        "anyOf": [
+                          {
+                            "type": "string",
+                            "enum": [
+                              "AUTOMOTIVO"
+                            ]
+                          },
+                          {
+                            "type": "string",
+                            "enum": [
+                              "RESIDENCIAL"
+                            ]
+                          }
+                        ]
+                      }
+                    },
+                    "assinaturaStatus": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "enum": [
+                            "ATIVA"
+                          ]
+                        },
+                        {
+                          "type": "string",
+                          "enum": [
+                            "PENDENTE_PAGAMENTO"
+                          ]
+                        },
+                        {
+                          "type": "string",
+                          "enum": [
+                            "FALHA_PAGAMENTO"
+                          ]
+                        },
+                        {
+                          "type": "string",
+                          "enum": [
+                            "CANCELADA"
+                          ]
+                        }
+                      ]
+                    },
+                    "proximaRenovacaoEm": {
+                      "anyOf": [
+                        {
+                          "type": "integer"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
                     }
                   }
                 }
@@ -4571,6 +4931,66 @@
                           "enum": [
                             "leitor"
                           ]
+                        }
+                      ]
+                    },
+                    "planoCodigo": {
+                      "type": "string"
+                    },
+                    "modulosAtivos": {
+                      "type": "array",
+                      "items": {
+                        "anyOf": [
+                          {
+                            "type": "string",
+                            "enum": [
+                              "AUTOMOTIVO"
+                            ]
+                          },
+                          {
+                            "type": "string",
+                            "enum": [
+                              "RESIDENCIAL"
+                            ]
+                          }
+                        ]
+                      }
+                    },
+                    "assinaturaStatus": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "enum": [
+                            "ATIVA"
+                          ]
+                        },
+                        {
+                          "type": "string",
+                          "enum": [
+                            "PENDENTE_PAGAMENTO"
+                          ]
+                        },
+                        {
+                          "type": "string",
+                          "enum": [
+                            "FALHA_PAGAMENTO"
+                          ]
+                        },
+                        {
+                          "type": "string",
+                          "enum": [
+                            "CANCELADA"
+                          ]
+                        }
+                      ]
+                    },
+                    "proximaRenovacaoEm": {
+                      "anyOf": [
+                        {
+                          "type": "integer"
+                        },
+                        {
+                          "type": "null"
                         }
                       ]
                     }
@@ -4881,6 +5301,1469 @@
                           ]
                         }
                       ]
+                    },
+                    "planoCodigo": {
+                      "type": "string"
+                    },
+                    "modulosAtivos": {
+                      "type": "array",
+                      "items": {
+                        "anyOf": [
+                          {
+                            "type": "string",
+                            "enum": [
+                              "AUTOMOTIVO"
+                            ]
+                          },
+                          {
+                            "type": "string",
+                            "enum": [
+                              "RESIDENCIAL"
+                            ]
+                          }
+                        ]
+                      }
+                    },
+                    "assinaturaStatus": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "enum": [
+                            "ATIVA"
+                          ]
+                        },
+                        {
+                          "type": "string",
+                          "enum": [
+                            "PENDENTE_PAGAMENTO"
+                          ]
+                        },
+                        {
+                          "type": "string",
+                          "enum": [
+                            "FALHA_PAGAMENTO"
+                          ]
+                        },
+                        {
+                          "type": "string",
+                          "enum": [
+                            "CANCELADA"
+                          ]
+                        }
+                      ]
+                    },
+                    "proximaRenovacaoEm": {
+                      "anyOf": [
+                        {
+                          "type": "integer"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "erro",
+                    "requisicaoId"
+                  ],
+                  "properties": {
+                    "erro": {
+                      "type": "object",
+                      "required": [
+                        "codigo",
+                        "mensagem"
+                      ],
+                      "properties": {
+                        "codigo": {
+                          "type": "string"
+                        },
+                        "mensagem": {
+                          "type": "string"
+                        },
+                        "detalhes": {}
+                      }
+                    },
+                    "requisicaoId": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "erro",
+                    "requisicaoId"
+                  ],
+                  "properties": {
+                    "erro": {
+                      "type": "object",
+                      "required": [
+                        "codigo",
+                        "mensagem"
+                      ],
+                      "properties": {
+                        "codigo": {
+                          "type": "string"
+                        },
+                        "mensagem": {
+                          "type": "string"
+                        },
+                        "detalhes": {}
+                      }
+                    },
+                    "requisicaoId": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "erro",
+                    "requisicaoId"
+                  ],
+                  "properties": {
+                    "erro": {
+                      "type": "object",
+                      "required": [
+                        "codigo",
+                        "mensagem"
+                      ],
+                      "properties": {
+                        "codigo": {
+                          "type": "string"
+                        },
+                        "mensagem": {
+                          "type": "string"
+                        },
+                        "detalhes": {}
+                      }
+                    },
+                    "requisicaoId": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "erro",
+                    "requisicaoId"
+                  ],
+                  "properties": {
+                    "erro": {
+                      "type": "object",
+                      "required": [
+                        "codigo",
+                        "mensagem"
+                      ],
+                      "properties": {
+                        "codigo": {
+                          "type": "string"
+                        },
+                        "mensagem": {
+                          "type": "string"
+                        },
+                        "detalhes": {}
+                      }
+                    },
+                    "requisicaoId": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "erro",
+                    "requisicaoId"
+                  ],
+                  "properties": {
+                    "erro": {
+                      "type": "object",
+                      "required": [
+                        "codigo",
+                        "mensagem"
+                      ],
+                      "properties": {
+                        "codigo": {
+                          "type": "string"
+                        },
+                        "mensagem": {
+                          "type": "string"
+                        },
+                        "detalhes": {}
+                      }
+                    },
+                    "requisicaoId": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "erro",
+                    "requisicaoId"
+                  ],
+                  "properties": {
+                    "erro": {
+                      "type": "object",
+                      "required": [
+                        "codigo",
+                        "mensagem"
+                      ],
+                      "properties": {
+                        "codigo": {
+                          "type": "string"
+                        },
+                        "mensagem": {
+                          "type": "string"
+                        },
+                        "detalhes": {}
+                      }
+                    },
+                    "requisicaoId": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/empresas/{empresaId}/assinatura": {
+      "get": {
+        "summary": "Consulta plano, módulos contratados e status da assinatura da empresa",
+        "tags": [
+          "Empresas"
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "pattern": "^[0-9a-fA-F-]{36}$",
+              "type": "string"
+            },
+            "in": "path",
+            "name": "empresaId",
+            "required": true,
+            "description": "UUID estável gerado pelo cliente ou pelo servidor."
+          }
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "empresaId",
+                    "planoCodigo",
+                    "modulosContratados",
+                    "modulosAtivos",
+                    "status",
+                    "proximaRenovacaoEm",
+                    "mudancaAgendada",
+                    "podeGerenciar",
+                    "ambienteHomologacao"
+                  ],
+                  "properties": {
+                    "empresaId": {
+                      "pattern": "^[0-9a-fA-F-]{36}$",
+                      "description": "UUID estável gerado pelo cliente ou pelo servidor.",
+                      "type": "string"
+                    },
+                    "planoCodigo": {
+                      "type": "string"
+                    },
+                    "modulosContratados": {
+                      "type": "array",
+                      "items": {
+                        "anyOf": [
+                          {
+                            "type": "string",
+                            "enum": [
+                              "AUTOMOTIVO"
+                            ]
+                          },
+                          {
+                            "type": "string",
+                            "enum": [
+                              "RESIDENCIAL"
+                            ]
+                          }
+                        ]
+                      }
+                    },
+                    "modulosAtivos": {
+                      "type": "array",
+                      "items": {
+                        "anyOf": [
+                          {
+                            "type": "string",
+                            "enum": [
+                              "AUTOMOTIVO"
+                            ]
+                          },
+                          {
+                            "type": "string",
+                            "enum": [
+                              "RESIDENCIAL"
+                            ]
+                          }
+                        ]
+                      }
+                    },
+                    "status": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "enum": [
+                            "ATIVA"
+                          ]
+                        },
+                        {
+                          "type": "string",
+                          "enum": [
+                            "PENDENTE_PAGAMENTO"
+                          ]
+                        },
+                        {
+                          "type": "string",
+                          "enum": [
+                            "FALHA_PAGAMENTO"
+                          ]
+                        },
+                        {
+                          "type": "string",
+                          "enum": [
+                            "CANCELADA"
+                          ]
+                        }
+                      ]
+                    },
+                    "proximaRenovacaoEm": {
+                      "anyOf": [
+                        {
+                          "type": "integer"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "mudancaAgendada": {
+                      "anyOf": [
+                        {
+                          "type": "object",
+                          "required": [
+                            "solicitacaoId",
+                            "acao",
+                            "modulos",
+                            "solicitadoEm"
+                          ],
+                          "properties": {
+                            "solicitacaoId": {
+                              "type": "string"
+                            },
+                            "acao": {
+                              "anyOf": [
+                                {
+                                  "type": "string",
+                                  "enum": [
+                                    "CONTRATAR"
+                                  ]
+                                },
+                                {
+                                  "type": "string",
+                                  "enum": [
+                                    "ALTERAR"
+                                  ]
+                                },
+                                {
+                                  "type": "string",
+                                  "enum": [
+                                    "CANCELAR"
+                                  ]
+                                }
+                              ]
+                            },
+                            "modulos": {
+                              "type": "array",
+                              "items": {
+                                "anyOf": [
+                                  {
+                                    "type": "string",
+                                    "enum": [
+                                      "AUTOMOTIVO"
+                                    ]
+                                  },
+                                  {
+                                    "type": "string",
+                                    "enum": [
+                                      "RESIDENCIAL"
+                                    ]
+                                  }
+                                ]
+                              }
+                            },
+                            "solicitadoEm": {
+                              "type": "integer"
+                            }
+                          }
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "podeGerenciar": {
+                      "type": "boolean"
+                    },
+                    "ambienteHomologacao": {
+                      "type": "boolean"
+                    },
+                    "duplicado": {
+                      "type": "boolean"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "erro",
+                    "requisicaoId"
+                  ],
+                  "properties": {
+                    "erro": {
+                      "type": "object",
+                      "required": [
+                        "codigo",
+                        "mensagem"
+                      ],
+                      "properties": {
+                        "codigo": {
+                          "type": "string"
+                        },
+                        "mensagem": {
+                          "type": "string"
+                        },
+                        "detalhes": {}
+                      }
+                    },
+                    "requisicaoId": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "erro",
+                    "requisicaoId"
+                  ],
+                  "properties": {
+                    "erro": {
+                      "type": "object",
+                      "required": [
+                        "codigo",
+                        "mensagem"
+                      ],
+                      "properties": {
+                        "codigo": {
+                          "type": "string"
+                        },
+                        "mensagem": {
+                          "type": "string"
+                        },
+                        "detalhes": {}
+                      }
+                    },
+                    "requisicaoId": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "erro",
+                    "requisicaoId"
+                  ],
+                  "properties": {
+                    "erro": {
+                      "type": "object",
+                      "required": [
+                        "codigo",
+                        "mensagem"
+                      ],
+                      "properties": {
+                        "codigo": {
+                          "type": "string"
+                        },
+                        "mensagem": {
+                          "type": "string"
+                        },
+                        "detalhes": {}
+                      }
+                    },
+                    "requisicaoId": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "erro",
+                    "requisicaoId"
+                  ],
+                  "properties": {
+                    "erro": {
+                      "type": "object",
+                      "required": [
+                        "codigo",
+                        "mensagem"
+                      ],
+                      "properties": {
+                        "codigo": {
+                          "type": "string"
+                        },
+                        "mensagem": {
+                          "type": "string"
+                        },
+                        "detalhes": {}
+                      }
+                    },
+                    "requisicaoId": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "erro",
+                    "requisicaoId"
+                  ],
+                  "properties": {
+                    "erro": {
+                      "type": "object",
+                      "required": [
+                        "codigo",
+                        "mensagem"
+                      ],
+                      "properties": {
+                        "codigo": {
+                          "type": "string"
+                        },
+                        "mensagem": {
+                          "type": "string"
+                        },
+                        "detalhes": {}
+                      }
+                    },
+                    "requisicaoId": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "erro",
+                    "requisicaoId"
+                  ],
+                  "properties": {
+                    "erro": {
+                      "type": "object",
+                      "required": [
+                        "codigo",
+                        "mensagem"
+                      ],
+                      "properties": {
+                        "codigo": {
+                          "type": "string"
+                        },
+                        "mensagem": {
+                          "type": "string"
+                        },
+                        "detalhes": {}
+                      }
+                    },
+                    "requisicaoId": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/empresas/{empresaId}/assinatura/solicitar": {
+      "post": {
+        "summary": "Solicita contratação, troca ou cancelamento de módulos (aguarda confirmação)",
+        "tags": [
+          "Empresas"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "acao"
+                ],
+                "properties": {
+                  "acao": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "enum": [
+                          "CONTRATAR"
+                        ]
+                      },
+                      {
+                        "type": "string",
+                        "enum": [
+                          "ALTERAR"
+                        ]
+                      },
+                      {
+                        "type": "string",
+                        "enum": [
+                          "CANCELAR"
+                        ]
+                      }
+                    ]
+                  },
+                  "modulos": {
+                    "maxItems": 2,
+                    "type": "array",
+                    "items": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "enum": [
+                            "AUTOMOTIVO"
+                          ]
+                        },
+                        {
+                          "type": "string",
+                          "enum": [
+                            "RESIDENCIAL"
+                          ]
+                        }
+                      ]
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "schema": {
+              "pattern": "^[0-9a-fA-F-]{36}$",
+              "type": "string"
+            },
+            "in": "path",
+            "name": "empresaId",
+            "required": true,
+            "description": "UUID estável gerado pelo cliente ou pelo servidor."
+          }
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "empresaId",
+                    "planoCodigo",
+                    "modulosContratados",
+                    "modulosAtivos",
+                    "status",
+                    "proximaRenovacaoEm",
+                    "mudancaAgendada",
+                    "podeGerenciar",
+                    "ambienteHomologacao"
+                  ],
+                  "properties": {
+                    "empresaId": {
+                      "pattern": "^[0-9a-fA-F-]{36}$",
+                      "description": "UUID estável gerado pelo cliente ou pelo servidor.",
+                      "type": "string"
+                    },
+                    "planoCodigo": {
+                      "type": "string"
+                    },
+                    "modulosContratados": {
+                      "type": "array",
+                      "items": {
+                        "anyOf": [
+                          {
+                            "type": "string",
+                            "enum": [
+                              "AUTOMOTIVO"
+                            ]
+                          },
+                          {
+                            "type": "string",
+                            "enum": [
+                              "RESIDENCIAL"
+                            ]
+                          }
+                        ]
+                      }
+                    },
+                    "modulosAtivos": {
+                      "type": "array",
+                      "items": {
+                        "anyOf": [
+                          {
+                            "type": "string",
+                            "enum": [
+                              "AUTOMOTIVO"
+                            ]
+                          },
+                          {
+                            "type": "string",
+                            "enum": [
+                              "RESIDENCIAL"
+                            ]
+                          }
+                        ]
+                      }
+                    },
+                    "status": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "enum": [
+                            "ATIVA"
+                          ]
+                        },
+                        {
+                          "type": "string",
+                          "enum": [
+                            "PENDENTE_PAGAMENTO"
+                          ]
+                        },
+                        {
+                          "type": "string",
+                          "enum": [
+                            "FALHA_PAGAMENTO"
+                          ]
+                        },
+                        {
+                          "type": "string",
+                          "enum": [
+                            "CANCELADA"
+                          ]
+                        }
+                      ]
+                    },
+                    "proximaRenovacaoEm": {
+                      "anyOf": [
+                        {
+                          "type": "integer"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "mudancaAgendada": {
+                      "anyOf": [
+                        {
+                          "type": "object",
+                          "required": [
+                            "solicitacaoId",
+                            "acao",
+                            "modulos",
+                            "solicitadoEm"
+                          ],
+                          "properties": {
+                            "solicitacaoId": {
+                              "type": "string"
+                            },
+                            "acao": {
+                              "anyOf": [
+                                {
+                                  "type": "string",
+                                  "enum": [
+                                    "CONTRATAR"
+                                  ]
+                                },
+                                {
+                                  "type": "string",
+                                  "enum": [
+                                    "ALTERAR"
+                                  ]
+                                },
+                                {
+                                  "type": "string",
+                                  "enum": [
+                                    "CANCELAR"
+                                  ]
+                                }
+                              ]
+                            },
+                            "modulos": {
+                              "type": "array",
+                              "items": {
+                                "anyOf": [
+                                  {
+                                    "type": "string",
+                                    "enum": [
+                                      "AUTOMOTIVO"
+                                    ]
+                                  },
+                                  {
+                                    "type": "string",
+                                    "enum": [
+                                      "RESIDENCIAL"
+                                    ]
+                                  }
+                                ]
+                              }
+                            },
+                            "solicitadoEm": {
+                              "type": "integer"
+                            }
+                          }
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "podeGerenciar": {
+                      "type": "boolean"
+                    },
+                    "ambienteHomologacao": {
+                      "type": "boolean"
+                    },
+                    "duplicado": {
+                      "type": "boolean"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "erro",
+                    "requisicaoId"
+                  ],
+                  "properties": {
+                    "erro": {
+                      "type": "object",
+                      "required": [
+                        "codigo",
+                        "mensagem"
+                      ],
+                      "properties": {
+                        "codigo": {
+                          "type": "string"
+                        },
+                        "mensagem": {
+                          "type": "string"
+                        },
+                        "detalhes": {}
+                      }
+                    },
+                    "requisicaoId": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "erro",
+                    "requisicaoId"
+                  ],
+                  "properties": {
+                    "erro": {
+                      "type": "object",
+                      "required": [
+                        "codigo",
+                        "mensagem"
+                      ],
+                      "properties": {
+                        "codigo": {
+                          "type": "string"
+                        },
+                        "mensagem": {
+                          "type": "string"
+                        },
+                        "detalhes": {}
+                      }
+                    },
+                    "requisicaoId": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "erro",
+                    "requisicaoId"
+                  ],
+                  "properties": {
+                    "erro": {
+                      "type": "object",
+                      "required": [
+                        "codigo",
+                        "mensagem"
+                      ],
+                      "properties": {
+                        "codigo": {
+                          "type": "string"
+                        },
+                        "mensagem": {
+                          "type": "string"
+                        },
+                        "detalhes": {}
+                      }
+                    },
+                    "requisicaoId": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "erro",
+                    "requisicaoId"
+                  ],
+                  "properties": {
+                    "erro": {
+                      "type": "object",
+                      "required": [
+                        "codigo",
+                        "mensagem"
+                      ],
+                      "properties": {
+                        "codigo": {
+                          "type": "string"
+                        },
+                        "mensagem": {
+                          "type": "string"
+                        },
+                        "detalhes": {}
+                      }
+                    },
+                    "requisicaoId": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "erro",
+                    "requisicaoId"
+                  ],
+                  "properties": {
+                    "erro": {
+                      "type": "object",
+                      "required": [
+                        "codigo",
+                        "mensagem"
+                      ],
+                      "properties": {
+                        "codigo": {
+                          "type": "string"
+                        },
+                        "mensagem": {
+                          "type": "string"
+                        },
+                        "detalhes": {}
+                      }
+                    },
+                    "requisicaoId": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "erro",
+                    "requisicaoId"
+                  ],
+                  "properties": {
+                    "erro": {
+                      "type": "object",
+                      "required": [
+                        "codigo",
+                        "mensagem"
+                      ],
+                      "properties": {
+                        "codigo": {
+                          "type": "string"
+                        },
+                        "mensagem": {
+                          "type": "string"
+                        },
+                        "detalhes": {}
+                      }
+                    },
+                    "requisicaoId": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/empresas/{empresaId}/assinatura/eventos": {
+      "post": {
+        "summary": "Processa evento idempotente de confirmação, renovação, falha ou cancelamento de assinatura",
+        "tags": [
+          "Empresas"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "eventoId",
+                  "tipo"
+                ],
+                "properties": {
+                  "eventoId": {
+                    "minLength": 3,
+                    "maxLength": 120,
+                    "type": "string"
+                  },
+                  "tipo": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "enum": [
+                          "PAGAMENTO_CONFIRMADO"
+                        ]
+                      },
+                      {
+                        "type": "string",
+                        "enum": [
+                          "PAGAMENTO_PENDENTE"
+                        ]
+                      },
+                      {
+                        "type": "string",
+                        "enum": [
+                          "FALHA_PAGAMENTO"
+                        ]
+                      },
+                      {
+                        "type": "string",
+                        "enum": [
+                          "RENOVACAO_CONFIRMADA"
+                        ]
+                      },
+                      {
+                        "type": "string",
+                        "enum": [
+                          "ASSINATURA_CANCELADA"
+                        ]
+                      },
+                      {
+                        "type": "string",
+                        "enum": [
+                          "REEMBOLSO_PROCESSADO"
+                        ]
+                      }
+                    ]
+                  },
+                  "modulos": {
+                    "maxItems": 2,
+                    "type": "array",
+                    "items": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "enum": [
+                            "AUTOMOTIVO"
+                          ]
+                        },
+                        {
+                          "type": "string",
+                          "enum": [
+                            "RESIDENCIAL"
+                          ]
+                        }
+                      ]
+                    }
+                  },
+                  "proximaRenovacaoEm": {
+                    "anyOf": [
+                      {
+                        "minimum": 0,
+                        "type": "integer"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "schema": {
+              "pattern": "^[0-9a-fA-F-]{36}$",
+              "type": "string"
+            },
+            "in": "path",
+            "name": "empresaId",
+            "required": true,
+            "description": "UUID estável gerado pelo cliente ou pelo servidor."
+          }
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "empresaId",
+                    "planoCodigo",
+                    "modulosContratados",
+                    "modulosAtivos",
+                    "status",
+                    "proximaRenovacaoEm",
+                    "mudancaAgendada",
+                    "podeGerenciar",
+                    "ambienteHomologacao"
+                  ],
+                  "properties": {
+                    "empresaId": {
+                      "pattern": "^[0-9a-fA-F-]{36}$",
+                      "description": "UUID estável gerado pelo cliente ou pelo servidor.",
+                      "type": "string"
+                    },
+                    "planoCodigo": {
+                      "type": "string"
+                    },
+                    "modulosContratados": {
+                      "type": "array",
+                      "items": {
+                        "anyOf": [
+                          {
+                            "type": "string",
+                            "enum": [
+                              "AUTOMOTIVO"
+                            ]
+                          },
+                          {
+                            "type": "string",
+                            "enum": [
+                              "RESIDENCIAL"
+                            ]
+                          }
+                        ]
+                      }
+                    },
+                    "modulosAtivos": {
+                      "type": "array",
+                      "items": {
+                        "anyOf": [
+                          {
+                            "type": "string",
+                            "enum": [
+                              "AUTOMOTIVO"
+                            ]
+                          },
+                          {
+                            "type": "string",
+                            "enum": [
+                              "RESIDENCIAL"
+                            ]
+                          }
+                        ]
+                      }
+                    },
+                    "status": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "enum": [
+                            "ATIVA"
+                          ]
+                        },
+                        {
+                          "type": "string",
+                          "enum": [
+                            "PENDENTE_PAGAMENTO"
+                          ]
+                        },
+                        {
+                          "type": "string",
+                          "enum": [
+                            "FALHA_PAGAMENTO"
+                          ]
+                        },
+                        {
+                          "type": "string",
+                          "enum": [
+                            "CANCELADA"
+                          ]
+                        }
+                      ]
+                    },
+                    "proximaRenovacaoEm": {
+                      "anyOf": [
+                        {
+                          "type": "integer"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "mudancaAgendada": {
+                      "anyOf": [
+                        {
+                          "type": "object",
+                          "required": [
+                            "solicitacaoId",
+                            "acao",
+                            "modulos",
+                            "solicitadoEm"
+                          ],
+                          "properties": {
+                            "solicitacaoId": {
+                              "type": "string"
+                            },
+                            "acao": {
+                              "anyOf": [
+                                {
+                                  "type": "string",
+                                  "enum": [
+                                    "CONTRATAR"
+                                  ]
+                                },
+                                {
+                                  "type": "string",
+                                  "enum": [
+                                    "ALTERAR"
+                                  ]
+                                },
+                                {
+                                  "type": "string",
+                                  "enum": [
+                                    "CANCELAR"
+                                  ]
+                                }
+                              ]
+                            },
+                            "modulos": {
+                              "type": "array",
+                              "items": {
+                                "anyOf": [
+                                  {
+                                    "type": "string",
+                                    "enum": [
+                                      "AUTOMOTIVO"
+                                    ]
+                                  },
+                                  {
+                                    "type": "string",
+                                    "enum": [
+                                      "RESIDENCIAL"
+                                    ]
+                                  }
+                                ]
+                              }
+                            },
+                            "solicitadoEm": {
+                              "type": "integer"
+                            }
+                          }
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "podeGerenciar": {
+                      "type": "boolean"
+                    },
+                    "ambienteHomologacao": {
+                      "type": "boolean"
+                    },
+                    "duplicado": {
+                      "type": "boolean"
                     }
                   }
                 }
@@ -10739,6 +12622,27 @@
           },
           {
             "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "enum": [
+                    "AUTOMOTIVO"
+                  ]
+                },
+                {
+                  "type": "string",
+                  "enum": [
+                    "RESIDENCIAL"
+                  ]
+                }
+              ]
+            },
+            "in": "query",
+            "name": "segmento",
+            "required": false
+          },
+          {
+            "schema": {
               "minimum": 1,
               "type": "integer"
             },
@@ -10793,6 +12697,7 @@
                         "required": [
                           "id",
                           "empresaId",
+                          "segmento",
                           "equipamento",
                           "marca",
                           "modelo",
@@ -10826,6 +12731,22 @@
                             "pattern": "^[0-9a-fA-F-]{36}$",
                             "description": "UUID estável gerado pelo cliente ou pelo servidor.",
                             "type": "string"
+                          },
+                          "segmento": {
+                            "anyOf": [
+                              {
+                                "type": "string",
+                                "enum": [
+                                  "AUTOMOTIVO"
+                                ]
+                              },
+                              {
+                                "type": "string",
+                                "enum": [
+                                  "RESIDENCIAL"
+                                ]
+                              }
+                            ]
                           },
                           "equipamento": {
                             "type": "string"
@@ -11171,6 +13092,22 @@
                   {
                     "type": "object",
                     "properties": {
+                      "segmento": {
+                        "anyOf": [
+                          {
+                            "type": "string",
+                            "enum": [
+                              "AUTOMOTIVO"
+                            ]
+                          },
+                          {
+                            "type": "string",
+                            "enum": [
+                              "RESIDENCIAL"
+                            ]
+                          }
+                        ]
+                      },
                       "equipamento": {
                         "maxLength": 120,
                         "type": "string"
@@ -11278,6 +13215,7 @@
                   "required": [
                     "id",
                     "empresaId",
+                    "segmento",
                     "equipamento",
                     "marca",
                     "modelo",
@@ -11311,6 +13249,22 @@
                       "pattern": "^[0-9a-fA-F-]{36}$",
                       "description": "UUID estável gerado pelo cliente ou pelo servidor.",
                       "type": "string"
+                    },
+                    "segmento": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "enum": [
+                            "AUTOMOTIVO"
+                          ]
+                        },
+                        {
+                          "type": "string",
+                          "enum": [
+                            "RESIDENCIAL"
+                          ]
+                        }
+                      ]
                     },
                     "equipamento": {
                       "type": "string"
@@ -11673,6 +13627,7 @@
                   "required": [
                     "id",
                     "empresaId",
+                    "segmento",
                     "equipamento",
                     "marca",
                     "modelo",
@@ -11706,6 +13661,22 @@
                       "pattern": "^[0-9a-fA-F-]{36}$",
                       "description": "UUID estável gerado pelo cliente ou pelo servidor.",
                       "type": "string"
+                    },
+                    "segmento": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "enum": [
+                            "AUTOMOTIVO"
+                          ]
+                        },
+                        {
+                          "type": "string",
+                          "enum": [
+                            "RESIDENCIAL"
+                          ]
+                        }
+                      ]
                     },
                     "equipamento": {
                       "type": "string"
@@ -12039,6 +14010,22 @@
                   {
                     "type": "object",
                     "properties": {
+                      "segmento": {
+                        "anyOf": [
+                          {
+                            "type": "string",
+                            "enum": [
+                              "AUTOMOTIVO"
+                            ]
+                          },
+                          {
+                            "type": "string",
+                            "enum": [
+                              "RESIDENCIAL"
+                            ]
+                          }
+                        ]
+                      },
                       "equipamento": {
                         "maxLength": 120,
                         "type": "string"
@@ -12156,6 +14143,7 @@
                   "required": [
                     "id",
                     "empresaId",
+                    "segmento",
                     "equipamento",
                     "marca",
                     "modelo",
@@ -12189,6 +14177,22 @@
                       "pattern": "^[0-9a-fA-F-]{36}$",
                       "description": "UUID estável gerado pelo cliente ou pelo servidor.",
                       "type": "string"
+                    },
+                    "segmento": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "enum": [
+                            "AUTOMOTIVO"
+                          ]
+                        },
+                        {
+                          "type": "string",
+                          "enum": [
+                            "RESIDENCIAL"
+                          ]
+                        }
+                      ]
                     },
                     "equipamento": {
                       "type": "string"
@@ -12558,6 +14562,7 @@
                   "required": [
                     "id",
                     "empresaId",
+                    "segmento",
                     "equipamento",
                     "marca",
                     "modelo",
@@ -12591,6 +14596,22 @@
                       "pattern": "^[0-9a-fA-F-]{36}$",
                       "description": "UUID estável gerado pelo cliente ou pelo servidor.",
                       "type": "string"
+                    },
+                    "segmento": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "enum": [
+                            "AUTOMOTIVO"
+                          ]
+                        },
+                        {
+                          "type": "string",
+                          "enum": [
+                            "RESIDENCIAL"
+                          ]
+                        }
+                      ]
                     },
                     "equipamento": {
                       "type": "string"

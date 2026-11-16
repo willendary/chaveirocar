@@ -69,14 +69,7 @@ public sealed class ClienteApi : IDisposable
         DefinirTokens(
             tokens.TryGetProperty("acesso", out var a) ? a.GetString() : null,
             tokens.TryGetProperty("refresh", out var r) ? r.GetString() : null);
-        var empresas = new List<Empresa>();
-        foreach (var item in doc.GetProperty("empresas").EnumerateArray())
-        {
-            empresas.Add(new Empresa(
-                item.GetProperty("id").GetString() ?? "",
-                item.GetProperty("nome").GetString() ?? "",
-                item.GetProperty("papel").GetString() ?? ""));
-        }
+        var empresas = doc.GetProperty("empresas").EnumerateArray().Select(EmpresaDeJson).ToList();
         var usuario = doc.GetProperty("usuario");
         return new ResultadoLogin(
             true,
@@ -230,15 +223,116 @@ public sealed class ClienteApi : IDisposable
         using var resposta = await GetAsync("/api/v1/empresas");
         resposta.EnsureSuccessStatusCode();
         var doc = await LerJson(resposta);
-        var lista = new List<Empresa>();
-        foreach (var item in doc.GetProperty("itens").EnumerateArray())
+        return doc.GetProperty("itens").EnumerateArray().Select(EmpresaDeJson).ToList();
+    }
+
+    public async Task<EstadoAssinatura> ObterAssinaturaAsync(string empresaId)
+    {
+        using var resposta = await GetAsync($"/api/v1/empresas/{empresaId}/assinatura");
+        await ExigirSucessoOuMensagemAsync(resposta);
+        var doc = await LerJson(resposta);
+        return AssinaturaDeJson(doc);
+    }
+
+    public async Task<EstadoAssinatura> SolicitarAssinaturaAsync(
+        string empresaId,
+        string acao,
+        IReadOnlyList<string> modulos)
+    {
+        using var resposta = await PostAsync(
+            $"/api/v1/empresas/{empresaId}/assinatura/solicitar",
+            new { acao, modulos });
+        await ExigirSucessoOuMensagemAsync(resposta);
+        var doc = await LerJson(resposta);
+        return AssinaturaDeJson(doc);
+    }
+
+    public async Task<EstadoAssinatura> ProcessarEventoAssinaturaAsync(
+        string empresaId,
+        string eventoId,
+        string tipo,
+        IReadOnlyList<string>? modulos = null)
+    {
+        object corpo = modulos is { Count: > 0 }
+            ? new { eventoId, tipo, modulos }
+            : new { eventoId, tipo };
+        using var resposta = await PostAsync(
+            $"/api/v1/empresas/{empresaId}/assinatura/eventos",
+            corpo);
+        await ExigirSucessoOuMensagemAsync(resposta);
+        var doc = await LerJson(resposta);
+        return AssinaturaDeJson(doc);
+    }
+
+    private static async Task ExigirSucessoOuMensagemAsync(HttpResponseMessage resposta)
+    {
+        if (resposta.IsSuccessStatusCode) return;
+        var texto = await resposta.Content.ReadAsStringAsync();
+        try
         {
-            lista.Add(new Empresa(
-                item.GetProperty("id").GetString() ?? "",
-                item.GetProperty("nome").GetString() ?? "",
-                item.GetProperty("papel").GetString() ?? ""));
+            using var doc = JsonDocument.Parse(texto);
+            if (doc.RootElement.TryGetProperty("mensagem", out var msg) &&
+                msg.ValueKind == JsonValueKind.String &&
+                !string.IsNullOrWhiteSpace(msg.GetString()))
+            {
+                throw new InvalidOperationException(msg.GetString());
+            }
         }
-        return lista;
+        catch (JsonException) { }
+        throw new InvalidOperationException($"Erro {(int)resposta.StatusCode}: {texto}");
+    }
+
+    private static Empresa EmpresaDeJson(JsonElement item)
+    {
+        var id = item.GetProperty("id").GetString() ?? "";
+        var nome = item.GetProperty("nome").GetString() ?? "";
+        var papel = item.GetProperty("papel").GetString() ?? "";
+        var plano = item.TryGetProperty("planoCodigo", out var p) && p.ValueKind == JsonValueKind.String
+            ? p.GetString() ?? "COMPLETO" : "COMPLETO";
+        var status = item.TryGetProperty("assinaturaStatus", out var st) && st.ValueKind == JsonValueKind.String
+            ? st.GetString() ?? "ATIVA" : "ATIVA";
+        var modulos = LerListaStrings(item, "modulosAtivos") ?? ["AUTOMOTIVO", "RESIDENCIAL"];
+        long? renovacao = item.TryGetProperty("proximaRenovacaoEm", out var rEl) &&
+                          rEl.ValueKind == JsonValueKind.Number
+            ? rEl.GetInt64() : null;
+        return new Empresa(id, nome, papel, plano, modulos, status, renovacao);
+    }
+
+    private static List<string>? LerListaStrings(JsonElement obj, string campo)
+    {
+        if (!obj.TryGetProperty(campo, out var el) || el.ValueKind != JsonValueKind.Array) return null;
+        return el.EnumerateArray()
+            .Select(m => m.GetString() ?? "")
+            .Where(m => !string.IsNullOrWhiteSpace(m))
+            .ToList();
+    }
+
+    private static EstadoAssinatura AssinaturaDeJson(JsonElement json)
+    {
+        var plano = json.TryGetProperty("planoCodigo", out var p) && p.ValueKind == JsonValueKind.String
+            ? p.GetString() ?? "COMPLETO" : "COMPLETO";
+        var status = json.TryGetProperty("status", out var st) && st.ValueKind == JsonValueKind.String
+            ? st.GetString() ?? "ATIVA" : "ATIVA";
+        var ativos = LerListaStrings(json, "modulosAtivos") ?? [];
+        var contratados = LerListaStrings(json, "modulosContratados") ?? [];
+        long? renovacao = json.TryGetProperty("proximaRenovacaoEm", out var rEl) &&
+                          rEl.ValueKind == JsonValueKind.Number
+            ? rEl.GetInt64() : null;
+        var podeGerenciar = json.TryGetProperty("podeGerenciar", out var pg) && pg.ValueKind == JsonValueKind.True;
+        var homologacao = json.TryGetProperty("ambienteHomologacao", out var ah) && ah.ValueKind == JsonValueKind.True;
+        var duplicado = json.TryGetProperty("duplicado", out var dup) && dup.ValueKind == JsonValueKind.True;
+        var mudancaTexto = "";
+        if (json.TryGetProperty("mudancaAgendada", out var mObj) && mObj.ValueKind == JsonValueKind.Object)
+        {
+            var acao = mObj.TryGetProperty("acao", out var aEl) ? aEl.GetString() ?? "" : "";
+            var mods = LerListaStrings(mObj, "modulos") ?? [];
+            var rotulos = string.Join(" + ", mods.Select(m => m == "RESIDENCIAL" ? "Residencial" : "Veicular"));
+            mudancaTexto = acao == "CANCELAR"
+                ? "Cancelamento agendado (aguardando confirmação)"
+                : $"Alteração solicitada ({rotulos} · aguardando confirmação de pagamento)";
+        }
+        return new EstadoAssinatura(
+            plano, status, ativos, contratados, renovacao, mudancaTexto, podeGerenciar, homologacao, duplicado);
     }
 
     public async Task<RespostaSync> EnviarLoteAsync(string empresaId, object operacoes)
@@ -250,13 +344,22 @@ public sealed class ClienteApi : IDisposable
         var lista = new List<ResultadOperacao>();
         foreach (var item in doc.GetProperty("resultados").EnumerateArray())
         {
+            var temReg = item.TryGetProperty("registro", out var reg) &&
+                         reg.ValueKind != JsonValueKind.Null &&
+                         reg.ValueKind != JsonValueKind.Undefined;
+            var rev = item.TryGetProperty("revisao", out var r) && r.ValueKind == JsonValueKind.Number
+                ? r.GetInt64() : 0;
+            if (rev <= 0 && temReg && reg.ValueKind == JsonValueKind.Object &&
+                reg.TryGetProperty("revisao", out var regRev) && regRev.ValueKind == JsonValueKind.Number)
+            {
+                rev = regRev.GetInt64();
+            }
             lista.Add(new ResultadOperacao
             {
                 OpId = item.GetProperty("opId").GetString() ?? "",
                 Status = item.GetProperty("status").GetString() ?? "",
-                Revisao = item.TryGetProperty("revisao", out var r) ? r.GetInt64() : 0,
-                Registro = item.TryGetProperty("registro", out var reg)
-                    ? JsonSerializer.Serialize(reg) : null,
+                Revisao = rev,
+                Registro = temReg ? JsonSerializer.Serialize(reg) : null,
             });
         }
         return new RespostaSync(lista, doc.GetProperty("cursor").GetInt64());
@@ -464,7 +567,25 @@ public sealed class ClienteApi : IDisposable
 
     public void Dispose() => _http.Dispose();
 
-    public sealed record Empresa(string Id, string Nome, string Papel = "");
+    public sealed record Empresa(
+        string Id,
+        string Nome,
+        string Papel = "",
+        string PlanoCodigo = "COMPLETO",
+        IReadOnlyList<string>? ModulosAtivos = null,
+        string AssinaturaStatus = "ATIVA",
+        long? ProximaRenovacaoEm = null);
+
+    public sealed record EstadoAssinatura(
+        string PlanoCodigo,
+        string Status,
+        IReadOnlyList<string> ModulosAtivos,
+        IReadOnlyList<string> ModulosContratados,
+        long? ProximaRenovacaoEm,
+        string MudancaAgendada,
+        bool PodeGerenciar,
+        bool AmbienteHomologacao,
+        bool Duplicado = false);
     public sealed record ConvitePreview(string EmpresaNome, string Email, string Papel, long ExpiraEm);
     public sealed record Membro(string UsuarioId, string Nome, string Email, string Papel, long Desde)
     {
@@ -567,7 +688,7 @@ public sealed class Atendimento
 
     [JsonIgnore]
     public string SegmentoFormatado =>
-        Segmento == "RESIDENCIAL" ? "Residencial" : "Automotivo";
+        Segmento == "RESIDENCIAL" ? "Residencial" : "Veicular";
 
     [JsonIgnore]
     public string IdentificacaoPrincipal =>
@@ -672,6 +793,8 @@ internal static class Converter
     public static ArmazenamentoLocal.Ficha FichaDeJson(JsonElement e) => new()
     {
         Uuid = e.GetProperty("id").GetString() ?? "",
+        Segmento = e.TryGetProperty("segmento", out var seg) && seg.ValueKind == JsonValueKind.String
+            ? seg.GetString() ?? "AUTOMOTIVO" : "AUTOMOTIVO",
         Equipamento = e.GetProperty("equipamento").GetString() ?? "",
         Marca = e.GetProperty("marca").GetString() ?? "",
         Modelo = e.GetProperty("modelo").GetString() ?? "",
@@ -694,6 +817,7 @@ internal static class Converter
 
     public static object Dados(ArmazenamentoLocal.Ficha f) => new
     {
+        segmento = string.IsNullOrWhiteSpace(f.Segmento) ? "AUTOMOTIVO" : f.Segmento,
         equipamento = f.Equipamento,
         marca = f.Marca,
         modelo = f.Modelo,

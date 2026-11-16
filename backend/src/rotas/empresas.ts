@@ -2,19 +2,31 @@ import type { FastifyPluginAsync } from "fastify";
 import { Type } from "@sinclair/typebox";
 import type { ContextoRotas } from "./contexto.js";
 import { respostasErro } from "./contexto.js";
+import { erros } from "../erros.js";
 import { exigirUsuario, obterIp, obterUserAgent } from "../auth/autenticacao.js";
-import { criarEmpresa } from "../auth/contas.js";
+import { criarEmpresa, listarEmpresasDoUsuario } from "../auth/contas.js";
 import {
+  AssinaturaRespostaSchema,
   ConviteSchema,
   EmpresaSchema,
+  EventoAssinaturaEntradaSchema,
   ID,
   MembroSchema,
   PapelSchema,
+  SolicitarAssinaturaEntradaSchema,
   TokensSchema,
   UsuarioSchema,
   type Papel,
+  type SegmentoAtendimento,
 } from "../esquemas.js";
 import { exigirMembro, exigirGestao, registrarAuditoria } from "../permissoes.js";
+import {
+  obterAssinaturaEmpresa,
+  processarEventoAssinatura,
+  solicitarMudancaAssinatura,
+  type AcaoSolicitacaoAssinatura,
+  type TipoEventoAssinatura,
+} from "../servicos/assinaturas.js";
 import {
   aceitarConvite,
   alterarPapel,
@@ -95,18 +107,10 @@ export const rotasEmpresas: FastifyPluginAsync<ContextoRotas> = async (app, opco
     },
     async (request) => {
       const usuario = exigirUsuario(request);
-      const resultado = await banco.execute({
-        sql: `SELECT e.id, e.nome, m.papel FROM membros m
-              JOIN empresas e ON e.id = m.empresa_id
-              WHERE m.usuario_id = ? AND m.excluido_em IS NULL AND e.excluido_em IS NULL
-              ORDER BY e.nome`,
-        args: [usuario.usuarioId],
-      });
       return {
-        itens: resultado.rows.map((linha) => ({
-          id: String(linha.id),
-          nome: String(linha.nome),
-          papel: String(linha.papel) as Papel,
+        itens: (await listarEmpresasDoUsuario(banco, usuario.usuarioId)).map((item) => ({
+          ...item,
+          papel: item.papel as Papel,
         })),
       };
     },
@@ -162,7 +166,119 @@ export const rotasEmpresas: FastifyPluginAsync<ContextoRotas> = async (app, opco
       });
       const linha = resultado.rows[0];
       if (!linha) throw new Error("Empresa inconsistente.");
-      return { id: empresaId, nome: String(linha.nome), papel: membro.papel };
+      const assinatura = await obterAssinaturaEmpresa(banco, empresaId);
+      return {
+        id: empresaId,
+        nome: String(linha.nome),
+        papel: membro.papel,
+        planoCodigo: assinatura.planoCodigo,
+        modulosAtivos: assinatura.modulosAtivos,
+        assinaturaStatus: assinatura.status,
+        proximaRenovacaoEm: assinatura.proximaRenovacaoEm,
+      };
+    },
+  );
+
+  app.get(
+    "/empresas/:empresaId/assinatura",
+    {
+      preHandler: autenticacao.exigir,
+      schema: {
+        tags: ["Empresas"],
+        summary: "Consulta plano, módulos contratados e status da assinatura da empresa",
+        security: [{ bearerAuth: [] }],
+        params: EmpresaParams,
+        response: { 200: AssinaturaRespostaSchema, ...respostasErro },
+      },
+    },
+    async (request) => {
+      const usuario = exigirUsuario(request);
+      const { empresaId } = request.params as { empresaId: string };
+      const membro = await exigirMembro(banco, empresaId, usuario.usuarioId);
+      const podeGerenciar = membro.papel === "proprietario" || membro.papel === "administrador";
+      return obterAssinaturaEmpresa(banco, empresaId, {
+        podeGerenciar,
+        ambienteHomologacao: config.ambiente !== "producao",
+      });
+    },
+  );
+
+  app.post(
+    "/empresas/:empresaId/assinatura/solicitar",
+    {
+      preHandler: autenticacao.exigir,
+      schema: {
+        tags: ["Empresas"],
+        summary: "Solicita contratação, troca ou cancelamento de módulos (aguarda confirmação)",
+        security: [{ bearerAuth: [] }],
+        params: EmpresaParams,
+        body: SolicitarAssinaturaEntradaSchema,
+        response: { 200: AssinaturaRespostaSchema, ...respostasErro },
+      },
+    },
+    async (request) => {
+      const usuario = exigirUsuario(request);
+      const { empresaId } = request.params as { empresaId: string };
+      const membro = await exigirMembro(banco, empresaId, usuario.usuarioId);
+      exigirGestao(membro);
+      const entrada = request.body as {
+        acao: AcaoSolicitacaoAssinatura;
+        modulos?: SegmentoAtendimento[];
+      };
+      return solicitarMudancaAssinatura(
+        banco,
+        {
+          empresaId,
+          usuarioId: usuario.usuarioId,
+          ip: obterIp(request),
+          podeGerenciar: true,
+          ambienteHomologacao: config.ambiente !== "producao",
+        },
+        entrada,
+      );
+    },
+  );
+
+  app.post(
+    "/empresas/:empresaId/assinatura/eventos",
+    {
+      preHandler: autenticacao.exigir,
+      schema: {
+        tags: ["Empresas"],
+        summary: "Processa evento idempotente de confirmação, renovação, falha ou cancelamento de assinatura",
+        security: [{ bearerAuth: [] }],
+        params: EmpresaParams,
+        body: EventoAssinaturaEntradaSchema,
+        response: { 200: AssinaturaRespostaSchema, ...respostasErro },
+      },
+    },
+    async (request) => {
+      if (config.ambiente === "producao") {
+        throw erros.semPermissao(
+          "Simulação manual de eventos de assinatura é permitida apenas em ambiente de teste ou homologação.",
+        );
+      }
+      const usuario = exigirUsuario(request);
+      const { empresaId } = request.params as { empresaId: string };
+      const membro = await exigirMembro(banco, empresaId, usuario.usuarioId);
+      exigirGestao(membro);
+      const entrada = request.body as {
+        eventoId: string;
+        tipo: TipoEventoAssinatura;
+        modulos?: SegmentoAtendimento[];
+        proximaRenovacaoEm?: number | null;
+      };
+      return processarEventoAssinatura(
+        banco,
+        {
+          empresaId,
+          usuarioId: usuario.usuarioId,
+          ip: obterIp(request),
+          podeGerenciar: true,
+          ambienteHomologacao: true,
+        },
+        entrada,
+      );
     },
   );
 

@@ -2,6 +2,7 @@ export type CodigoErro =
   | "VALIDACAO"
   | "NAO_AUTENTICADO"
   | "SEM_PERMISSAO"
+  | "MODULO_NAO_CONTRATADO"
   | "NAO_ENCONTRADO"
   | "CONFLITO"
   | "LIMITE_EXCEDIDO"
@@ -29,6 +30,14 @@ export const erros = {
     new ErroApi(401, "NAO_AUTENTICADO", mensagem),
   semPermissao: (mensagem = "Você não tem permissão para esta ação.") =>
     new ErroApi(403, "SEM_PERMISSAO", mensagem),
+  moduloNaoContratado: (modulo: string, mensagem?: string) =>
+    new ErroApi(
+      403,
+      "MODULO_NAO_CONTRATADO",
+      mensagem ??
+        `O módulo ${modulo === "RESIDENCIAL" ? "Residencial" : "Veicular"} não está ativo no plano desta empresa.`,
+      { modulo },
+    ),
   naoEncontrado: (mensagem = "Registro não encontrado.") =>
     new ErroApi(404, "NAO_ENCONTRADO", mensagem),
   conflito: (mensagem = "O registro foi alterado por outra pessoa.", detalhes?: unknown) =>

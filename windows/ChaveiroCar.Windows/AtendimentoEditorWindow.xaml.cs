@@ -37,6 +37,7 @@ public partial class AtendimentoEditorWindow : Window
 
     private readonly Atendimento _original;
     private readonly List<ArmazenamentoLocal.FotoLocal> _fotosExistentes;
+    private readonly Action<Atendimento>? _aoVerFicha;
     private readonly List<string> _novasCopias = [];
     private readonly ObservableCollection<ArmazenamentoLocal.FotoLocal> _fotosNovas = [];
     private bool _carregando;
@@ -46,11 +47,16 @@ public partial class AtendimentoEditorWindow : Window
 
     public AtendimentoEditorWindow(
         Atendimento original,
-        IEnumerable<ArmazenamentoLocal.FotoLocal> fotos)
+        IEnumerable<ArmazenamentoLocal.FotoLocal> fotos,
+        bool segmentoFixo = false,
+        Action<Atendimento>? aoVerFicha = null)
     {
         _original = Copiar(original);
         _fotosExistentes = fotos.Select(Copiar).ToList();
+        _aoVerFicha = aoVerFicha;
         InitializeComponent();
+        Segmento.IsEnabled = !segmentoFixo;
+        BtnVerFicha.Visibility = _aoVerFicha is not null ? Visibility.Visible : Visibility.Collapsed;
         FotosExistentes.ItemsSource = _fotosExistentes;
         FotosNovas.ItemsSource = _fotosNovas;
         Preencher();
@@ -282,6 +288,51 @@ public partial class AtendimentoEditorWindow : Window
         }
     }
 
+    private Atendimento ConstruirRascunho(long valorCentavos, IEnumerable<string> tipos)
+    {
+        var segmento = SegmentoAtual();
+        var data = DataServico.SelectedDate ?? DateTime.Today;
+        return new Atendimento
+        {
+            Uuid = _original.Uuid,
+            Segmento = segmento,
+            Placa = Placa.Text.Trim().ToUpperInvariant(),
+            Marca = Marca.Text.Trim(),
+            Modelo = Modelo.Text.Trim(),
+            Ano = Ano.Text.Trim(),
+            Chassi = Chassi.Text.Trim(),
+            TipoLocal = TipoLocal.Text.Trim(),
+            AmbientePorta = AmbientePorta.Text.Trim(),
+            MarcaFechadura = MarcaFechadura.Text.Trim(),
+            ModeloFechadura = ModeloFechadura.Text.Trim(),
+            TipoCilindro = TipoCilindro.Text.Trim(),
+            EnderecoLocal = EnderecoLocal.Text.Trim(),
+            DataServico = new DateTimeOffset(data).ToUnixTimeMilliseconds(),
+            TiposServico = tipos.ToList(),
+            Defeito = Defeito.Text.Trim(),
+            Solucao = Solucao.Text.Trim(),
+            Abertura = Abertura.Text.Trim(),
+            CodigoChave = CodigoChave.Text.Trim(),
+            CodigoConfiguracao = CodigoConfiguracao.Text.Trim(),
+            ChipTransponder = segmento == "RESIDENCIAL" ? "" : ChipTransponder.Text.Trim(),
+            Ferramenta = Ferramenta.Text.Trim(),
+            ValorCentavos = valorCentavos,
+            ClienteNome = ClienteNome.Text.Trim(),
+            ClienteTelefone = ClienteTelefone.Text.Trim(),
+            Pago = Pago.IsChecked == true,
+            Revisao = _original.Revisao,
+            ExcluidoEm = _original.ExcluidoEm,
+        };
+    }
+
+    private void VerFicha_Click(object sender, RoutedEventArgs e)
+    {
+        var tipos = TiposServico.SelectedItems.OfType<ListBoxItem>()
+            .Select(item => item.Tag?.ToString() ?? "")
+            .Where(tipo => tipo.Length > 0);
+        _aoVerFicha?.Invoke(ConstruirRascunho(_original.ValorCentavos, tipos));
+    }
+
     private void Salvar_Click(object sender, RoutedEventArgs e)
     {
         var segmento = SegmentoAtual();
@@ -327,38 +378,8 @@ public partial class AtendimentoEditorWindow : Window
             return;
         }
 
-        var data = DataServico.SelectedDate ?? DateTime.Today;
-        Resultado = new Atendimento
-        {
-            Uuid = _original.Uuid,
-            Segmento = segmento,
-            Placa = placa,
-            Marca = Marca.Text.Trim(),
-            Modelo = modelo,
-            Ano = Ano.Text.Trim(),
-            Chassi = Chassi.Text.Trim(),
-            TipoLocal = tipoLocal,
-            AmbientePorta = ambientePorta,
-            MarcaFechadura = marcaFechadura,
-            ModeloFechadura = modeloFechadura,
-            TipoCilindro = TipoCilindro.Text.Trim(),
-            EnderecoLocal = EnderecoLocal.Text.Trim(),
-            DataServico = new DateTimeOffset(data).ToUnixTimeMilliseconds(),
-            TiposServico = tipos,
-            Defeito = Defeito.Text.Trim(),
-            Solucao = Solucao.Text.Trim(),
-            Abertura = Abertura.Text.Trim(),
-            CodigoChave = CodigoChave.Text.Trim(),
-            CodigoConfiguracao = CodigoConfiguracao.Text.Trim(),
-            ChipTransponder = segmento == "RESIDENCIAL" ? "" : ChipTransponder.Text.Trim(),
-            Ferramenta = Ferramenta.Text.Trim(),
-            ValorCentavos = decimal.ToInt64(decimal.Round(valor * 100m, 0, MidpointRounding.AwayFromZero)),
-            ClienteNome = ClienteNome.Text.Trim(),
-            ClienteTelefone = ClienteTelefone.Text.Trim(),
-            Pago = Pago.IsChecked == true,
-            Revisao = _original.Revisao,
-            ExcluidoEm = _original.ExcluidoEm,
-        };
+        var centavos = decimal.ToInt64(decimal.Round(valor * 100m, 0, MidpointRounding.AwayFromZero));
+        Resultado = ConstruirRascunho(centavos, tipos);
         ResultadoFotos = _fotosExistentes.Concat(_fotosNovas).ToList();
         DialogResult = true;
     }

@@ -92,6 +92,7 @@ object Backup {
       val objeto = JSONObject().apply {
         put("id", ficha.id)
         put("atualizadoEm", ficha.atualizadoEm)
+        put("segmento", ficha.segmento.name)
         put("equipamento", ficha.equipamento)
         put("marca", ficha.marca)
         put("modelo", ficha.modelo)
@@ -244,6 +245,7 @@ object Backup {
         ?.let { bytes -> Fotos.salvarDeBytes(contexto, bytes) }
         ?: local?.foto.orEmpty()
       val ficha = FichaTecnica(
+        segmento = SegmentoAtendimento.de(objeto.optString("segmento")),
         equipamento = objeto.optString("equipamento"),
         marca = objeto.optString("marca"),
         modelo = objeto.optString("modelo"),

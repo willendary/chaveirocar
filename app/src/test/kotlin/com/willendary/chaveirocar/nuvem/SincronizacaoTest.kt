@@ -1,7 +1,9 @@
 package com.willendary.chaveirocar.nuvem
 
+import com.willendary.chaveirocar.catalogo.CatalogoFichasPadrao
 import com.willendary.chaveirocar.dados.Fotos
 import com.willendary.chaveirocar.modelo.Atendimento
+import com.willendary.chaveirocar.modelo.FichaTecnica
 import com.willendary.chaveirocar.modelo.SegmentoAtendimento
 import com.willendary.chaveirocar.modelo.SetaAnotacao
 import com.willendary.chaveirocar.modelo.TipoServico
@@ -124,5 +126,41 @@ class SincronizacaoTest {
     val segundaTentativa = Sincronizacao.operacaoLocal(opIdFixo, "uuid-1", "upsert", 2, atendimento = original)
     assertEquals(opIdFixo, primeiraTentativa.getString("opId"))
     assertEquals(primeiraTentativa.getString("opId"), segundaTentativa.getString("opId"))
+  }
+
+  @Test
+  fun `ficha técnica preserva segmento na serialização de sincronia`() {
+    val fichaRes = FichaTecnica(
+      id = 7L,
+      segmento = SegmentoAtendimento.RESIDENCIAL,
+      equipamento = "Manual Fabricante",
+      marca = "Intelbras",
+      modelo = "FR 220",
+      sistema = "Digital RFID",
+      manual = "Manual de fechadura digital",
+    )
+    val dados = Sincronizacao.dadosDeFicha(fichaRes)
+    assertEquals("RESIDENCIAL", dados.getString("segmento"))
+
+    val remota = Sincronizacao.fichaDeRemoto(dados.apply {
+      put("id", "ficha-uuid-res")
+      put("revisao", 2)
+      put("atualizadoEm", 1700000000000L)
+    })
+    assertEquals(SegmentoAtendimento.RESIDENCIAL, remota.segmento)
+    assertEquals("Intelbras", remota.marca)
+  }
+
+  @Test
+  fun `catálogo padrão separa veicular e residencial com rótulo Veicular`() {
+    assertEquals("Veicular", SegmentoAtendimento.AUTOMOTIVO.rotulo)
+    val veicular = CatalogoFichasPadrao.fichas(SegmentoAtendimento.AUTOMOTIVO)
+    val residencial = CatalogoFichasPadrao.fichas(SegmentoAtendimento.RESIDENCIAL)
+    assertTrue(veicular.isNotEmpty())
+    assertTrue(residencial.isNotEmpty())
+    assertTrue(veicular.all { it.ehCatalogoOficial && it.temManualOffline && it.segmento == SegmentoAtendimento.AUTOMOTIVO })
+    assertTrue(residencial.all { it.ehCatalogoOficial && it.temManualOffline && it.segmento == SegmentoAtendimento.RESIDENCIAL })
+    val gol = CatalogoFichasPadrao.buscarParaVeiculo("Volkswagen", "Gol", SegmentoAtendimento.AUTOMOTIVO)
+    assertTrue(gol.any { it.chip.contains("ID48") || it.modelo.contains("Gol") })
   }
 }

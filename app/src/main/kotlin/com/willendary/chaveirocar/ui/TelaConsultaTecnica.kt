@@ -43,8 +43,10 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import com.willendary.chaveirocar.catalogo.CatalogoFichasPadrao
 import com.willendary.chaveirocar.dados.BancoDeAtendimentos
 import com.willendary.chaveirocar.modelo.FichaTecnica
+import com.willendary.chaveirocar.modelo.SegmentoAtendimento
 import com.willendary.chaveirocar.util.normalizar
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -83,6 +85,11 @@ fun TelaConsultaTecnica(
   onAbrir: (Long) -> Unit,
   onNova: (FichaTecnica) -> Unit,
   versaoSincronia: Int = 0,
+  segmento: SegmentoAtendimento? = null,
+  incluirCatalogoPadrao: Boolean = true,
+  podeEditar: Boolean = true,
+  onTrocarArea: (() -> Unit)? = null,
+  onVoltar: (() -> Unit)? = null,
 ) {
   var fichas by remember { mutableStateOf<List<FichaTecnica>>(emptyList()) }
   var carregado by remember { mutableStateOf(false) }
@@ -98,12 +105,17 @@ fun TelaConsultaTecnica(
     aoMudarEstado(novo)
   }
 
-  LaunchedEffect(versaoSincronia) {
-    fichas = withContext(Dispatchers.IO) { banco.listarFichas() }
+  LaunchedEffect(versaoSincronia, segmento, incluirCatalogoPadrao) {
+    fichas = withContext(Dispatchers.IO) {
+      val daEmpresa = banco.listarFichas(segmento = segmento)
+      val doCatalogo = if (incluirCatalogoPadrao) CatalogoFichasPadrao.fichas(segmento = segmento) else emptyList()
+      daEmpresa + doCatalogo
+    }
     carregado = true
   }
 
   fun baseNova(): FichaTecnica = FichaTecnica(
+    segmento = segmento ?: SegmentoAtendimento.AUTOMOTIVO,
     equipamento = real(equipamentoSel),
     marca = real(marcaSel),
     modelo = real(modeloSel),
@@ -171,13 +183,16 @@ fun TelaConsultaTecnica(
   Scaffold(
     topBar = {
       TopAppBar(
+        navigationIcon = { if (onVoltar != null) BotaoVoltar(onVoltar) },
         title = {
           Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             MarcaChaveiro()
             Column {
               Text("Consulta técnica", style = MaterialTheme.typography.titleLarge)
               Text(
-                "Chip, chave e sistema por veículo",
+                text = if (segmento == SegmentoAtendimento.RESIDENCIAL)
+                  "Fechaduras, cilindros, digitais e manuais"
+                else "Chip, chave, sistema e manuais por veículo",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
               )
@@ -185,8 +200,10 @@ fun TelaConsultaTecnica(
           }
         },
         actions = {
-          IconButton(onClick = { onNova(baseNova()) }) {
-            Icon(Icons.Default.Add, contentDescription = "Nova ficha técnica")
+          if (podeEditar) {
+            IconButton(onClick = { onNova(baseNova()) }) {
+              Icon(Icons.Default.Add, contentDescription = "Nova ficha técnica")
+            }
           }
         },
         colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.background),
@@ -196,6 +213,9 @@ fun TelaConsultaTecnica(
     containerColor = MaterialTheme.colorScheme.background,
   ) { espacamento ->
     Column(modifier = Modifier.conteudoResponsivo().padding(espacamento)) {
+      if (segmento != null && onTrocarArea != null) {
+        BarraModalidadeAtiva(segmento, onTrocarArea)
+      }
       OutlinedTextField(
         value = busca,
         onValueChange = { mudar(estado.copy(busca = it)) },
@@ -289,8 +309,8 @@ fun TelaConsultaTecnica(
         )
 
         1 -> ListaDeOpcoes(
-          titulo = "Escolha a montadora",
-          descricao = "Marca do veículo.",
+          titulo = if (segmento == SegmentoAtendimento.RESIDENCIAL) "Escolha a marca" else "Escolha a montadora",
+          descricao = if (segmento == SegmentoAtendimento.RESIDENCIAL) "Fabricante da fechadura ou central." else "Marca do veículo.",
           opcoes = marcas,
           vazio = "Nenhuma marca para este equipamento.",
           onEscolher = { escolhido ->
@@ -301,7 +321,7 @@ fun TelaConsultaTecnica(
 
         2 -> ListaDeOpcoes(
           titulo = "Escolha o modelo",
-          descricao = "Modelo do veículo.",
+          descricao = if (segmento == SegmentoAtendimento.RESIDENCIAL) "Modelo ou linha." else "Modelo do veículo.",
           opcoes = modelos,
           vazio = "Nenhum modelo para esta marca.",
           onEscolher = { escolhido ->
@@ -327,18 +347,20 @@ fun TelaConsultaTecnica(
           item {
             PainelDestaque(
               listOf(real(marcaSel), real(modeloSel), real(anoSel)).filter { it.isNotBlank() }.joinToString(" "),
-              "Sistemas e referências cadastradas para este veículo.",
+              "Sistemas e referências cadastradas para este item.",
               "${doAno.size} FICHA(S)",
             )
           }
           items(doAno, key = { it.id }) { ficha ->
             CartaoFicha(ficha = ficha, onAbrir = { onAbrir(ficha.id) })
           }
-          item {
-            Button(
-              onClick = { onNova(baseNova()) },
-              modifier = Modifier.fillMaxWidth(),
-            ) { Text("Adicionar outra ficha para este veículo") }
+          if (podeEditar) {
+            item {
+              Button(
+                onClick = { onNova(baseNova()) },
+                modifier = Modifier.fillMaxWidth(),
+              ) { Text("Adicionar outra ficha") }
+            }
           }
         }
       }
@@ -397,6 +419,7 @@ private fun ListaDeOpcoes(
   }
 }
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun CartaoFicha(ficha: FichaTecnica, onAbrir: () -> Unit) {
   Card(
@@ -429,7 +452,9 @@ private fun CartaoFicha(ficha: FichaTecnica, onAbrir: () -> Unit) {
           overflow = TextOverflow.Ellipsis,
         )
       }
-      Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+      FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        Selo(if (ficha.ehCatalogoOficial) "Catálogo padrão" else "Da empresa")
+        if (ficha.temManualOffline) Selo("Manual offline")
         if (ficha.chip.isNotBlank()) Selo("Chip ${ficha.chip}")
         if (ficha.equipamento.isNotBlank()) {
           Text(

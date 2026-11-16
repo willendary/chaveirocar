@@ -8,6 +8,8 @@ import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -27,6 +29,7 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -51,9 +54,11 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.unit.dp
 import androidx.core.content.FileProvider
+import com.willendary.chaveirocar.catalogo.CatalogoFichasPadrao
 import com.willendary.chaveirocar.dados.BancoDeAtendimentos
 import com.willendary.chaveirocar.dados.Fotos
 import com.willendary.chaveirocar.modelo.FichaTecnica
+import com.willendary.chaveirocar.modelo.SegmentoAtendimento
 import com.willendary.chaveirocar.util.Erros
 import com.willendary.chaveirocar.util.formatarData
 import kotlinx.coroutines.Dispatchers
@@ -61,7 +66,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
 fun TelaFichaTecnica(
   banco: BancoDeAtendimentos,
@@ -69,6 +74,9 @@ fun TelaFichaTecnica(
   onEditar: () -> Unit,
   onExcluido: () -> Unit,
   onVoltar: () -> Unit,
+  onEditarOficial: ((FichaTecnica) -> Unit)? = null,
+  onCriarServico: ((FichaTecnica) -> Unit)? = null,
+  podeEditar: Boolean = true,
 ) {
   val contexto = LocalContext.current
   val escopo = rememberCoroutineScope()
@@ -77,7 +85,8 @@ fun TelaFichaTecnica(
   var confirmarExclusao by remember { mutableStateOf(false) }
 
   LaunchedEffect(id) {
-    ficha = withContext(Dispatchers.IO) { banco.obterFicha(id) }
+    ficha = if (id < 0L) CatalogoFichasPadrao.obterPorId(id)
+    else withContext(Dispatchers.IO) { banco.obterFicha(id) }
     carregado = true
   }
 
@@ -87,9 +96,20 @@ fun TelaFichaTecnica(
         title = { Text("Ficha técnica") },
         navigationIcon = { BotaoVoltar(onVoltar) },
         actions = {
-          IconButton(onClick = onEditar) { Icon(Icons.Default.Edit, contentDescription = "Editar ficha") }
-          IconButton(onClick = { confirmarExclusao = true }) {
-            Icon(Icons.Default.Delete, contentDescription = "Excluir ficha")
+          val atualBarra = ficha
+          if (podeEditar && atualBarra != null) {
+            IconButton(onClick = {
+              if (atualBarra.ehCatalogoOficial && id < 0L && onEditarOficial != null) {
+                onEditarOficial(atualBarra)
+              } else {
+                onEditar()
+              }
+            }) { Icon(Icons.Default.Edit, contentDescription = "Editar ficha") }
+            if (id > 0L) {
+              IconButton(onClick = { confirmarExclusao = true }) {
+                Icon(Icons.Default.Delete, contentDescription = "Excluir ficha")
+              }
+            }
           }
         },
       )
@@ -114,14 +134,22 @@ fun TelaFichaTecnica(
       val veiculo = listOf(atual.marca, atual.modelo, atual.ano).filter { it.isNotBlank() }.joinToString(" ")
       PainelDestaque(
         titulo = veiculo.ifBlank { atual.sistema.ifBlank { "Ficha técnica" } },
-        descricao = atual.descricao.ifBlank { "Referência técnica cadastrada por você." },
+        descricao = atual.descricao.ifBlank {
+          if (atual.ehCatalogoOficial) "Referência do catálogo padrão." else "Referência técnica da empresa."
+        },
         etiqueta = listOfNotNull(
+          atual.segmento.rotulo,
           atual.equipamento.takeIf { it.isNotBlank() },
           atual.sistema.takeIf { it.isNotBlank() },
         ).joinToString(" · ").ifBlank { null },
       )
 
-      Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+      FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        Selo(if (atual.ehCatalogoOficial) "Catálogo padrão" else "Anotação da empresa")
+        Selo(
+          texto = if (atual.temManualOffline) "Manual offline" else "Sem manual",
+          pendente = !atual.temManualOffline,
+        )
         if (atual.confirmado) Selo("Confirmado") else Selo("Não confirmado", pendente = true)
         if (atual.atualizadoEm > 0) {
           Text(
@@ -187,8 +215,26 @@ fun TelaFichaTecnica(
         color = MaterialTheme.colorScheme.onSurfaceVariant,
         modifier = Modifier.padding(vertical = 8.dp),
       )
-      Spacer(Modifier.height(16.dp))
-      Button(onClick = onEditar, modifier = Modifier.fillMaxWidth()) { Text("Editar ficha") }
+      Spacer(Modifier.height(12.dp))
+      if (onCriarServico != null && podeEditar) {
+        OutlinedButton(onClick = { onCriarServico(atual) }, modifier = Modifier.fillMaxWidth()) {
+          Text("Novo serviço com esta ficha")
+        }
+      }
+      if (podeEditar) {
+        Button(
+          onClick = {
+            if (atual.ehCatalogoOficial && id < 0L && onEditarOficial != null) {
+              onEditarOficial(atual)
+            } else {
+              onEditar()
+            }
+          },
+          modifier = Modifier.fillMaxWidth(),
+        ) {
+          Text(if (id < 0L) "Complementar ficha para a empresa" else "Editar ficha")
+        }
+      }
       Spacer(Modifier.height(24.dp))
     }
   }
@@ -256,10 +302,11 @@ fun TelaFichaFormulario(
   base: FichaTecnica? = null,
   onSalvo: (Long) -> Unit,
   onVoltar: () -> Unit,
+  segmentoFixo: SegmentoAtendimento? = null,
 ) {
   val contexto = LocalContext.current
   val escopo = rememberCoroutineScope()
-  var ficha by remember { mutableStateOf(base ?: FichaTecnica()) }
+  var ficha by remember { mutableStateOf(base ?: FichaTecnica(segmento = segmentoFixo ?: SegmentoAtendimento.AUTOMOTIVO)) }
   var carregado by remember { mutableStateOf(id == 0L) }
   var salvando by remember { mutableStateOf(false) }
   var fotoNova by remember { mutableStateOf<String?>(null) }
@@ -402,7 +449,31 @@ fun TelaFichaFormulario(
         .padding(horizontal = 16.dp, vertical = 8.dp),
       verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-      SecaoFormulario("01", "Identificação", "Equipamento, veículo e sistema desta referência.")
+      SecaoFormulario("01", "Identificação", "Equipamento, veículo ou fechadura e sistema desta referência.")
+      if (id == 0L && base?.ehCatalogoOficial == true) {
+        Card(
+          colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer),
+        ) {
+          Text(
+            text = "Complementando o Catálogo Padrão: suas alterações serão salvas como anotação da empresa, preservando o catálogo oficial.",
+            style = MaterialTheme.typography.bodySmall,
+            modifier = Modifier.padding(12.dp),
+          )
+        }
+      }
+      if (segmentoFixo == null) {
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+          SegmentoAtendimento.entries.forEach { seg ->
+            FilterChip(
+              selected = ficha.segmento == seg,
+              onClick = { ficha = ficha.copy(segmento = seg) },
+              label = { Text(seg.rotulo) },
+            )
+          }
+        }
+      } else {
+        Selo("Modalidade: ${ficha.segmento.rotulo}")
+      }
       CampoTexto(
         rotulo = "Equipamento",
         valor = ficha.equipamento,

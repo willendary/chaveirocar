@@ -19,6 +19,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.willendary.chaveirocar.R
+import com.willendary.chaveirocar.modelo.SegmentoAtendimento
 import com.willendary.chaveirocar.ui.theme.JadeVibrante
 import com.willendary.chaveirocar.ui.theme.Navy
 
@@ -39,8 +40,10 @@ fun CabecalhoTela(
   titulo: String,
   subtitulo: String,
   sincronizando: Boolean = false,
+  aoVoltar: (() -> Unit)? = null,
 ) {
   TopAppBar(
+    navigationIcon = { if (aoVoltar != null) BotaoVoltar(aoVoltar) },
     title = {
       Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
         MarcaChaveiro()
@@ -126,6 +129,45 @@ fun SecaoFormulario(numero: String, titulo: String, descricao: String) {
     Column(Modifier.weight(1f)) {
       Text(titulo, style = MaterialTheme.typography.titleMedium)
       Text(descricao, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+    }
+  }
+}
+
+/** Barra discreta que mantém visível a modalidade ativa e permite retornar à tela de escolha. */
+@Composable
+fun BarraModalidadeAtiva(
+  modalidade: SegmentoAtendimento,
+  onTrocarArea: () -> Unit,
+  modificador: Modifier = Modifier,
+) {
+  Surface(
+    color = MaterialTheme.colorScheme.secondaryContainer,
+    shape = RoundedCornerShape(12.dp),
+    modifier = modificador.fillMaxWidth().padding(horizontal = 16.dp, vertical = 6.dp),
+  ) {
+    Row(
+      modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 8.dp),
+      verticalAlignment = Alignment.CenterVertically,
+      horizontalArrangement = Arrangement.SpaceBetween,
+    ) {
+      Column(Modifier.weight(1f)) {
+        Text(
+          text = "Área ${modalidade.rotulo}",
+          style = MaterialTheme.typography.labelLarge,
+          fontWeight = FontWeight.Bold,
+          color = MaterialTheme.colorScheme.onSecondaryContainer,
+        )
+        Text(
+          text = if (modalidade == SegmentoAtendimento.RESIDENCIAL)
+            "Serviços, fichário e fichas residenciais"
+          else "Serviços, fichário e fichas técnicas veiculares",
+          style = MaterialTheme.typography.bodySmall,
+          color = MaterialTheme.colorScheme.onSecondaryContainer,
+        )
+      }
+      TextButton(onClick = onTrocarArea) {
+        Text("Trocar área")
+      }
     }
   }
 }

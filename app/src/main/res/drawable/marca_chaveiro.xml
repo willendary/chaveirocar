@@ -1,51 +1,87 @@
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
-    android:width="128dp"
-    android:height="128dp"
-    android:viewportWidth="128"
-    android:viewportHeight="128">
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
 
-    <!-- Fundo Dark Navy com cantos arredondados -->
+    <!-- Fundo Dark Navy -->
     <path
         android:fillColor="#0F172A"
-        android:pathData="M24,4 H104 A20,20 0 0,1 124,24 V104 A20,20 0 0,1 104,124 H24 A20,20 0 0,1 4,104 V24 A20,20 0 0,1 24,4 Z" />
+        android:pathData="M0,0h108v108h-108z" />
 
-    <!-- Aro interno com brilho Jade sutil -->
+    <!-- Anéis sutis de precisão -->
     <path
         android:strokeColor="#0D9488"
-        android:strokeWidth="2.5"
-        android:pathData="M26,8 H102 A18,18 0 0,1 120,26 V102 A18,18 0 0,1 102,120 H26 A18,18 0 0,1 8,102 V26 A18,18 0 0,1 26,8 Z" />
+        android:strokeAlpha="0.4"
+        android:strokeWidth="0.8"
+        android:pathData="M54,23 A31,31 0 1,0 54,85 A31,31 0 1,0 54,23 Z" />
+    <path
+        android:strokeColor="#2DD4BF"
+        android:strokeAlpha="0.6"
+        android:strokeWidth="0.6"
+        android:pathData="M54,26 A28,28 0 1,0 54,82 A28,28 0 1,0 54,26 Z" />
 
-    <!-- Cabeça da Chave Automotiva / Fechadura (Círculo externo e furo central) -->
-    <path
-        android:fillColor="#0D9488"
-        android:pathData="M48,34 C33.6,34 22,45.6 22,60 C22,74.4 33.6,86 48,86 C58.2,86 67,80.1 71.3,71.6 L88,71.6 L88,62 L98,62 L98,52 L88,52 L78,52 C75.2,41.4 62.8,34 48,34 Z" />
+    <!-- Chave Canivete Automotiva em ângulo de 38 graus -->
+    <group
+        android:pivotX="54"
+        android:pivotY="54"
+        android:rotation="-38">
 
-    <!-- Furo / Miolo da chave -->
-    <path
-        android:fillColor="#0F172A"
-        android:pathData="M48,50 C42.5,50 38,54.5 38,60 C38,65.5 42.5,70 48,70 C53.5,70 58,65.5 58,60 C58,54.5 53.5,50 48,50 Z" />
+        <!-- Lâmina metálica pantográfica (Prata) -->
+        <path
+            android:fillColor="#F1F5F9"
+            android:pathData="M51,33 H57 A2.5,2.5 0 0,1 59.5,35.5 V53 H48.5 V35.5 A2.5,2.5 0 0,1 51,33 Z" />
 
-    <!-- Dentes de segredo em Jade vibrante -->
-    <path
-        android:fillColor="#2DD4BF"
-        android:pathData="M78,52 L88,52 L88,44 L78,44 Z" />
-    <path
-        android:fillColor="#2DD4BF"
-        android:pathData="M92,52 L102,52 L102,40 L92,40 Z" />
-    <path
-        android:fillColor="#2DD4BF"
-        android:pathData="M106,62 L106,52 L114,52 L114,62 Z" />
+        <!-- Chanfro da ponta da lâmina -->
+        <path
+            android:fillColor="#CBD5E1"
+            android:pathData="M48.5,35.5 L54,33 L49.5,33 Z M59.5,35.5 L54,33 L58.5,33 Z" />
 
-    <!-- Silhueta frontal de Veículo em Branco puro sobreposta à chave -->
-    <path
-        android:fillColor="#FFFFFF"
-        android:pathData="M48,46 C45,46 43,47.5 42,50 L38,60 L38,72 C38,73.5 39.5,75 41,75 L43,75 C44.5,75 46,73.5 46,72 L46,70 L50,70 L50,72 C50,73.5 51.5,75 53,75 L55,75 C56.5,75 58,73.5 58,72 L58,60 L54,50 C53,47.5 51,46 48,46 Z" />
+        <!-- Canaleta pantográfica central a laser em Jade Vibrante -->
+        <path
+            android:fillColor="#2DD4BF"
+            android:pathData="M53.5,35.5 H54.5 A1,1 0 0,1 55.5,36.5 V50 A1,1 0 0,1 54.5,51 H53.5 A1,1 0 0,1 52.5,50 V36.5 A1,1 0 0,1 53.5,35.5 Z" />
 
-    <!-- Faróis do veículo -->
-    <path
-        android:fillColor="#2DD4BF"
-        android:pathData="M40.5,62 A2.5,2.5 0 1,0 40.5,67 A2.5,2.5 0 1,0 40.5,62 Z" />
-    <path
-        android:fillColor="#2DD4BF"
-        android:pathData="M55.5,62 A2.5,2.5 0 1,0 55.5,67 A2.5,2.5 0 1,0 55.5,62 Z" />
+        <!-- Segredos laterais da lâmina (notches) -->
+        <path
+            android:fillColor="#0F172A"
+            android:pathData="M48.5,38 H51 V41 H48.5 Z M57,42.5 H59.5 V45.5 H57 Z M48.5,47 H51.5 V50 H48.5 Z" />
+
+        <!-- Corpo do canivete (Carcaça Fob em Dark Navy com borda Jade) -->
+        <path
+            android:fillColor="#0F172A"
+            android:strokeColor="#2DD4BF"
+            android:strokeWidth="2"
+            android:pathData="M48,51 H60 A10,10 0 0,1 70,61 V65 A10,10 0 0,1 60,75 H48 A10,10 0 0,1 38,65 V61 A10,10 0 0,1 48,51 Z" />
+
+        <!-- Face interna do controle (Slate escuro) -->
+        <path
+            android:fillColor="#1E293B"
+            android:pathData="M48,53.5 H60 A7.5,7.5 0 0,1 67.5,61 V65 A7.5,7.5 0 0,1 60,72.5 H48 A7.5,7.5 0 0,1 40.5,65 V61 A7.5,7.5 0 0,1 48,53.5 Z" />
+
+        <!-- Botão com emblema automotivo -->
+        <path
+            android:fillColor="#0F172A"
+            android:strokeColor="#0D9488"
+            android:strokeWidth="0.8"
+            android:pathData="M54,54.5 A5.5,5.5 0 1,0 54,65.5 A5.5,5.5 0 1,0 54,54.5 Z" />
+
+        <!-- Silhueta frontal de veículo no botão em Jade -->
+        <path
+            android:fillColor="#2DD4BF"
+            android:pathData="M50.5,61.5 L50.5,60.5 L51.5,59.5 L52.8,57.8 L55.2,57.8 L56.5,59.5 L57.5,60.5 L57.5,61.5 Z" />
+        <path
+            android:fillColor="#0F172A"
+            android:pathData="M52.3,59.5 L53.2,58.3 L54.8,58.3 L55.7,59.5 Z" />
+
+        <!-- Elo inferior para argola do chaveiro -->
+        <path
+            android:fillColor="#0F172A"
+            android:strokeColor="#0D9488"
+            android:strokeWidth="0.7"
+            android:pathData="M50,68.5 H58 A2,2 0 0,1 60,70.5 A2,2 0 0,1 58,72.5 H50 A2,2 0 0,1 48,70.5 A2,2 0 0,1 50,68.5 Z" />
+        <path
+            android:fillColor="#2DD4BF"
+            android:pathData="M54,69.5 A1,1 0 1,0 54,71.5 A1,1 0 1,0 54,69.5 Z" />
+    </group>
 </vector>

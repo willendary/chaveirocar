@@ -1,7 +1,7 @@
 package com.willendary.chaveirocar.modelo
 
 enum class SegmentoAtendimento(val rotulo: String) {
-  AUTOMOTIVO("Automotivo"),
+  AUTOMOTIVO("Veicular"),
   RESIDENCIAL("Residencial");
 
   companion object {

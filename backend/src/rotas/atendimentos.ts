@@ -110,7 +110,7 @@ export const rotasAtendimentos: FastifyPluginAsync<ContextoRotas> = async (app, 
         atendimentoId: string;
       };
       await exigirMembro(banco, empresaId, usuario.usuarioId);
-      return obterAtendimento(banco, empresaId, atendimentoId);
+      return obterAtendimento(banco, empresaId, atendimentoId, false, { verificarModulo: true });
     },
   );
 

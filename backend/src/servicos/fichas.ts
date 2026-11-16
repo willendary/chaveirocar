@@ -1,10 +1,11 @@
 import type { Banco } from "../banco.js";
 import { agora } from "../banco.js";
 import { erros } from "../erros.js";
-import type { DadosFicha } from "../esquemas.js";
+import type { DadosFicha, SegmentoAtendimento } from "../esquemas.js";
 import { normalizar, texto, booleano, pagina, tamanhoPagina } from "../util/texto.js";
 import { novoId } from "../util/id.js";
-import { registrarMudanca, type ExecutorSql } from "../dominio/comum.js";
+import { baseRevisaoCompativel, registrarMudanca, type ExecutorSql } from "../dominio/comum.js";
+import { exigirModuloAtivo, obterAssinaturaEmpresa } from "./assinaturas.js";
 
 export interface EntradaFicha extends DadosFicha {
   id?: string;
@@ -14,6 +15,7 @@ export interface EntradaFicha extends DadosFicha {
 export interface Ficha {
   id: string;
   empresaId: string;
+  segmento: SegmentoAtendimento;
   equipamento: string;
   marca: string;
   modelo: string;
@@ -41,6 +43,7 @@ export interface Ficha {
 interface LinhaFicha {
   id: string;
   empresa_id: string;
+  segmento: string;
   equipamento: string;
   marca: string;
   modelo: string;
@@ -65,16 +68,19 @@ interface LinhaFicha {
   atualizado_por: string | null;
 }
 
-const CAMPOS = `id, empresa_id, equipamento, marca, modelo, ano, sistema, descricao, chip, chave,
+const CAMPOS = `id, empresa_id, segmento, equipamento, marca, modelo, ano, sistema, descricao, chip, chave,
   telecomando, frequencia, avisos, funcoes, manual, confirmado, origem, revisao, criado_em,
   atualizado_em, excluido_em, criado_por, atualizado_por,
   (SELECT f.id FROM fotos f WHERE f.ficha_id = fichas_tecnicas.id AND f.excluido_em IS NULL
      ORDER BY f.ordem, f.criado_em LIMIT 1) AS foto_id`;
 
 export function paraFicha(linha: LinhaFicha): Ficha {
+  const segmento: SegmentoAtendimento =
+    linha.segmento === "RESIDENCIAL" ? "RESIDENCIAL" : "AUTOMOTIVO";
   return {
     id: linha.id,
     empresaId: linha.empresa_id,
+    segmento,
     equipamento: linha.equipamento,
     marca: linha.marca,
     modelo: linha.modelo,
@@ -101,6 +107,8 @@ export function paraFicha(linha: LinhaFicha): Ficha {
 }
 
 export function normalizarFicha(entrada: EntradaFicha) {
+  const segmento: SegmentoAtendimento =
+    entrada.segmento === "RESIDENCIAL" ? "RESIDENCIAL" : "AUTOMOTIVO";
   const equipamento = texto(entrada.equipamento, 120);
   const marca = texto(entrada.marca, 120);
   const modelo = texto(entrada.modelo, 120);
@@ -116,6 +124,7 @@ export function normalizarFicha(entrada: EntradaFicha) {
     throw erros.validacao("Informe ao menos equipamento, veículo ou descrição da ficha.");
   }
   return {
+    segmento,
     equipamento,
     marca,
     modelo,
@@ -132,7 +141,7 @@ export function normalizarFicha(entrada: EntradaFicha) {
     confirmado: booleano(entrada.confirmado, false) ? 1 : 0,
     origem: texto(entrada.origem, 500),
     busca: normalizar(
-      [equipamento, marca, modelo, sistema, chip, chave, telecomando, frequencia, descricao, avisos, funcoes].join(" "),
+      [segmento, equipamento, marca, modelo, sistema, chip, chave, telecomando, frequencia, descricao, avisos, funcoes].join(" "),
     ),
   };
 }
@@ -140,13 +149,36 @@ export function normalizarFicha(entrada: EntradaFicha) {
 export async function listarFichas(
   banco: Banco,
   empresaId: string,
-  filtros: { busca?: string; pagina?: number; tamanho?: number; incluirExcluidos?: boolean } = {},
+  filtros: {
+    busca?: string;
+    segmento?: SegmentoAtendimento;
+    pagina?: number;
+    tamanho?: number;
+    incluirExcluidos?: boolean;
+  } = {},
 ): Promise<{ itens: Ficha[]; total: number; pagina: number; tamanho: number }> {
+  const assinatura = filtros.segmento
+    ? await exigirModuloAtivo(banco, empresaId, filtros.segmento)
+    : await obterAssinaturaEmpresa(banco, empresaId);
+  if (!filtros.segmento && assinatura.modulosAtivos.length === 0) {
+    throw erros.moduloNaoContratado(
+      "AUTOMOTIVO",
+      "Nenhum módulo está ativo no plano desta empresa.",
+    );
+  }
+
   const numeroPagina = pagina(filtros.pagina, 1);
   const limite = tamanhoPagina(filtros.tamanho, 30);
   const condicoes = ["empresa_id = ?"];
   const argumentos: Array<string | number> = [empresaId];
   if (!filtros.incluirExcluidos) condicoes.push("excluido_em IS NULL");
+  if (filtros.segmento) {
+    condicoes.push("segmento = ?");
+    argumentos.push(filtros.segmento);
+  } else if (assinatura.modulosAtivos.length < 2) {
+    condicoes.push(`segmento IN (${assinatura.modulosAtivos.map(() => "?").join(",")})`);
+    argumentos.push(...assinatura.modulosAtivos);
+  }
   for (const termo of normalizar(filtros.busca).split(" ").filter(Boolean)) {
     condicoes.push("busca LIKE ?");
     argumentos.push(`%${termo}%`);
@@ -174,6 +206,7 @@ export async function obterFicha(
   empresaId: string,
   id: string,
   incluirExcluida = false,
+  opcoes: { verificarModulo?: boolean } = {},
 ): Promise<Ficha> {
   const resultado = await banco.execute({
     sql: `SELECT ${CAMPOS} FROM fichas_tecnicas WHERE id = ? AND empresa_id = ?${
@@ -183,7 +216,11 @@ export async function obterFicha(
   });
   const linha = resultado.rows[0] as unknown as LinhaFicha | undefined;
   if (!linha) throw erros.naoEncontrado("Ficha técnica não encontrada.");
-  return paraFicha(linha);
+  const ficha = paraFicha(linha);
+  if (opcoes.verificarModulo) {
+    await exigirModuloAtivo(banco, empresaId, ficha.segmento);
+  }
+  return ficha;
 }
 
 export async function salvarFicha(
@@ -192,13 +229,19 @@ export async function salvarFicha(
   entrada: EntradaFicha,
 ): Promise<Ficha> {
   const dados = normalizarFicha(entrada);
+  await exigirModuloAtivo(banco, contexto.empresaId, dados.segmento);
   const instante = agora();
   const id = entrada.id?.trim() || novoId();
   const existente = await banco.execute({
-    sql: "SELECT id, revisao, excluido_em FROM fichas_tecnicas WHERE id = ? AND empresa_id = ?",
+    sql: "SELECT id, segmento, revisao, excluido_em, criado_por, atualizado_por FROM fichas_tecnicas WHERE id = ? AND empresa_id = ?",
     args: [id, contexto.empresaId],
   });
   const linhaExistente = existente.rows[0];
+  if (linhaExistente) {
+    const segmentoAtual: SegmentoAtendimento =
+      linhaExistente.segmento === "RESIDENCIAL" ? "RESIDENCIAL" : "AUTOMOTIVO";
+    await exigirModuloAtivo(banco, contexto.empresaId, segmentoAtual);
+  }
   const registroAtual = linhaExistente
     ? await obterFicha(banco, contexto.empresaId, id, true)
     : null;
@@ -208,13 +251,14 @@ export async function salvarFicha(
     if (!linhaExistente) {
       await transacao.execute({
         sql: `INSERT INTO fichas_tecnicas (
-            id, empresa_id, equipamento, marca, modelo, ano, sistema, descricao, chip, chave,
+            id, empresa_id, segmento, equipamento, marca, modelo, ano, sistema, descricao, chip, chave,
             telecomando, frequencia, avisos, funcoes, manual, confirmado, origem, busca,
             revisao, criado_em, atualizado_em, criado_por, atualizado_por
-          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?, ?)`,
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?, ?)`,
         args: [
           id,
           contexto.empresaId,
+          dados.segmento,
           dados.equipamento,
           dados.marca,
           dados.modelo,
@@ -243,17 +287,26 @@ export async function salvarFicha(
       if (Number(linhaExistente.excluido_em ?? 0) > 0) {
         throw erros.conflito("Esta ficha foi excluída.", { registro: registroAtual });
       }
-      if (entrada.baseRevisao === undefined || Number(entrada.baseRevisao) !== revisaoAtual) {
+      if (
+        !baseRevisaoCompativel(
+          entrada.baseRevisao,
+          revisaoAtual,
+          linhaExistente.criado_por,
+          linhaExistente.atualizado_por,
+          contexto.usuarioId,
+        )
+      ) {
         throw erros.conflito("A ficha foi alterada por outra pessoa.", { registro: registroAtual });
       }
       const atualizacao = await transacao.execute({
         sql: `UPDATE fichas_tecnicas SET
-            equipamento = ?, marca = ?, modelo = ?, ano = ?, sistema = ?, descricao = ?, chip = ?,
+            segmento = ?, equipamento = ?, marca = ?, modelo = ?, ano = ?, sistema = ?, descricao = ?, chip = ?,
             chave = ?, telecomando = ?, frequencia = ?, avisos = ?, funcoes = ?, manual = ?,
             confirmado = ?, origem = ?, busca = ?, revisao = revisao + 1, atualizado_em = ?,
             atualizado_por = ?
           WHERE id = ? AND empresa_id = ? AND revisao = ?`,
         args: [
+          dados.segmento,
           dados.equipamento,
           dados.marca,
           dados.modelo,
@@ -320,6 +373,7 @@ export async function excluirFicha(
   baseRevisao: number,
 ): Promise<Ficha> {
   const atual = await obterFicha(banco, contexto.empresaId, id, true);
+  await exigirModuloAtivo(banco, contexto.empresaId, atual.segmento);
   if (atual.excluidoEm !== null) {
     if (atual.revisao === baseRevisao) return atual;
     throw erros.conflito("A ficha já foi excluída.", { registro: atual });

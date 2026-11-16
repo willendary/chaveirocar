@@ -194,6 +194,56 @@ public sealed class ArmazenamentoLocal
         public List<FotoLocal> Fotos { get; set; } = [];
         public List<OperacaoPendente> Outbox { get; set; } = [];
         public List<Conflito> Conflitos { get; set; } = [];
+        public Dictionary<string, List<string>> ModulosPorEmpresa { get; set; } = [];
+        public Dictionary<string, string> PlanosPorEmpresa { get; set; } = [];
+        public Dictionary<string, string> StatusAssinaturaPorEmpresa { get; set; } = [];
+        public Dictionary<string, long?> RenovacaoPorEmpresa { get; set; } = [];
+
+        public HashSet<string> ModulosAtivosDaEmpresa(string? empresaId)
+        {
+            if (!string.IsNullOrWhiteSpace(empresaId) &&
+                ModulosPorEmpresa.TryGetValue(empresaId, out var lista))
+            {
+                return [.. lista];
+            }
+            return ["AUTOMOTIVO", "RESIDENCIAL"];
+        }
+
+        public string PlanoDaEmpresa(string? empresaId) =>
+            !string.IsNullOrWhiteSpace(empresaId) &&
+            PlanosPorEmpresa.TryGetValue(empresaId, out var plano) &&
+            !string.IsNullOrWhiteSpace(plano)
+                ? plano : "COMPLETO";
+
+        public string StatusAssinaturaDaEmpresa(string? empresaId) =>
+            !string.IsNullOrWhiteSpace(empresaId) &&
+            StatusAssinaturaPorEmpresa.TryGetValue(empresaId, out var status) &&
+            !string.IsNullOrWhiteSpace(status)
+                ? status : "ATIVA";
+
+        public void RegistrarAssinaturaEmpresa(
+            string empresaId,
+            string? planoCodigo,
+            string? status,
+            IEnumerable<string>? modulosAtivos,
+            long? proximaRenovacaoEm = null)
+        {
+            if (string.IsNullOrWhiteSpace(empresaId)) return;
+            var anteriores = ModulosAtivosDaEmpresa(empresaId);
+            var novos = (modulosAtivos ?? ["AUTOMOTIVO", "RESIDENCIAL"])
+                .Where(m => m is "AUTOMOTIVO" or "RESIDENCIAL")
+                .Distinct()
+                .ToList();
+            ModulosPorEmpresa[empresaId] = novos;
+            PlanosPorEmpresa[empresaId] = string.IsNullOrWhiteSpace(planoCodigo) ? "COMPLETO" : planoCodigo;
+            StatusAssinaturaPorEmpresa[empresaId] = string.IsNullOrWhiteSpace(status) ? "ATIVA" : status;
+            RenovacaoPorEmpresa[empresaId] = proximaRenovacaoEm;
+            if (novos.Any(m => !anteriores.Contains(m)))
+            {
+                CursoresPorEmpresa[empresaId] = 0;
+                if (EmpresaId == empresaId) Cursor = 0;
+            }
+        }
     }
 
     public sealed class OperacaoPendente
@@ -221,6 +271,7 @@ public sealed class ArmazenamentoLocal
     public sealed class Ficha
     {
         public string Uuid { get; set; } = "";
+        public string Segmento { get; set; } = "AUTOMOTIVO";
         public string Equipamento { get; set; } = "";
         public string Marca { get; set; } = "";
         public string Modelo { get; set; } = "";
@@ -239,6 +290,12 @@ public sealed class ArmazenamentoLocal
         public long Revisao { get; set; }
         public long? ExcluidoEm { get; set; }
         [JsonIgnore] public bool Pendente { get; set; }
+        [JsonIgnore] public bool EhCatalogoOficial => Origem == "CATALOGO_OFICIAL";
+        [JsonIgnore] public string SegmentoFormatado => Segmento == "RESIDENCIAL" ? "Residencial" : "Veicular";
+        [JsonIgnore] public string OrigemFormatada =>
+            EhCatalogoOficial ? "Catálogo padrão"
+            : string.IsNullOrWhiteSpace(Origem) ? "Da empresa" : Origem;
+        [JsonIgnore] public string ManualFormatado => string.IsNullOrWhiteSpace(Manual) ? "—" : "Disponível offline";
         [JsonIgnore] public string ConfirmadoFormatado => Confirmado ? "Sim" : "Não";
         [JsonIgnore] public string SincroniaFormatada => Pendente ? "Pendente" : "Sincronizado";
     }

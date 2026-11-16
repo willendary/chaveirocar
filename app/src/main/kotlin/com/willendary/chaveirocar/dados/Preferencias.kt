@@ -4,6 +4,8 @@ import android.content.Context
 import android.content.SharedPreferences
 import androidx.security.crypto.EncryptedSharedPreferences
 import androidx.security.crypto.MasterKey
+import com.willendary.chaveirocar.modelo.SegmentoAtendimento
+import org.json.JSONArray
 
 /**
  * Preferências simples do app (não são dados de serviço).
@@ -24,6 +26,10 @@ object Preferencias {
   const val API_EMPRESA_ID = "api_empresa_id"
   const val API_CURSOR = "api_cursor"
   const val API_EMAIL = "api_email"
+  private const val MODULOS_EMPRESA = "modulos_empresa"
+  private const val PLANO_EMPRESA = "plano_empresa"
+  private const val ASSINATURA_STATUS = "assinatura_status"
+  private const val ASSINATURA_RENOVACAO = "assinatura_renovacao"
 
   // ponytail: tokens da API em EncryptedSharedPreferences (persistência simples). Legado sem criptografia é migrado e apagado na leitura.
   const val ARQUIVO_API = "chaveirocar_api"
@@ -35,6 +41,79 @@ object Preferencias {
 
   fun guardarCursorApi(preferencias: SharedPreferences, empresaId: String, cursor: Long) {
     preferencias.edit().putLong("${API_CURSOR}_$empresaId", cursor).apply()
+  }
+
+  /**
+   * Direitos comerciais por módulo salvos para consulta offline.
+   * Clientes sem registro prévio preservam os dois módulos até a sincronização da assinatura.
+   */
+  fun obterModulosAtivos(
+    preferencias: SharedPreferences,
+    empresaId: String,
+  ): Set<SegmentoAtendimento> {
+    if (empresaId.isBlank()) return SegmentoAtendimento.entries.toSet()
+    val bruto = preferencias.getString("${MODULOS_EMPRESA}_$empresaId", null)
+      ?: return SegmentoAtendimento.entries.toSet()
+    return runCatching {
+      val json = JSONArray(bruto)
+      buildSet {
+        for (i in 0 until json.length()) {
+          val valor = json.optString(i)
+          if (valor == SegmentoAtendimento.AUTOMOTIVO.name) add(SegmentoAtendimento.AUTOMOTIVO)
+          if (valor == SegmentoAtendimento.RESIDENCIAL.name) add(SegmentoAtendimento.RESIDENCIAL)
+        }
+      }
+    }.getOrDefault(SegmentoAtendimento.entries.toSet())
+  }
+
+  fun obterStatusAssinatura(preferencias: SharedPreferences, empresaId: String): String {
+    if (empresaId.isBlank()) return "ATIVA"
+    return preferencias.getString("${ASSINATURA_STATUS}_$empresaId", "ATIVA").orEmpty().ifBlank { "ATIVA" }
+  }
+
+  fun obterPlanoEmpresa(preferencias: SharedPreferences, empresaId: String): String {
+    if (empresaId.isBlank()) return "COMPLETO"
+    return preferencias.getString("${PLANO_EMPRESA}_$empresaId", "COMPLETO").orEmpty().ifBlank { "COMPLETO" }
+  }
+
+  fun obterProximaRenovacao(preferencias: SharedPreferences, empresaId: String): Long? {
+    if (empresaId.isBlank()) return null
+    val valor = preferencias.getLong("${ASSINATURA_RENOVACAO}_$empresaId", 0L)
+    return valor.takeIf { it > 0L }
+  }
+
+  fun guardarAssinaturaEmpresa(
+    preferencias: SharedPreferences,
+    empresaId: String,
+    planoCodigo: String?,
+    status: String?,
+    modulosAtivos: Collection<String>?,
+    proximaRenovacaoEm: Long? = null,
+  ) {
+    if (empresaId.isBlank()) return
+    val anteriores = obterModulosAtivos(preferencias, empresaId)
+    val novos = (modulosAtivos ?: emptyList()).mapNotNull {
+      when (it) {
+        SegmentoAtendimento.AUTOMOTIVO.name -> SegmentoAtendimento.AUTOMOTIVO
+        SegmentoAtendimento.RESIDENCIAL.name -> SegmentoAtendimento.RESIDENCIAL
+        else -> null
+      }
+    }.toSet()
+    val array = JSONArray()
+    novos.forEach { array.put(it.name) }
+    val edit = preferencias.edit()
+      .putString("${MODULOS_EMPRESA}_$empresaId", array.toString())
+      .putString("${PLANO_EMPRESA}_$empresaId", planoCodigo.orEmpty().ifBlank { "COMPLETO" })
+      .putString("${ASSINATURA_STATUS}_$empresaId", status.orEmpty().ifBlank { "ATIVA" })
+    if (proximaRenovacaoEm != null && proximaRenovacaoEm > 0L) {
+      edit.putLong("${ASSINATURA_RENOVACAO}_$empresaId", proximaRenovacaoEm)
+    } else {
+      edit.remove("${ASSINATURA_RENOVACAO}_$empresaId")
+    }
+    if ((novos - anteriores).isNotEmpty()) {
+      edit.putLong("${API_CURSOR}_$empresaId", 0L)
+    }
+    edit.apply()
   }
 
   fun obter(contexto: Context): SharedPreferences =

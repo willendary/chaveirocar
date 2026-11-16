@@ -29,7 +29,7 @@
                             <TextBlock Text="Segmento do serviço" FontSize="12.5" FontWeight="SemiBold"
                                        Foreground="{StaticResource CorTextoSecundario}" Margin="0,0,0,5"/>
                             <ComboBox x:Name="Segmento" SelectedIndex="0" SelectionChanged="Segmento_SelectionChanged">
-                                <ComboBoxItem Content="Automotivo" Tag="AUTOMOTIVO"/>
+                                <ComboBoxItem Content="Veicular" Tag="AUTOMOTIVO"/>
                                 <ComboBoxItem Content="Residencial" Tag="RESIDENCIAL"/>
                             </ComboBox>
                         </StackPanel>
@@ -246,11 +246,15 @@
         <Border Grid.Row="2" Background="{StaticResource CorSuperficie}"
                 BorderBrush="{StaticResource CorBorda}" BorderThickness="0,1,0,0"
                 Padding="24,14">
-            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
-                <Button Content="Cancelar" IsCancel="True" Width="110" Margin="0,0,10,0"/>
-                <Button Content="Salvar atendimento" IsDefault="True" Style="{StaticResource BotaoPrimario}"
-                        Width="160" Click="Salvar_Click"/>
-            </StackPanel>
+            <DockPanel LastChildFill="False">
+                <Button DockPanel.Dock="Left" x:Name="BtnVerFicha" Content="Ver ficha técnica / manual"
+                        Click="VerFicha_Click" Visibility="Collapsed"/>
+                <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
+                    <Button Content="Cancelar" IsCancel="True" Width="110" Margin="0,0,10,0"/>
+                    <Button Content="Salvar atendimento" IsDefault="True" Style="{StaticResource BotaoPrimario}"
+                            Width="160" Click="Salvar_Click"/>
+                </StackPanel>
+            </DockPanel>
         </Border>
     </Grid>
 </Window>
