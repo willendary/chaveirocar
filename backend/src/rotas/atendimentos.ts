@@ -1,3 +1,5 @@
+import { exigirModuloAtivo } from "../servicos/assinaturas.js";
+import { consultarPlaca } from "../servicos/placas.js";
 import type { FastifyPluginAsync } from "fastify";
 import { Type } from "@sinclair/typebox";
 import type { ContextoRotas } from "./contexto.js";
@@ -33,6 +35,22 @@ const ExcluirQuery = Type.Object({ baseRevisao: Type.Integer({ minimum: 1 }) });
 
 export const rotasAtendimentos: FastifyPluginAsync<ContextoRotas> = async (app, opcoes) => {
   const { banco, autenticacao } = opcoes;
+
+  app.get("/empresas/:empresaId/veiculos/:placa", {
+    preHandler: autenticacao.exigir,
+    config: { rateLimit: { max: 10, timeWindow: "1 minute" } },
+    schema: {
+      tags: ["Atendimentos"],
+      security: [{ bearerAuth: [] }],
+      params: Type.Object({ empresaId: ID, placa: Type.String({ pattern: "^[A-Z]{3}[0-9][A-Z0-9][0-9]{2}$" }) }),
+      response: { 200: Type.Object({ modelo: Type.String(), marca: Type.String(), ano: Type.String() }), ...respostasErro },
+    },
+  }, async (request) => {
+    const { empresaId, placa } = request.params as { empresaId: string; placa: string };
+    exigirEscrita(await exigirMembro(banco, empresaId, exigirUsuario(request).usuarioId));
+    await exigirModuloAtivo(banco, empresaId, "AUTOMOTIVO");
+    return consultarPlaca(placa);
+  });
 
   app.get(
     "/empresas/:empresaId/atendimentos",

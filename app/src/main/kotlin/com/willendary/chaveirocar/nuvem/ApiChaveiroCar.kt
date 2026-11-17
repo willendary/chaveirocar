@@ -89,6 +89,9 @@ class ApiChaveiroCar(baseUrl: String = URL_PADRAO) {
     }
   }
 
+  fun consultarVeiculo(empresa: String, placa: String): JSONObject =
+    get("/api/v1/empresas/$empresa/veiculos/$placa")
+
   fun eu(): JSONObject = get("/api/v1/eu")
 
   fun listarEmpresas(): org.json.JSONArray =

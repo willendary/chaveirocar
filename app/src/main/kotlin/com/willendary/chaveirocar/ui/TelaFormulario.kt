@@ -57,6 +57,8 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import com.willendary.chaveirocar.nuvem.ApiChaveiroCar
+import com.willendary.chaveirocar.dados.Preferencias
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextOverflow
@@ -178,8 +180,27 @@ fun TelaFormulario(
     }
   }
 
-  val placaParaHistorico = atendimento.placa.trim().uppercase()
-  LaunchedEffect(placaParaHistorico) {
+  var mensagemPlaca by remember { mutableStateOf("") }
+  var placaDigitada by remember { mutableStateOf(false) }
+  var automatico by remember { mutableStateOf<Atendimento?>(null) }
+  fun mudarPlaca(valor: String) {
+    val anterior = automatico
+    if (Placa.normalizar(valor) != Placa.normalizar(atendimento.placa) && anterior != null) {
+      atendimento = atendimento.copy(
+        modelo = atendimento.modelo.takeUnless { it == anterior.modelo }.orEmpty(),
+        marca = atendimento.marca.takeUnless { it == anterior.marca }.orEmpty(),
+        ano = atendimento.ano.takeUnless { it == anterior.ano }.orEmpty(),
+      )
+      automatico = null
+    }
+    placaDigitada = true
+    atendimento = atendimento.copy(placa = valor)
+  }
+  val placaParaHistorico = Placa.normalizar(atendimento.placa)
+  LaunchedEffect(placaParaHistorico, atendimento.segmento, placaDigitada) {
+    mensagemPlaca = ""
+    if (atendimento.segmento != SegmentoAtendimento.AUTOMOTIVO) return@LaunchedEffect
+    kotlinx.coroutines.delay(350)
     historico = if (placaParaHistorico.length >= 7) {
       withContext(Dispatchers.IO) {
         runCatching { banco.servicosDaPlaca(placaParaHistorico, id) }.getOrDefault(emptyList())
@@ -187,6 +208,29 @@ fun TelaFormulario(
     } else {
       emptyList()
     }
+    if (!placaDigitada || !Placa.valida(placaParaHistorico) || atendimento.modelo.isNotBlank()) return@LaunchedEffect
+    mensagemPlaca = "Consultando modelo…"
+    val dados = historico.firstOrNull { it.modelo.isNotBlank() } ?: withContext(Dispatchers.IO) {
+      val prefs = Preferencias.obter(contexto)
+      val sessao = Preferencias.obterApi(contexto)
+      val empresa = prefs.getString(Preferencias.API_EMPRESA_ID, null) ?: return@withContext null
+      val api = ApiChaveiroCar(prefs.getString(Preferencias.API_BASE_URL, null).orEmpty().ifBlank { ApiChaveiroCar.URL_PADRAO })
+      api.tokenAcesso = sessao.getString(Preferencias.API_ACESSO, null) ?: return@withContext null
+      runCatching {
+        val json = api.consultarVeiculo(empresa, placaParaHistorico)
+        Atendimento(modelo = json.getString("modelo"), marca = json.optString("marca"), ano = json.optString("ano"))
+      }.getOrNull()
+    }
+    if (Placa.normalizar(atendimento.placa) != placaParaHistorico) return@LaunchedEffect
+    if (dados == null || atendimento.modelo.isNotBlank()) {
+      mensagemPlaca = if (atendimento.modelo.isBlank()) "Modelo indisponível. Informe manualmente." else ""
+      return@LaunchedEffect
+    }
+    automatico = dados.copy(marca = dados.marca.takeIf { atendimento.marca.isBlank() }.orEmpty(),
+      ano = dados.ano.takeIf { atendimento.ano.isBlank() }.orEmpty())
+    atendimento = atendimento.copy(modelo = dados.modelo, marca = atendimento.marca.ifBlank { dados.marca },
+      ano = atendimento.ano.ifBlank { dados.ano })
+    mensagemPlaca = "Modelo preenchido. Confira os dados do veículo."
   }
 
   LaunchedEffect(atendimento.modelo) {
@@ -598,12 +642,13 @@ fun TelaFormulario(
           rotulo = "Placa (opcional)",
           valor = atendimento.placa,
           aoMudar = { texto ->
-            atendimento = atendimento.copy(placa = formatarPlacaMascara(texto))
+            mudarPlaca(formatarPlacaMascara(texto))
           },
           dica = "ABC-1234 ou ABC1D23",
           estiloTexto = MaterialTheme.typography.titleLarge.copy(fontFamily = FontFamily.Monospace),
           modificador = Modifier.fillMaxWidth(),
         )
+        if (mensagemPlaca.isNotEmpty()) Text(mensagemPlaca)
         OutlinedButton(onClick = { lerPlaca() }, enabled = !lendoPlaca) {
           Text(if (lendoPlaca) "Lendo placa…" else "Ler placa pela câmera")
         }
@@ -1044,7 +1089,7 @@ fun TelaFormulario(
           if (!Placa.valida(placa)) {
             Toast.makeText(contexto, "Placa incompleta. Confira as 7 posições.", Toast.LENGTH_SHORT).show()
           } else {
-            atendimento = atendimento.copy(placa = placa)
+            mudarPlaca(placa)
             dialogoPlaca = false
           }
         }) { Text("Usar esta placa") }

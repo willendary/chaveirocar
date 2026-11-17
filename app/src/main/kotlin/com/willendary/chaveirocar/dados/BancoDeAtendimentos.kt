@@ -384,8 +384,8 @@ class BancoDeAtendimentos(contexto: Context) :
     if (placa.isBlank()) return emptyList()
     return consultar(
       "SELECT a.*, (SELECT COUNT(*) FROM fotos f WHERE f.atendimento_id = a.id) AS total_fotos " +
-        "FROM atendimentos a WHERE a.placa = ? AND a.id <> ? ORDER BY a.data_servico DESC",
-      arrayOf(placa.trim().uppercase(), excetoId.toString()),
+        "FROM atendimentos a WHERE upper(replace(replace(a.placa, '-', ''), ' ', '')) = ? AND a.id <> ? ORDER BY a.data_servico DESC",
+      arrayOf(placa.trim().uppercase().replace("-", "").replace(" ", ""), excetoId.toString()),
     )
   }
 
