@@ -37,6 +37,25 @@ Migrações em `migrations/`, aplicadas por `npm run migrar` e na subida do serv
 
 Detalhes e custos em `../docs/operacao.md`.
 
+## Consulta automática de placas (sem API Key)
+
+O endpoint autenticado `GET /api/v1/empresas/:empresaId/veiculos/:placa` usa
+a API Parallelum (`/api/v2/plates/{plate}`), sem token, e retorna somente
+`modelo`, `marca` e `ano`. Placas antigas e Mercosul são suportadas.
+
+**Limite do fornecedor sem token:** 5 consultas por mês (endpoint em Alpha).
+Os resultados bem-sucedidos ficam no Turso por até 90 dias, na tabela
+`cache_consultas_placa` (migration `004`), para poupar a cota.
+Respostas não encontradas não são armazenadas. A autenticação, o módulo
+automotivo e os limites de requisições da rota são preservados.
+
+Quando o limite mensal é atingido, o backend retorna HTTP 429. O cadastro
+manual do modelo continua disponível, inclusive offline. O provedor pode
+alterar disponibilidade e limites; não é uma fonte garantida para grande escala.
+
+A antiga integração Falcon Data Hub e a variável `FALCON_DATA_HUB_API_KEY`
+foram removidas; nenhuma chave é necessária para a Parallelum.
+
 ## Testes
 
 ```bash
