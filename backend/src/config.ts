@@ -32,6 +32,7 @@ const esquema = z.object({
   RETENCAO_MUDANCAS_DIAS: numero.default(180),
   EXPOR_TOKEN_DEV: boolean.default(false),
   GOOGLE_ONLY: boolean.default(false),
+  PLACAS_WEB_EXPERIMENTAL: boolean.default(false),
   GOOGLE_CLIENT_ID: z
     .string()
     .default("626552919131-c0n00ppvs7atldtknhmkh5roatt5t2ib.apps.googleusercontent.com"),
@@ -73,6 +74,7 @@ export interface Config {
   };
   exporTokenDev: boolean;
   googleOnly: boolean;
+  placasWebExperimental: boolean;
   googleClientId: string;
   logNivel: string;
   raiz: string;
@@ -144,6 +146,7 @@ export function criarConfig(
     },
     exporTokenDev: dados.EXPOR_TOKEN_DEV || !producao,
     googleOnly: dados.GOOGLE_ONLY,
+    placasWebExperimental: dados.PLACAS_WEB_EXPERIMENTAL,
     googleClientId: [dados.GOOGLE_CLIENT_ID, dados.GOOGLE_CLIENT_IDS]
       .map((s) => s.trim())
       .filter(Boolean)
