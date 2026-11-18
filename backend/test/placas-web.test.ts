@@ -3,14 +3,14 @@ import { extrairVeiculoDeHtml } from "../src/servicos/placasWeb.js";
 import { cadastrar, criarAmbiente, type Ambiente } from "./ajuda.js";
 
 const placa = "ITR1J02";
-const exemplo = \`<!doctype html><html><body>
+const exemplo = `<!doctype html><html><body>
   <section><h1>Consulta da placa ITR1J02</h1>
   <table>
     <tr><th>Marca</th><td>Volkswagen</td></tr>
     <tr><th>Modelo</th><td>Gol 1.0</td></tr>
     <tr><th>Ano Fab/Mod</th><td>2017/2018</td></tr>
   </table>
-</section></body></html>\`;
+</section></body></html>`;
 
 describe("extrator de HTML de placas (PoC)", () => {
   it("extrai somente marca, modelo e ano-modelo em estrutura explícita", () => {
@@ -20,11 +20,11 @@ describe("extrator de HTML de placas (PoC)", () => {
   });
 
   it("aceita pares dt/dd e placas com hífen", () => {
-    const html = \`<html><body>Placa ABC-1234<dl>
+    const html = `<html><body>Placa ABC-1234<dl>
       <dt>Marca</dt><dd>Fiat</dd>
       <dt>Modelo</dt><dd>Uno</dd>
       <dt>Ano Modelo</dt><dd>2010</dd>
-    </dl></body></html>\`;
+    </dl></body></html>`;
     expect(extrairVeiculoDeHtml(html, "ABC1234")).toEqual({
       marca: "Fiat", modelo: "Uno", ano: "2010",
     });
@@ -51,7 +51,7 @@ describe("provedor HTML opt-in no backend", () => {
     const conta = await cadastrar(ambiente.app);
     return ambiente.app.inject({
       method: "GET",
-      url: \`/api/v1/empresas/\${conta.empresas[0]!.id}/veiculos/\${placa}\`,
+      url: `/api/v1/empresas/${conta.empresas[0]!.id}/veiculos/${placa}`,
       headers: conta.cabecalho,
     });
   }
