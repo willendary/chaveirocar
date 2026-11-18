@@ -112,6 +112,10 @@ Também dá para baixar direto do GitHub:
 
 Backlog: `https://github.com/willendary/chaveirocar/issues`
 
+## Versão 1.13.2 — consulta HTML experimental
+
+Inclui um **protótipo desativado por padrão** no backend que tenta aproveitar páginas HTML públicas de consulta de placa, começando pelo Carro FIPE. Essa é uma etapa técnica para validar a abordagem, não uma substituição já homologada da Parallelum: o site anuncia prévia gratuita, mas não conseguimos verificar a estrutura do HTML com placa nem autorização de automação em produção. O comportamento público permanece igual à v1.13.1 enquanto `PLACAS_WEB_EXPERIMENTAL=false`. Veja `backend/README.md`.
+
 ## Como publicar uma versão nova
 
 O GitHub Actions compila, testa, assina e publica sozinho quando você cria uma tag.
