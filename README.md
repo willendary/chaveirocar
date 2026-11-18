@@ -46,6 +46,17 @@ e importar cópias locais em `.zip`.
   houver versão nova, baixa o APK e abre o instalador. Checa sozinho uma vez
   por dia e também pelo botão "Verificar atualização" em Ajustes.
 
+## Consulta automática por placa
+
+Ao informar uma placa brasileira válida, o Android primeiro aproveita o
+histórico local. Quando necessário, o backend busca marca/modelo/ano no
+endpoint experimental da **Parallelum**, sem API Key, e guarda apenas
+esses dados técnicos no Turso por 90 dias. O serviço gratuito permite
+**5 consultas por mês** sem autenticação, portanto a identificação automática
+não é garantida. Se a cota acabar ou o serviço falhar, o modelo pode ser
+preenchido manualmente (inclusive offline). A integração anterior com
+Falcon Data Hub foi removida na versão 1.13.1.
+
 ## Onde ficam os dados
 
 | O quê | Onde |
