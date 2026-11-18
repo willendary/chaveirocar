@@ -19,6 +19,7 @@ interface Fonte {
 }
 
 const FONTES: readonly Fonte[] = [
+  { nome: "CarroFIPE", origem: "https://www.carrofipe.com.br", caminho: (placa) => "/consultar?placa=" + encodeURIComponent(placa) },
   { nome: "PlacaIPVA", origem: "https://placaipva.com.br", caminho: (placa) => "/placa/" + placa },
   { nome: "KePlaca", origem: "https://www.keplaca.com", caminho: (placa) => "/placa/" + placa },
   { nome: "PlacaFIPE", origem: "https://placafipe.com", caminho: (placa) => "/placa/" + placa },
@@ -59,7 +60,7 @@ function normalizarRotulo(valor: string): string {
 }
 
 /**
- * Extrai APENAS as linhas identificadas Marca/Modelo/Ano da tabela,
+ * Extrai APENAS campos identificados Marca/Modelo/Ano de tabela ou lista de descrição,
  * nunca usando conteúdo editorial, JS ou atributos desconhecidos da página.
  * Descarta páginas sem a placa solicitada ou campos incompletos.
  */
@@ -83,9 +84,17 @@ export function extrairVeiculoDeHtml(html: string, placa: string): DadosVeiculoW
     if (!campos.has(nome)) campos.set(nome, (celulas[1] ?? "").slice(0, 100));
   }
 
+  // Alguns provedores renderizam resultados como <dl><dt>Marca</dt><dd>...</dd></dl>.
+  // Só usamos os pares explícitos; texto promocional isolado nunca gera cadastro.
+  const paresDescricao = [...html.matchAll(/<dt\b[^>]*>([\s\S]*?)<\/dt>\s*<dd\b[^>]*>([\s\S]*?)<\/dd>/gi)];
+  for (const par of paresDescricao) {
+    const nome = normalizarRotulo(textoHtml(par[1] ?? ""));
+    if (!campos.has(nome)) campos.set(nome, textoHtml(par[2] ?? "").slice(0, 100));
+  }
+
   const marca = campos.get("marca")?.trim() ?? "";
   const modelo = campos.get("modelo")?.trim() ?? "";
-  const anoBruto = campos.get("anomodelo") || campos.get("ano") || campos.get("anofabricacao") || "";
+  const anoBruto = campos.get("anomodelo") || campos.get("anofabmod") || campos.get("ano") || campos.get("anofabricacao") || "";
   const ano = anoBruto.match(/\b(?:19|20)\d{2}\b/)?.[0] ?? "";
 
   if (!marca || !modelo || !ano ||
@@ -123,7 +132,7 @@ async function lerHtmlLimitado(resposta: Response): Promise<string | null> {
 }
 
 /**
- * Executa no máximo três tentativas, apenas quando explicitamente habilitado.
+ * Executa no máximo quatro tentativas, apenas quando explicitamente habilitado.
  * Requisições externas não usam cookies, credenciais, proxies ou redirecionamento.
  * 403/429/CAPTCHA são respeitados: nunca tentamos contorná-los.
  */
