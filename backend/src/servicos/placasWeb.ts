@@ -20,7 +20,6 @@ interface Fonte {
 
 const FONTES: readonly Fonte[] = [
   // Prévia gratuita anunciada no site; HTML real ainda depende de homologação.
-  { nome: "CarroFIPE", origem: "https://www.carrofipe.com.br", caminho: (placa) => "/consultar?placa=" + placa },
   { nome: "CarroFIPE", origem: "https://www.carrofipe.com.br", caminho: (placa) => "/consultar?placa=" + encodeURIComponent(placa) },
   { nome: "PlacaIPVA", origem: "https://placaipva.com.br", caminho: (placa) => "/placa/" + placa },
   { nome: "KePlaca", origem: "https://www.keplaca.com", caminho: (placa) => "/placa/" + placa },
@@ -90,13 +89,6 @@ export function extrairVeiculoDeHtml(html: string, placa: string): DadosVeiculoW
   // Só usamos os pares explícitos; texto promocional isolado nunca gera cadastro.
   const paresDescricao = [...html.matchAll(/<dt\b[^>]*>([\s\S]*?)<\/dt>\s*<dd\b[^>]*>([\s\S]*?)<\/dd>/gi)];
   for (const par of paresDescricao) {
-    const nome = normalizarRotulo(textoHtml(par[1] ?? ""));
-    if (!campos.has(nome)) campos.set(nome, textoHtml(par[2] ?? "").slice(0, 100));
-  }
-
-  // Alguns sites apresentam pares sem tabela: <dt>Modelo</dt><dd>...</dd>.
-  const paresDefinicao = [...html.matchAll(/<dt\b[^>]*>([\s\S]*?)<\/dt>\s*<dd\b[^>]*>([\s\S]*?)<\/dd>/gi)];
-  for (const par of paresDefinicao) {
     const nome = normalizarRotulo(textoHtml(par[1] ?? ""));
     if (!campos.has(nome)) campos.set(nome, textoHtml(par[2] ?? "").slice(0, 100));
   }
