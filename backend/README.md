@@ -56,6 +56,15 @@ alterar disponibilidade e limites; não é uma fonte garantida para grande escal
 A antiga integração Falcon Data Hub e a variável `FALCON_DATA_HUB_API_KEY`
 foram removidas; nenhuma chave é necessária para a Parallelum.
 
+## Prova de conceito Carro FIPE / páginas públicas (v1.13.2)
+
+A flag `PLACAS_WEB_EXPERIMENTAL` é **false por padrão**, inclusive em produção.
+Quando ativada **somente após validação de disponibilidade e permissão de uso automatizado**, o backend tenta obter marca, modelo e ano em páginas HTML públicas, começando pela prévia do Carro FIPE em `/consultar?placa=...`, e usa o endpoint Parallelum como fallback.
+
+**Atenção:** a prévia gratuita no navegador **não é uma API pública**. Não foi possível verificar o HTML real da consulta nem seus limites de automação nesta etapa. O parser exige placa exata e dados identificados por rótulos em tabela ou lista de definição. Páginas renderizadas somente por JavaScript, formulários com pagamento e layouts diferentes podem resultar em ausência de dados. A integração não contorna CAPTCHA, HTTP 403/429, TLS ou autenticação e possui limite local de tentativas. Não habilitar em produção sem autorização dos responsáveis pelos sites e testes com placas reais do cliente.
+
+O cache Turso e o cadastro manual continuam funcionando; somente os campos técnicos marca/modelo/ano são persistidos. O uso experimental não garante consultas gratuitas ilimitadas.
+
 ## Testes
 
 ```bash
