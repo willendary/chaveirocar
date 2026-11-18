@@ -22,7 +22,7 @@ async function rota(placa = "ABC1234") {
 
 describe("consulta gratuita de placas via Parallelum", () => {
   it("consulta sem chave, converte campos e reaproveita cache no Turso", async () => {
-    const requisicao = vi.fn(async () => new Response(JSON.stringify({
+    const requisicao = vi.fn(async (_url: unknown) => new Response(JSON.stringify({
       brand: "Volkswagen", model: "SANTANA CG", year: "1986",
       chassis: "*****P246344", city: "LOBATO",
     }), { status: 200 }));
