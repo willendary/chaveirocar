@@ -210,6 +210,7 @@ fun TelaFormulario(
     }
     if (!placaDigitada || !Placa.valida(placaParaHistorico) || atendimento.modelo.isNotBlank()) return@LaunchedEffect
     mensagemPlaca = "Consultando modelo…"
+    var avisoConsulta: String? = null
     val dados = historico.firstOrNull { it.modelo.isNotBlank() } ?: withContext(Dispatchers.IO) {
       val prefs = Preferencias.obter(contexto)
       val sessao = Preferencias.obterApi(contexto)
@@ -219,11 +220,17 @@ fun TelaFormulario(
       runCatching {
         val json = api.consultarVeiculo(empresa, placaParaHistorico)
         Atendimento(modelo = json.getString("modelo"), marca = json.optString("marca"), ano = json.optString("ano"))
+      }.onFailure { falha ->
+        avisoConsulta = when {
+          falha.message.orEmpty().contains("API 429") -> "Cota mensal de consultas gratuitas esgotada. Informe o modelo manualmente."
+          falha.message.orEmpty().contains("API 404") -> "Placa não encontrada. Informe o modelo manualmente."
+          else -> "Consulta indisponível. Informe o modelo manualmente."
+        }
       }.getOrNull()
     }
     if (Placa.normalizar(atendimento.placa) != placaParaHistorico) return@LaunchedEffect
     if (dados == null || atendimento.modelo.isNotBlank()) {
-      mensagemPlaca = if (atendimento.modelo.isBlank()) "Modelo indisponível. Informe manualmente." else ""
+      mensagemPlaca = if (atendimento.modelo.isBlank()) avisoConsulta ?: "Modelo indisponível. Informe manualmente." else ""
       return@LaunchedEffect
     }
     automatico = dados.copy(marca = dados.marca.takeIf { atendimento.marca.isBlank() }.orEmpty(),
