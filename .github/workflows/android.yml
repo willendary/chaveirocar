@@ -3,6 +3,7 @@ name: Releases Android + Windows
 on:
   push:
     tags: ["v*"]
+    branches: ["release/v*"]
   workflow_dispatch:
 
 permissions:
@@ -11,9 +12,29 @@ permissions:
 jobs:
   build:
     runs-on: ubuntu-latest
+    outputs:
+      tag: ${{ steps.versao.outputs.tag }}
     steps:
       - name: Baixar codigo
         uses: actions/checkout@v4
+
+      - name: Conferir versao da publicacao
+        id: versao
+        shell: bash
+        run: |
+          versao=$(sed -n 's/.*versionName = "\([^"]*\)".*/\1/p' app/build.gradle.kts)
+          tag="v$versao"
+          [[ "$tag" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]
+          test -f "release/$tag.md"
+          if [[ "$GITHUB_REF" == refs/tags/* || "$GITHUB_REF" == refs/heads/release/* ]]; then
+            test "${GITHUB_REF##*/}" = "$tag"
+            existente=$(git ls-remote origin "refs/tags/$tag" "refs/tags/$tag^{}" | tail -1 | cut -f1)
+            if [[ -n "$existente" && "$existente" != "$GITHUB_SHA" ]]; then
+              echo "A tag $tag ja aponta para outro commit. Incremente a versao."
+              exit 1
+            fi
+          fi
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
 
       - name: Java 17
         uses: actions/setup-java@v4
@@ -60,15 +81,17 @@ jobs:
           path: dist/*.apk
 
       - name: Publicar release
-        if: startsWith(github.ref, 'refs/tags/v')
+        if: startsWith(github.ref, 'refs/tags/v') || startsWith(github.ref, 'refs/heads/release/v')
         uses: softprops/action-gh-release@v2
         with:
-          name: ChaveiroCar ${{ github.ref_name }}
-          body_path: release/${{ github.ref_name }}.md
+          tag_name: ${{ steps.versao.outputs.tag }}
+          target_commitish: ${{ github.sha }}
+          name: ChaveiroCar ${{ steps.versao.outputs.tag }}
+          body_path: release/${{ steps.versao.outputs.tag }}.md
           files: dist/*.apk
 
   windows:
-    if: startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch'
+    if: startsWith(github.ref, 'refs/tags/v') || startsWith(github.ref, 'refs/heads/release/v') || github.event_name == 'workflow_dispatch'
     needs: build
     runs-on: windows-latest
     steps:
@@ -111,11 +134,12 @@ jobs:
             dist/chaveirocar-windows-x64.zip
 
       - name: Anexar Windows à release
-        if: startsWith(github.ref, 'refs/tags/v')
+        if: startsWith(github.ref, 'refs/tags/v') || startsWith(github.ref, 'refs/heads/release/v')
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ github.ref_name }}
-          body_path: release/${{ github.ref_name }}.md
+          tag_name: ${{ needs.build.outputs.tag }}
+          target_commitish: ${{ github.sha }}
+          body_path: release/${{ needs.build.outputs.tag }}.md
           files: |
             dist/ChaveiroCar.Windows.exe
             dist/ChaveiroCar-Setup.exe
