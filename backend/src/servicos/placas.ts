@@ -1,5 +1,6 @@
 import type { Banco } from "../banco.js";
 import { ErroApi, erros } from "../erros.js";
+import { buscarVeiculoEmPaginas } from "./placasWeb.js";
 
 interface DadosVeiculo {
   modelo: string;
@@ -53,7 +54,9 @@ async function consultarParallelum(placa: string): Promise<DadosVeiculo> {
   return { modelo, marca, ano };
 }
 
-export async function consultarPlaca(banco: Banco, placa: string): Promise<DadosVeiculo> {
+export async function consultarPlaca(
+  banco: Banco, placa: string, opcoes: { webExperimental?: boolean } = {},
+): Promise<DadosVeiculo> {
   const normalizada = normalizarPlaca(placa);
 
   const consultaCache = await banco.execute({
@@ -79,7 +82,9 @@ export async function consultarPlaca(banco: Banco, placa: string): Promise<Dados
   if (anterior) return anterior;
 
   const novaConsulta = (async () => {
-    const dados = await consultarParallelum(normalizada);
+    // Somente após homologação/autorização: PoC das fontes HTML antes da Parallelum.
+    const dados = (opcoes.webExperimental ? await buscarVeiculoEmPaginas(normalizada) : null)
+      ?? await consultarParallelum(normalizada);
     // Uma falha no cache não deve descartar um resultado obtido com sucesso.
     try {
       await banco.execute({
