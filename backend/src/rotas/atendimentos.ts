@@ -34,7 +34,7 @@ const ListaQuery = Type.Object({
 const ExcluirQuery = Type.Object({ baseRevisao: Type.Integer({ minimum: 1 }) });
 
 export const rotasAtendimentos: FastifyPluginAsync<ContextoRotas> = async (app, opcoes) => {
-  const { banco, autenticacao } = opcoes;
+  const { banco, autenticacao, config } = opcoes;
 
   app.get("/empresas/:empresaId/veiculos/:placa", {
     preHandler: autenticacao.exigir,
@@ -49,7 +49,7 @@ export const rotasAtendimentos: FastifyPluginAsync<ContextoRotas> = async (app, 
     const { empresaId, placa } = request.params as { empresaId: string; placa: string };
     exigirEscrita(await exigirMembro(banco, empresaId, exigirUsuario(request).usuarioId));
     await exigirModuloAtivo(banco, empresaId, "AUTOMOTIVO");
-    return consultarPlaca(banco, placa);
+    return consultarPlaca(banco, placa, { webExperimental: config.placasWebExperimental });
   });
 
   app.get(
