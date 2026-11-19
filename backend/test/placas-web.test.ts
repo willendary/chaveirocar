@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { extrairVeiculoDeHtml } from "../src/servicos/placasWeb.js";
+import { extrairVeiculoDeHtml, resetarOrcamentoPlacasWeb } from "../src/servicos/placasWeb.js";
 import { cadastrar, criarAmbiente, type Ambiente } from "./ajuda.js";
 
 const placa = "ITR1J02";
@@ -12,7 +12,7 @@ const exemplo = `<!doctype html><html><body>
   </table>
 </section></body></html>`;
 
-describe("extrator de HTML de placas (PoC)", () => {
+describe("extrator de HTML de placas", () => {
   it("extrai somente marca, modelo e ano-modelo em estrutura explícita", () => {
     expect(extrairVeiculoDeHtml(exemplo, placa)).toEqual({
       marca: "Volkswagen", modelo: "Gol 1.0", ano: "2018",
@@ -37,17 +37,22 @@ describe("extrator de HTML de placas (PoC)", () => {
   });
 });
 
-describe("provedor HTML opt-in no backend", () => {
+describe("provedor HTML no backend (sem API Parallelum)", () => {
   let ambiente: Ambiente | undefined;
   afterEach(async () => {
     vi.unstubAllGlobals();
     if (ambiente) await ambiente.fechar();
     ambiente = undefined;
   });
-  beforeEach(() => vi.unstubAllGlobals());
+  beforeEach(() => {
+    vi.unstubAllGlobals();
+    resetarOrcamentoPlacasWeb();
+  });
 
-  async function consultar(ativar: boolean) {
-    ambiente = await criarAmbiente({ PLACAS_WEB_EXPERIMENTAL: ativar ? "true" : "false" });
+  async function consultar(ativar?: boolean) {
+    const env: Record<string, string> = {};
+    if (ativar !== undefined) env.PLACAS_WEB_ATIVAS = ativar ? "true" : "false";
+    ambiente = await criarAmbiente(env);
     const conta = await cadastrar(ambiente.app);
     return ambiente.app.inject({
       method: "GET",
@@ -56,7 +61,7 @@ describe("provedor HTML opt-in no backend", () => {
     });
   }
 
-  it("usa Carro FIPE apenas quando a integração experimental está habilitada", async () => {
+  it("usa CarroFIPE por padrão quando PLACAS_WEB_ATIVAS não é informado", async () => {
     const chamada = vi.fn(async (url: unknown) => {
       if (String(url).startsWith("https://www.carrofipe.com.br/consultar?placa=")) {
         return new Response(exemplo, {
@@ -66,7 +71,7 @@ describe("provedor HTML opt-in no backend", () => {
       throw new Error("Não deveria consultar outro provedor");
     });
     vi.stubGlobal("fetch", chamada);
-    const r = await consultar(true);
+    const r = await consultar();
     expect(r.statusCode).toBe(200);
     expect(r.json()).toEqual({ marca: "Volkswagen", modelo: "Gol 1.0", ano: "2018" });
     expect(chamada).toHaveBeenCalledTimes(1);
@@ -75,33 +80,36 @@ describe("provedor HTML opt-in no backend", () => {
     );
   });
 
-  it("com opção desabilitada não consulta sites HTML", async () => {
+  it("tenta as demais páginas HTML quando CarroFIPE responde 403 e nunca chama Parallelum", async () => {
     const chamada = vi.fn(async (url: unknown) => {
-      expect(String(url)).toBe("https://fipe.parallelum.com.br/api/v2/plates/ITR1J02");
-      return new Response(JSON.stringify({
-        brand: "VW", model: "Polo", year: "2020",
-      }), { status: 200 });
-    });
-    vi.stubGlobal("fetch", chamada);
-    const r = await consultar(false);
-    expect(r.statusCode).toBe(200);
-    expect(r.json()).toEqual({ marca: "VW", modelo: "Polo", ano: "2020" });
-    expect(chamada).toHaveBeenCalledTimes(1);
-  });
-
-  it("não contorna resposta 403 e mantém fallback Parallelum", async () => {
-    const chamada = vi.fn(async (url: unknown) => {
-      if (String(url).includes("parallelum.com.br")) {
-        return new Response(JSON.stringify({
-          brand: "Fiat", model: "Palio", year: "2015",
-        }), { status: 200 });
+      const destino = String(url);
+      expect(destino).not.toContain("parallelum.com.br");
+      if (destino.startsWith("https://www.carrofipe.com.br/")) {
+        return new Response("Bloqueado", { status: 403 });
+      }
+      if (destino.startsWith("https://placaipva.com.br/placa/")) {
+        return new Response(exemplo, {
+          status: 200, headers: { "content-type": "text/html; charset=utf-8" },
+        });
       }
       return new Response("Bloqueado", { status: 403 });
     });
     vi.stubGlobal("fetch", chamada);
     const r = await consultar(true);
     expect(r.statusCode).toBe(200);
-    expect(r.json()).toEqual({ marca: "Fiat", modelo: "Palio", ano: "2015" });
-    expect(chamada.mock.calls.some(args => String(args[0]).includes("parallelum.com.br"))).toBe(true);
+    expect(r.json()).toEqual({ marca: "Volkswagen", modelo: "Gol 1.0", ano: "2018" });
+    expect(chamada).toHaveBeenCalledTimes(2);
+    expect(String(chamada.mock.calls[0]?.[0])).toBe("https://www.carrofipe.com.br/consultar?placa=ITR1J02");
+    expect(String(chamada.mock.calls[1]?.[0])).toBe("https://placaipva.com.br/placa/ITR1J02");
+  });
+
+  it("com PLACAS_WEB_ATIVAS=false não faz chamadas externas nem consulta Parallelum", async () => {
+    const chamada = vi.fn(async () => {
+      throw new Error("Não deveria fazer chamada externa");
+    });
+    vi.stubGlobal("fetch", chamada);
+    const r = await consultar(false);
+    expect(r.statusCode).toBe(503);
+    expect(chamada).not.toHaveBeenCalled();
   });
 });

@@ -33,8 +33,15 @@ public partial class JanelaAtualizacao : Window
     {
         try
         {
-            var uri = new Uri("pack://application:,,,/app.ico", UriKind.Absolute);
+            var uri = new Uri("pack://application:,,,/ChaveiroCar.Windows;component/Assets/logo.png", UriKind.Absolute);
             Icon = System.Windows.Media.Imaging.BitmapFrame.Create(uri);
+        }
+        catch { }
+
+        try
+        {
+            var uriLogo = new Uri("pack://application:,,,/ChaveiroCar.Windows;component/Assets/logo-simbolo.png", UriKind.Absolute);
+            LogoCabecalho.Source = System.Windows.Media.Imaging.BitmapFrame.Create(uriLogo);
         }
         catch { }
     }

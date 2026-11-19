@@ -37,33 +37,28 @@ Migrações em `migrations/`, aplicadas por `npm run migrar` e na subida do serv
 
 Detalhes e custos em `../docs/operacao.md`.
 
-## Consulta automática de placas (sem API Key)
+## Consulta automática de placas (leitura direta de páginas HTML)
 
-O endpoint autenticado `GET /api/v1/empresas/:empresaId/veiculos/:placa` usa
-a API Parallelum (`/api/v2/plates/{plate}`), sem token, e retorna somente
-`modelo`, `marca` e `ano`. Placas antigas e Mercosul são suportadas.
+O endpoint autenticado `GET /api/v1/empresas/:empresaId/veiculos/:placa` consulta
+páginas HTML públicas de consulta veicular e retorna somente `modelo`, `marca` e
+`ano` (suporta placas antigas e Mercosul). A antiga API da Parallelum (que possuía
+cota gratuita limitada a 5 consultas/mês) foi removida na v1.14.0.
 
-**Limite do fornecedor sem token:** 5 consultas por mês (endpoint em Alpha).
-Os resultados bem-sucedidos ficam no Turso por até 90 dias, na tabela
-`cache_consultas_placa` (migration `004`), para poupar a cota.
-Respostas não encontradas não são armazenadas. A autenticação, o módulo
-automotivo e os limites de requisições da rota são preservados.
+Fontes consultadas em ordem de prioridade:
+1. **CarroFIPE** (`https://www.carrofipe.com.br/consultar?placa={placa}`) — fonte principal
+2. **PlacaIPVA** (`https://placaipva.com.br/placa/{placa}`)
+3. **KePlaca** (`https://www.keplaca.com/placa/{placa}`)
+4. **PlacaFIPE** (`https://placafipe.com/placa/{placa}`)
 
-Quando o limite mensal é atingido, o backend retorna HTTP 429. O cadastro
-manual do modelo continua disponível, inclusive offline. O provedor pode
-alterar disponibilidade e limites; não é uma fonte garantida para grande escala.
+Os resultados bem-sucedidos ficam em cache no Turso por até 90 dias, na tabela
+`cache_consultas_placa` (migration `004`), evitando consultas externas repetidas.
+Respostas não encontradas não são armazenadas. O parser exige placa exata e rótulos
+estruturados (`th/td` ou `dt/dd`), nunca armazena chassi ou dados de proprietário e
+respeita bloqueios HTTP 403/429 e CAPTCHA sem contornos.
 
-A antiga integração Falcon Data Hub e a variável `FALCON_DATA_HUB_API_KEY`
-foram removidas; nenhuma chave é necessária para a Parallelum.
-
-## Prova de conceito Carro FIPE / páginas públicas (v1.13.2)
-
-A flag `PLACAS_WEB_EXPERIMENTAL` é **false por padrão**, inclusive em produção.
-Quando ativada **somente após validação de disponibilidade e permissão de uso automatizado**, o backend tenta obter marca, modelo e ano em páginas HTML públicas, começando pela prévia do Carro FIPE em `/consultar?placa=...`, e usa o endpoint Parallelum como fallback.
-
-**Atenção:** a prévia gratuita no navegador **não é uma API pública**. Não foi possível verificar o HTML real da consulta nem seus limites de automação nesta etapa. O parser exige placa exata e dados identificados por rótulos em tabela ou lista de definição. Páginas renderizadas somente por JavaScript, formulários com pagamento e layouts diferentes podem resultar em ausência de dados. A integração não contorna CAPTCHA, HTTP 403/429, TLS ou autenticação e possui limite local de tentativas. Não habilitar em produção sem autorização dos responsáveis pelos sites e testes com placas reais do cliente.
-
-O cache Turso e o cadastro manual continuam funcionando; somente os campos técnicos marca/modelo/ano são persistidos. O uso experimental não garante consultas gratuitas ilimitadas.
+A flag `PLACAS_WEB_ATIVAS` vem habilitada por padrão (`true`) e pode ser definida
+como `false` caso deseje desativar a busca externa mantendo apenas o cache e o
+preenchimento manual.
 
 ## Testes
 

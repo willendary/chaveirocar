@@ -1,10 +1,9 @@
 /**
- * Prova de conceito para páginas públicas de consulta de placas.
+ * Consulta direta em páginas HTML públicas de consulta veicular por placa.
  *
- * Inspirada na estratégia de múltiplas fontes do projeto PlacaCarro-API,
- * SEM copiar seu código e SEM contornar autenticação, CAPTCHA, bloqueios ou TLS.
- * A integração só pode ser ativada após validação do acesso automatizado e
- * autorização/licença dos proprietários de cada fonte.
+ * Estratégia conservadora de múltiplas fontes HTML (CarroFIPE como principal,
+ * seguida por PlacaIPVA, KePlaca e PlacaFIPE), sem contornar autenticação,
+ * CAPTCHA, bloqueios HTTP 403/429 ou TLS, extraindo apenas marca, modelo e ano.
  */
 export interface DadosVeiculoWeb {
   marca: string;
@@ -12,14 +11,18 @@ export interface DadosVeiculoWeb {
   ano: string;
 }
 
+export type ResultadoConsultaWeb =
+  | { status: "encontrado"; dados: DadosVeiculoWeb; fonte: string }
+  | { status: "nao_encontrado" }
+  | { status: "indisponivel" };
+
 interface Fonte {
   nome: string;
   origem: string;
   caminho: (placa: string) => string;
 }
 
-const FONTES: readonly Fonte[] = [
-  // Prévia gratuita anunciada no site; HTML real ainda depende de homologação.
+export const FONTES_HTML_PLACAS: readonly Fonte[] = [
   { nome: "CarroFIPE", origem: "https://www.carrofipe.com.br", caminho: (placa) => "/consultar?placa=" + encodeURIComponent(placa) },
   { nome: "PlacaIPVA", origem: "https://placaipva.com.br", caminho: (placa) => "/placa/" + placa },
   { nome: "KePlaca", origem: "https://www.keplaca.com", caminho: (placa) => "/placa/" + placa },
@@ -28,9 +31,14 @@ const FONTES: readonly Fonte[] = [
 
 const MAX_HTML_BYTES = 200_000;
 const INTERVALO_HORA = 60 * 60_000;
-const MAX_TENTATIVAS_POR_HORA = 30;
+const MAX_TENTATIVAS_POR_HORA = 60;
 let janelaInicio = Date.now();
 let tentativas = 0;
+
+export function resetarOrcamentoPlacasWeb(): void {
+  janelaInicio = Date.now();
+  tentativas = 0;
+}
 
 function dentroDoOrcamento(): boolean {
   if (Date.now() - janelaInicio >= INTERVALO_HORA) {
@@ -136,33 +144,50 @@ async function lerHtmlLimitado(resposta: Response): Promise<string | null> {
 }
 
 /**
- * Executa no máximo quatro tentativas, apenas quando explicitamente habilitado.
+ * Consulta as fontes HTML públicas em ordem de prioridade.
  * Requisições externas não usam cookies, credenciais, proxies ou redirecionamento.
  * 403/429/CAPTCHA são respeitados: nunca tentamos contorná-los.
  */
-export async function buscarVeiculoEmPaginas(placa: string): Promise<DadosVeiculoWeb | null> {
-  for (const fonte of FONTES) {
-    if (!dentroDoOrcamento()) return null;
+export async function consultarVeiculoEmPaginas(placa: string): Promise<ResultadoConsultaWeb> {
+  let houveRespostaSemResultado = false;
+
+  for (const fonte of FONTES_HTML_PLACAS) {
+    if (!dentroDoOrcamento()) {
+      return { status: "indisponivel" };
+    }
     const url = fonte.origem + fonte.caminho(placa);
     try {
       const resposta = await fetch(url, {
         method: "GET",
         headers: {
           Accept: "text/html",
-          "User-Agent": "ChaveiroCar-ConsultaTecnica/1.13.2 (+https://github.com/willendary/chaveirocar)",
+          "User-Agent": "ChaveiroCar-ConsultaTecnica/1.14.0 (+https://github.com/willendary/chaveirocar)",
         },
         redirect: "error",
         signal: AbortSignal.timeout(5000),
       });
+      if (resposta.status === 404) {
+        houveRespostaSemResultado = true;
+        continue;
+      }
       if (resposta.status === 403 || resposta.status === 429) continue;
       if (!resposta.ok || !resposta.headers.get("content-type")?.includes("text/html")) continue;
       const html = await lerHtmlLimitado(resposta);
       if (!html) continue;
       const dados = extrairVeiculoDeHtml(html, placa);
-      if (dados) return dados;
+      if (dados) {
+        return { status: "encontrado", dados, fonte: fonte.nome };
+      }
+      houveRespostaSemResultado = true;
     } catch {
       // Não ocultamos CAPTCHA ou burlamos bloqueios. A próxima fonte pode responder.
     }
   }
-  return null;
+
+  return houveRespostaSemResultado ? { status: "nao_encontrado" } : { status: "indisponivel" };
+}
+
+export async function buscarVeiculoEmPaginas(placa: string): Promise<DadosVeiculoWeb | null> {
+  const resultado = await consultarVeiculoEmPaginas(placa);
+  return resultado.status === "encontrado" ? resultado.dados : null;
 }

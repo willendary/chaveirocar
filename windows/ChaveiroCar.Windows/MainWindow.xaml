@@ -17,9 +17,8 @@
         <Border Grid.Row="0" Background="{StaticResource CorCabecalho}" Padding="24,14">
             <DockPanel LastChildFill="False">
                 <StackPanel DockPanel.Dock="Left" Orientation="Horizontal" VerticalAlignment="Center">
-                    <Border Width="38" Height="38" CornerRadius="10" Background="{StaticResource CorPrimaria}" Margin="0,0,12,0">
-                        <TextBlock Text="CC" Foreground="White" FontWeight="Bold" FontSize="15"
-                                   HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                    <Border Width="52" Height="38" CornerRadius="9" Background="#393A3C" BorderBrush="#525458" BorderThickness="1" Padding="5" Margin="0,0,12,0">
+                        <Image x:Name="LogoCabecalho" Stretch="Uniform" RenderOptions.BitmapScalingMode="HighQuality"/>
                     </Border>
                     <StackPanel VerticalAlignment="Center" Margin="0,0,24,0">
                         <TextBlock Text="ChaveiroCar" Foreground="White" FontSize="18" FontWeight="Bold"/>

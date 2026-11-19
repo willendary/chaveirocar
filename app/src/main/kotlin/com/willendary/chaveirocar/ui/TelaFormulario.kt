@@ -222,7 +222,7 @@ fun TelaFormulario(
         Atendimento(modelo = json.getString("modelo"), marca = json.optString("marca"), ano = json.optString("ano"))
       }.onFailure { falha ->
         avisoConsulta = when {
-          falha.message.orEmpty().contains("API 429") -> "Cota mensal de consultas gratuitas esgotada. Informe o modelo manualmente."
+          falha.message.orEmpty().contains("API 429") -> "Muitas consultas em sequência. Aguarde um instante ou informe o modelo manualmente."
           falha.message.orEmpty().contains("API 404") -> "Placa não encontrada. Informe o modelo manualmente."
           else -> "Consulta indisponível. Informe o modelo manualmente."
         }

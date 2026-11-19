@@ -49,13 +49,13 @@ e importar cópias locais em `.zip`.
 ## Consulta automática por placa
 
 Ao informar uma placa brasileira válida, o Android primeiro aproveita o
-histórico local. Quando necessário, o backend busca marca/modelo/ano no
-endpoint experimental da **Parallelum**, sem API Key, e guarda apenas
-esses dados técnicos no Turso por 90 dias. O serviço gratuito permite
-**5 consultas por mês** sem autenticação, portanto a identificação automática
-não é garantida. Se a cota acabar ou o serviço falhar, o modelo pode ser
-preenchido manualmente (inclusive offline). A integração anterior com
-Falcon Data Hub foi removida na versão 1.13.1.
+histórico local. Quando necessário, o backend busca apenas `marca`, `modelo` e
+`ano` por leitura direta de páginas HTML públicas — usando **CarroFIPE**
+(`carrofipe.com.br`) como fonte principal, seguida por **PlacaIPVA**, **KePlaca**
+e **PlacaFIPE** — e guarda esses dados técnicos em cache no Turso por 90 dias.
+A API da Parallelum (limitada a 5 consultas/mês) foi removida na versão 1.14.0.
+Se a placa não for localizada ou as fontes estiverem indisponíveis, o modelo
+continua editável manualmente (inclusive offline).
 
 ## Onde ficam os dados
 
@@ -112,9 +112,10 @@ Também dá para baixar direto do GitHub:
 
 Backlog: `https://github.com/willendary/chaveirocar/issues`
 
-## Versão 1.13.2 — consulta HTML experimental
+## Versão 1.14.0 — logo oficial e consulta por páginas HTML
 
-Inclui um **protótipo desativado por padrão** no backend que tenta aproveitar páginas HTML públicas de consulta de placa, começando pelo Carro FIPE. Essa é uma etapa técnica para validar a abordagem, não uma substituição já homologada da Parallelum: o site anuncia prévia gratuita, mas não conseguimos verificar a estrutura do HTML com placa nem autorização de automação em produção. O comportamento público permanece igual à v1.13.1 enquanto `PLACAS_WEB_EXPERIMENTAL=false`. Veja `backend/README.md`.
+- Nova **logo oficial do ChaveiroCar** convertida em SVG, VectorDrawable, PNG, WebP e ICO e aplicada em Android, Windows Desktop, instalador e arquivos de design (`docs/design/`).
+- Consulta automática por placa passou a usar exclusivamente a leitura direta de páginas HTML públicas (**CarroFIPE** como principal, seguida por **PlacaIPVA**, **KePlaca** e **PlacaFIPE**), removendo a API da Parallelum que atingia cota mensal de 5 consultas (#135). Veja `backend/README.md`.
 
 ## Como publicar uma versão nova
 

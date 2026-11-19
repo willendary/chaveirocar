@@ -49,7 +49,7 @@ export const rotasAtendimentos: FastifyPluginAsync<ContextoRotas> = async (app, 
     const { empresaId, placa } = request.params as { empresaId: string; placa: string };
     exigirEscrita(await exigirMembro(banco, empresaId, exigirUsuario(request).usuarioId));
     await exigirModuloAtivo(banco, empresaId, "AUTOMOTIVO");
-    return consultarPlaca(banco, placa, { webExperimental: config.placasWebExperimental });
+    return consultarPlaca(banco, placa, { consultaWebAtiva: config.placasWebAtivas });
   });
 
   app.get(
