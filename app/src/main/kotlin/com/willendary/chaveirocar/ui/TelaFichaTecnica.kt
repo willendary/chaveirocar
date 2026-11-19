@@ -5,60 +5,34 @@ import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.BorderStroke
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.ExperimentalLayoutApi
-import androidx.compose.foundation.layout.FlowRow
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.imePadding
-import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
-import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Button
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.FilterChip
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Switch
-import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
-import androidx.compose.material3.TopAppBar
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.runtime.setValue
+import androidx.compose.material.icons.filled.Warning
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardCapitalization
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.core.content.FileProvider
 import com.willendary.chaveirocar.catalogo.CatalogoFichasPadrao
 import com.willendary.chaveirocar.dados.BancoDeAtendimentos
 import com.willendary.chaveirocar.dados.Fotos
 import com.willendary.chaveirocar.modelo.FichaTecnica
 import com.willendary.chaveirocar.modelo.SegmentoAtendimento
+import com.willendary.chaveirocar.ui.theme.coresEstendidas
 import com.willendary.chaveirocar.util.Erros
 import com.willendary.chaveirocar.util.formatarData
 import kotlinx.coroutines.Dispatchers
@@ -92,28 +66,33 @@ fun TelaFichaTecnica(
 
   Scaffold(
     topBar = {
-      TopAppBar(
-        title = { Text("Ficha técnica") },
-        navigationIcon = { BotaoVoltar(onVoltar) },
-        actions = {
-          val atualBarra = ficha
-          if (podeEditar && atualBarra != null) {
-            IconButton(onClick = {
-              if (atualBarra.ehCatalogoOficial && id < 0L && onEditarOficial != null) {
-                onEditarOficial(atualBarra)
-              } else {
-                onEditar()
-              }
-            }) { Icon(Icons.Default.Edit, contentDescription = "Editar ficha") }
-            if (id > 0L) {
-              IconButton(onClick = { confirmarExclusao = true }) {
-                Icon(Icons.Default.Delete, contentDescription = "Excluir ficha")
+      Column {
+        TopAppBar(
+          title = { Text("Ficha técnica", style = MaterialTheme.typography.titleLarge) },
+          navigationIcon = { BotaoVoltar(onVoltar) },
+          actions = {
+            val atualBarra = ficha
+            if (podeEditar && atualBarra != null) {
+              IconButton(onClick = {
+                if (atualBarra.ehCatalogoOficial && id < 0L && onEditarOficial != null) {
+                  onEditarOficial(atualBarra)
+                } else {
+                  onEditar()
+                }
+              }) { Icon(Icons.Default.Edit, contentDescription = "Editar ficha") }
+              if (id > 0L) {
+                IconButton(onClick = { confirmarExclusao = true }) {
+                  Icon(Icons.Default.Delete, contentDescription = "Excluir ficha")
+                }
               }
             }
-          }
-        },
-      )
+          },
+          colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.surface),
+        )
+        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.75f))
+      }
     },
+    containerColor = MaterialTheme.colorScheme.background,
   ) { espacamento ->
     val atual = ficha
     if (!carregado || atual == null) {
@@ -128,8 +107,8 @@ fun TelaFichaTecnica(
         .conteudoResponsivo()
         .padding(espacamento)
         .verticalScroll(rememberScrollState())
-        .padding(horizontal = 16.dp, vertical = 8.dp),
-      verticalArrangement = Arrangement.spacedBy(10.dp),
+        .padding(horizontal = 16.dp, vertical = 14.dp),
+      verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
       val veiculo = listOf(atual.marca, atual.modelo, atual.ano).filter { it.isNotBlank() }.joinToString(" ")
       PainelDestaque(
@@ -144,43 +123,88 @@ fun TelaFichaTecnica(
         ).joinToString(" · ").ifBlank { null },
       )
 
-      FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-        Selo(if (atual.ehCatalogoOficial) "Catálogo padrão" else "Anotação da empresa")
+      FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        Selo(
+          texto = if (atual.ehCatalogoOficial) "Catálogo padrão" else "Anotação da empresa",
+          tom = if (atual.ehCatalogoOficial) TomSelo.PRIMARIO else TomSelo.RESIDENCIAL,
+        )
         Selo(
           texto = if (atual.temManualOffline) "Manual offline" else "Sem manual",
-          pendente = !atual.temManualOffline,
+          tom = if (atual.temManualOffline) TomSelo.SUCESSO else TomSelo.NEUTRO,
         )
-        if (atual.confirmado) Selo("Confirmado") else Selo("Não confirmado", pendente = true)
-        if (atual.atualizadoEm > 0) {
-          Text(
-            "Atualizado em ${formatarData(atual.atualizadoEm)}",
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-          )
-        }
+        Selo(
+          texto = if (atual.confirmado) "Confirmado" else "Não confirmado",
+          tom = if (atual.confirmado) TomSelo.SUCESSO else TomSelo.PENDENTE,
+        )
+      }
+      if (atual.atualizadoEm > 0) {
+        Text(
+          "Atualizado em ${formatarData(atual.atualizadoEm)}",
+          style = MaterialTheme.typography.bodySmall,
+          color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
       }
 
       if (atual.foto.isNotBlank()) {
         ImagemLocal(
           caminho = atual.foto,
-          modificador = Modifier.fillMaxWidth().height(200.dp),
+          modificador = Modifier.fillMaxWidth().height(210.dp).clip(RoundedCornerShape(18.dp)),
           ladoMaximo = 1000,
         )
       }
 
-      LinhaCopiar("Chip / transponder", atual.chip, contexto)
-      LinhaCopiar("Chave compatível", atual.chave, contexto)
-      LinhaCopiar("Telecomando", atual.telecomando, contexto)
-      LinhaCopiar("Frequência", atual.frequencia, contexto)
+      // Grade técnica 2x2 de referências rápidas (1 toque copia!)
+      val especificacoes = listOf(
+        "Chip / transponder" to atual.chip,
+        "Chave compatível" to atual.chave,
+        "Telecomando" to atual.telecomando,
+        "Frequência" to atual.frequencia,
+      ).filter { it.second.isNotBlank() }
+
+      if (especificacoes.isNotEmpty()) {
+        TituloSecao("Especificações de bancada", detalhe = "Toque para copiar")
+        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+          especificacoes.chunked(2).forEach { par ->
+            Row(
+              modifier = Modifier.fillMaxWidth(),
+              horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+              par.forEach { (rotulo, valor) ->
+                TileEspecificacao(
+                  rotulo = rotulo,
+                  valor = valor,
+                  modificador = Modifier.weight(1f),
+                  onCopiar = { copiarTexto(contexto, rotulo, valor) },
+                )
+              }
+              if (par.size == 1) Spacer(Modifier.weight(1f))
+            }
+          }
+        }
+      }
 
       if (atual.avisos.isNotBlank()) {
-        Card(
-          colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer),
-          border = BorderStroke(1.dp, MaterialTheme.colorScheme.error),
+        Surface(
+          shape = RoundedCornerShape(18.dp),
+          color = MaterialTheme.colorScheme.errorContainer,
+          border = BorderStroke(1.dp, MaterialTheme.colorScheme.error.copy(alpha = 0.45f)),
+          modifier = Modifier.fillMaxWidth(),
         ) {
           Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            Text("Informações importantes", style = MaterialTheme.typography.titleSmall)
-            Text(atual.avisos, style = MaterialTheme.typography.bodyMedium)
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+              Icon(Icons.Default.Warning, contentDescription = null, tint = MaterialTheme.colorScheme.error, modifier = Modifier.size(18.dp))
+              Text(
+                "Informações importantes",
+                style = MaterialTheme.typography.titleSmall,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.onErrorContainer,
+              )
+            }
+            Text(
+              atual.avisos,
+              style = MaterialTheme.typography.bodyMedium,
+              color = MaterialTheme.colorScheme.onErrorContainer,
+            )
           }
         }
       }
@@ -190,17 +214,22 @@ fun TelaFichaTecnica(
       }
 
       if (atual.manual.isNotBlank()) {
-        Card(
-          colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-          border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
-        ) {
-          Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        CartaoSurface(raio = 18.dp) {
+          Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-              Text("Manual / anotações", style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
-              Selo("Disponível offline")
+              Text("Manual / anotações", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
+              Selo("Disponível offline", tom = TomSelo.SUCESSO)
             }
+            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f))
             Text(atual.manual, style = MaterialTheme.typography.bodyMedium)
-            TextButton(onClick = { copiarTexto(contexto, "Manual", atual.manual) }) { Text("Copiar manual") }
+            FilledTonalButton(
+              onClick = { copiarTexto(contexto, "Manual", atual.manual) },
+              shape = RoundedCornerShape(10.dp),
+            ) {
+              Icon(IconesApp.Copiar, contentDescription = null, modifier = Modifier.size(16.dp))
+              Spacer(Modifier.width(6.dp))
+              Text("Copiar manual", fontWeight = FontWeight.Bold)
+            }
           }
         }
       }
@@ -213,12 +242,15 @@ fun TelaFichaTecnica(
         "Ficha de consulta: não altera atendimentos antigos nem executa funções na central do veículo.",
         style = MaterialTheme.typography.bodySmall,
         color = MaterialTheme.colorScheme.onSurfaceVariant,
-        modifier = Modifier.padding(vertical = 8.dp),
       )
-      Spacer(Modifier.height(12.dp))
+
       if (onCriarServico != null && podeEditar) {
-        OutlinedButton(onClick = { onCriarServico(atual) }, modifier = Modifier.fillMaxWidth()) {
-          Text("Novo serviço com esta ficha")
+        OutlinedButton(
+          onClick = { onCriarServico(atual) },
+          modifier = Modifier.fillMaxWidth().height(48.dp),
+          shape = RoundedCornerShape(14.dp),
+        ) {
+          Text("Novo serviço com esta ficha", fontWeight = FontWeight.SemiBold)
         }
       }
       if (podeEditar) {
@@ -230,30 +262,39 @@ fun TelaFichaTecnica(
               onEditar()
             }
           },
-          modifier = Modifier.fillMaxWidth(),
+          modifier = Modifier.fillMaxWidth().height(48.dp),
+          shape = RoundedCornerShape(14.dp),
         ) {
-          Text(if (id < 0L) "Complementar ficha para a empresa" else "Editar ficha")
+          Text(
+            if (id < 0L) "Complementar ficha para a empresa" else "Editar ficha",
+            fontWeight = FontWeight.Bold,
+          )
         }
       }
-      Spacer(Modifier.height(24.dp))
+      Spacer(Modifier.height(20.dp))
     }
   }
 
   if (confirmarExclusao) {
     AlertDialog(
       onDismissRequest = { confirmarExclusao = false },
-      title = { Text("Excluir esta ficha?") },
+      shape = RoundedCornerShape(22.dp),
+      title = { Text("Excluir esta ficha?", fontWeight = FontWeight.Bold) },
       text = { Text("A ficha e a imagem de referência serão apagadas. Os atendimentos não mudam.") },
       confirmButton = {
-        TextButton(onClick = {
-          confirmarExclusao = false
-          escopo.launch {
-            withContext(Dispatchers.IO) {
-              banco.excluirFicha(id)?.takeIf { it.isNotBlank() }?.let { Fotos.excluir(contexto, it) }
+        Button(
+          onClick = {
+            confirmarExclusao = false
+            escopo.launch {
+              withContext(Dispatchers.IO) {
+                banco.excluirFicha(id)?.takeIf { it.isNotBlank() }?.let { Fotos.excluir(contexto, it) }
+              }
+              onExcluido()
             }
-            onExcluido()
-          }
-        }) { Text("Excluir", color = MaterialTheme.colorScheme.error) }
+          },
+          colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error),
+          shape = RoundedCornerShape(12.dp),
+        ) { Text("Excluir") }
       },
       dismissButton = { TextButton(onClick = { confirmarExclusao = false }) { Text("Cancelar") } },
     )
@@ -261,34 +302,52 @@ fun TelaFichaTecnica(
 }
 
 @Composable
-private fun LinhaCopiar(rotulo: String, valor: String, contexto: android.content.Context) {
-  if (valor.isBlank()) return
-  Card(
-    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
-  ) {
-    Row(
-      modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp),
-      verticalAlignment = Alignment.CenterVertically,
-      horizontalArrangement = Arrangement.spacedBy(8.dp),
-    ) {
-      Column(Modifier.weight(1f)) {
-        Text(rotulo, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        Text(valor, style = MaterialTheme.typography.titleMedium, fontFamily = FontFamily.Monospace)
+private fun TileEspecificacao(
+  rotulo: String,
+  valor: String,
+  modificador: Modifier = Modifier,
+  onCopiar: () -> Unit,
+) {
+  CartaoSurface(onClick = onCopiar, modificador = modificador, raio = 16.dp) {
+    Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
+      Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.SpaceBetween,
+      ) {
+        Text(
+          text = rotulo.uppercase(),
+          style = MaterialTheme.typography.labelSmall,
+          fontSize = 10.sp,
+          color = MaterialTheme.colorScheme.onSurfaceVariant,
+          maxLines = 1,
+          overflow = TextOverflow.Ellipsis,
+          modifier = Modifier.weight(1f),
+        )
+        Icon(
+          IconesApp.Copiar,
+          contentDescription = "Copiar",
+          tint = MaterialTheme.colorScheme.primary,
+          modifier = Modifier.size(14.dp),
+        )
       }
-      TextButton(onClick = { copiarTexto(contexto, rotulo, valor) }) { Text("Copiar") }
+      Text(
+        text = valor,
+        style = MaterialTheme.typography.titleMedium,
+        fontFamily = FontFamily.Monospace,
+        fontWeight = FontWeight.ExtraBold,
+        maxLines = 2,
+        overflow = TextOverflow.Ellipsis,
+      )
     }
   }
 }
 
 @Composable
 private fun BlocoDeTexto(titulo: String, texto: String) {
-  Card(
-    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
-  ) {
+  CartaoSurface(raio = 18.dp) {
     Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-      Text(titulo, style = MaterialTheme.typography.titleMedium)
+      Text(titulo, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
       Text(texto, style = MaterialTheme.typography.bodyMedium)
     }
   }
@@ -422,16 +481,24 @@ fun TelaFichaFormulario(
 
   Scaffold(
     topBar = {
-      TopAppBar(
-        title = { Text(if (id > 0) "Editar ficha" else "Nova ficha técnica") },
-        navigationIcon = { BotaoVoltar { descartar() } },
-        actions = {
-          Button(onClick = { salvar() }, enabled = !salvando, modifier = Modifier.padding(end = 12.dp)) {
-            Text(if (salvando) "Salvando…" else "Salvar")
-          }
-        },
-      )
+      Column {
+        TopAppBar(
+          title = { Text(if (id > 0) "Editar ficha" else "Nova ficha técnica", style = MaterialTheme.typography.titleLarge) },
+          navigationIcon = { BotaoVoltar { descartar() } },
+          actions = {
+            Button(
+              onClick = { salvar() },
+              enabled = !salvando,
+              shape = RoundedCornerShape(12.dp),
+              modifier = Modifier.padding(end = 12.dp),
+            ) { Text(if (salvando) "Salvando…" else "Salvar", fontWeight = FontWeight.Bold) }
+          },
+          colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.surface),
+        )
+        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.75f))
+      }
     },
+    containerColor = MaterialTheme.colorScheme.background,
   ) { espacamento ->
     if (!carregado) {
       Box(Modifier.fillMaxSize().padding(espacamento), contentAlignment = Alignment.Center) {
@@ -446,205 +513,136 @@ fun TelaFichaFormulario(
         .imePadding()
         .padding(espacamento)
         .verticalScroll(rememberScrollState())
-        .padding(horizontal = 16.dp, vertical = 8.dp),
-      verticalArrangement = Arrangement.spacedBy(12.dp),
+        .padding(horizontal = 16.dp, vertical = 14.dp),
+      verticalArrangement = Arrangement.spacedBy(14.dp),
     ) {
-      SecaoFormulario("01", "Identificação", "Equipamento, veículo ou fechadura e sistema desta referência.")
       if (id == 0L && base?.ehCatalogoOficial == true) {
-        Card(
-          colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer),
+        Surface(
+          shape = RoundedCornerShape(14.dp),
+          color = MaterialTheme.colorScheme.primaryContainer,
+          modifier = Modifier.fillMaxWidth(),
         ) {
           Text(
             text = "Complementando o Catálogo Padrão: suas alterações serão salvas como anotação da empresa, preservando o catálogo oficial.",
             style = MaterialTheme.typography.bodySmall,
-            modifier = Modifier.padding(12.dp),
+            color = MaterialTheme.colorScheme.onPrimaryContainer,
+            modifier = Modifier.padding(14.dp),
           )
         }
       }
-      if (segmentoFixo == null) {
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-          SegmentoAtendimento.entries.forEach { seg ->
-            FilterChip(
-              selected = ficha.segmento == seg,
-              onClick = { ficha = ficha.copy(segmento = seg) },
-              label = { Text(seg.rotulo) },
-            )
+
+      // Card 01 — Identificação
+      CartaoSurface(raio = 20.dp) {
+        Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+          SecaoFormulario("01", "Identificação", "Equipamento, veículo ou fechadura e sistema.")
+          if (segmentoFixo == null) {
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+              SegmentoAtendimento.entries.forEach { seg ->
+                FilterChip(
+                  selected = ficha.segmento == seg,
+                  onClick = { ficha = ficha.copy(segmento = seg) },
+                  shape = RoundedCornerShape(12.dp),
+                  label = { Text(seg.rotulo) },
+                )
+              }
+            }
+          } else {
+            Selo("Modalidade: ${ficha.segmento.rotulo}")
+          }
+          CampoTexto("Equipamento", ficha.equipamento, { ficha = ficha.copy(equipamento = it) }, sugestoes = sugestoesEquipamento, dica = "VVDI, KD-X2, Autel...", modificador = Modifier.fillMaxWidth())
+          Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            CampoTexto("Montadora", ficha.marca, { ficha = ficha.copy(marca = it) }, sugestoes = sugestoesMarca, dica = "Volkswagen", modificador = Modifier.weight(1f))
+            CampoTexto("Ano / geração", ficha.ano, { ficha = ficha.copy(ano = it.filter { letra -> letra.isDigit() || letra == '/' }) }, dica = "2010", modificador = Modifier.weight(1f))
+          }
+          CampoTexto("Modelo", ficha.modelo, { ficha = ficha.copy(modelo = it) }, sugestoes = sugestoesModelo, dica = "Gol", modificador = Modifier.fillMaxWidth())
+          CampoTexto("Sistema / módulo", ficha.sistema, { ficha = ficha.copy(sistema = it) }, sugestoes = sugestoesSistema, dica = "G5, Alarme G5, imobilizador...", modificador = Modifier.fillMaxWidth())
+          CampoTexto("Descrição", ficha.descricao, { ficha = ficha.copy(descricao = it) }, dica = "Resumo do que serve nesta configuração", linhaUnica = false, minimoLinhas = 2, teclado = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences), modificador = Modifier.fillMaxWidth())
+        }
+      }
+
+      // Card 02 — Referências técnicas
+      CartaoSurface(raio = 20.dp) {
+        Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+          SecaoFormulario("02", "Referências técnicas", "O que procurar na hora do serviço.")
+          CampoTexto("Chip / transponder", ficha.chip, { ficha = ficha.copy(chip = it.uppercase()) }, dica = "ID48, PCF7936...", estiloTexto = MaterialTheme.typography.bodyLarge.copy(fontFamily = FontFamily.Monospace), modificador = Modifier.fillMaxWidth())
+          CampoTexto("Chave compatível", ficha.chave, { ficha = ficha.copy(chave = it) }, dica = "Tipo, lâmina ou referência", modificador = Modifier.fillMaxWidth())
+          Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            CampoTexto("Telecomando", ficha.telecomando, { ficha = ficha.copy(telecomando = it) }, dica = "Modelo/referência", modificador = Modifier.weight(1f))
+            CampoTexto("Frequência", ficha.frequencia, { ficha = ficha.copy(frequencia = it) }, dica = "433 MHz", modificador = Modifier.weight(1f))
           }
         }
-      } else {
-        Selo("Modalidade: ${ficha.segmento.rotulo}")
-      }
-      CampoTexto(
-        rotulo = "Equipamento",
-        valor = ficha.equipamento,
-        aoMudar = { ficha = ficha.copy(equipamento = it) },
-        sugestoes = sugestoesEquipamento,
-        dica = "VVDI, KD-X2, Autel...",
-        modificador = Modifier.fillMaxWidth(),
-      )
-      Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-        CampoTexto(
-          rotulo = "Montadora",
-          valor = ficha.marca,
-          aoMudar = { ficha = ficha.copy(marca = it) },
-          sugestoes = sugestoesMarca,
-          dica = "Volkswagen",
-          modificador = Modifier.weight(1f),
-        )
-        CampoTexto(
-          rotulo = "Ano / geração",
-          valor = ficha.ano,
-          aoMudar = { ficha = ficha.copy(ano = it.filter { letra -> letra.isDigit() || letra == '/' }) },
-          dica = "2010",
-          modificador = Modifier.weight(1f),
-        )
-      }
-      CampoTexto(
-        rotulo = "Modelo",
-        valor = ficha.modelo,
-        aoMudar = { ficha = ficha.copy(modelo = it) },
-        sugestoes = sugestoesModelo,
-        dica = "Gol",
-        modificador = Modifier.fillMaxWidth(),
-      )
-      CampoTexto(
-        rotulo = "Sistema / módulo",
-        valor = ficha.sistema,
-        aoMudar = { ficha = ficha.copy(sistema = it) },
-        sugestoes = sugestoesSistema,
-        dica = "G5, Alarme G5, imobilizador...",
-        modificador = Modifier.fillMaxWidth(),
-      )
-      CampoTexto(
-        rotulo = "Descrição",
-        valor = ficha.descricao,
-        aoMudar = { ficha = ficha.copy(descricao = it) },
-        dica = "Resumo do que serve nesta configuração",
-        linhaUnica = false,
-        minimoLinhas = 2,
-        teclado = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences),
-        modificador = Modifier.fillMaxWidth(),
-      )
-
-      SecaoFormulario("02", "Referências técnicas", "O que procurar na hora do serviço.")
-      CampoTexto(
-        rotulo = "Chip / transponder",
-        valor = ficha.chip,
-        aoMudar = { ficha = ficha.copy(chip = it.uppercase()) },
-        dica = "ID48, PCF7936...",
-        estiloTexto = MaterialTheme.typography.bodyLarge.copy(fontFamily = FontFamily.Monospace),
-        modificador = Modifier.fillMaxWidth(),
-      )
-      CampoTexto(
-        rotulo = "Chave compatível",
-        valor = ficha.chave,
-        aoMudar = { ficha = ficha.copy(chave = it) },
-        dica = "Tipo, lâmina ou referência",
-        modificador = Modifier.fillMaxWidth(),
-      )
-      Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-        CampoTexto(
-          rotulo = "Telecomando",
-          valor = ficha.telecomando,
-          aoMudar = { ficha = ficha.copy(telecomando = it) },
-          dica = "Modelo/referência",
-          modificador = Modifier.weight(1f),
-        )
-        CampoTexto(
-          rotulo = "Frequência",
-          valor = ficha.frequencia,
-          aoMudar = { ficha = ficha.copy(frequencia = it) },
-          dica = "433 MHz",
-          modificador = Modifier.weight(1f),
-        )
       }
 
-      SecaoFormulario("03", "Observações e manual", "Avisos, funções e anotações para consultar offline.")
-      CampoTexto(
-        rotulo = "Funções documentadas",
-        valor = ficha.funcoes,
-        aoMudar = { ficha = ficha.copy(funcoes = it) },
-        dica = "Ler chaves, programar telecomando, ler arquivo...",
-        linhaUnica = false,
-        minimoLinhas = 3,
-        teclado = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences),
-        modificador = Modifier.fillMaxWidth(),
-      )
-      CampoTexto(
-        rotulo = "Informações importantes / avisos",
-        valor = ficha.avisos,
-        aoMudar = { ficha = ficha.copy(avisos = it) },
-        dica = "Pré-condições, riscos, cuidados...",
-        linhaUnica = false,
-        minimoLinhas = 3,
-        teclado = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences),
-        modificador = Modifier.fillMaxWidth(),
-      )
-      CampoTexto(
-        rotulo = "Manual / anotações (fica disponível offline)",
-        valor = ficha.manual,
-        aoMudar = { ficha = ficha.copy(manual = it) },
-        dica = "Cole aqui o texto do manual ou suas anotações",
-        linhaUnica = false,
-        minimoLinhas = 5,
-        teclado = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences),
-        modificador = Modifier.fillMaxWidth(),
-      )
-      CampoTexto(
-        rotulo = "Origem / fonte",
-        valor = ficha.origem,
-        aoMudar = { ficha = ficha.copy(origem = it) },
-        dica = "Manual do equipamento, curso, anotação própria...",
-        modificador = Modifier.fillMaxWidth(),
-      )
-      Row(
-        modifier = Modifier.fillMaxWidth(),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(12.dp),
-      ) {
-        Column(Modifier.weight(1f)) {
-          Text("Informação confirmada", style = MaterialTheme.typography.bodyLarge)
-          Text(
-            "Desligue quando ainda não testou ou a fonte não é segura.",
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-          )
-        }
-        Switch(
-          checked = ficha.confirmado,
-          onCheckedChange = { ficha = ficha.copy(confirmado = it) },
-        )
-      }
-
-      SecaoFormulario("04", "Imagem de referência", "Opcional: foto do chip, chave ou telecomando.")
-      val fotoAtual = fotoNova ?: ficha.foto
-      if (fotoAtual.isNotBlank()) {
-        ImagemLocal(
-          caminho = fotoAtual,
-          modificador = Modifier.fillMaxWidth().height(180.dp),
-          ladoMaximo = 900,
-        )
-      }
-      Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        OutlinedButton(onClick = { tirarFoto() }) { Text("Tirar foto") }
-        OutlinedButton(onClick = { galeria.launch("image/*") }) { Text("Galeria") }
-        if (fotoAtual.isNotBlank()) {
-          TextButton(onClick = {
-            if (fotoNova != null) {
-              Fotos.excluir(contexto, fotoNova!!)
-              fotoNova = null
-            } else {
-              ficha = ficha.copy(foto = "")
+      // Card 03 — Observações e manual
+      CartaoSurface(raio = 20.dp) {
+        Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+          SecaoFormulario("03", "Observações e manual", "Avisos, funções e anotações offline.")
+          CampoTexto("Funções documentadas", ficha.funcoes, { ficha = ficha.copy(funcoes = it) }, dica = "Ler chaves, programar telecomando...", linhaUnica = false, minimoLinhas = 3, teclado = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences), modificador = Modifier.fillMaxWidth())
+          CampoTexto("Informações importantes / avisos", ficha.avisos, { ficha = ficha.copy(avisos = it) }, dica = "Pré-condições, riscos, cuidados...", linhaUnica = false, minimoLinhas = 3, teclado = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences), modificador = Modifier.fillMaxWidth())
+          CampoTexto("Manual / anotações (fica disponível offline)", ficha.manual, { ficha = ficha.copy(manual = it) }, dica = "Cole aqui o texto do manual ou suas anotações", linhaUnica = false, minimoLinhas = 5, teclado = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences), modificador = Modifier.fillMaxWidth())
+          CampoTexto("Origem / fonte", ficha.origem, { ficha = ficha.copy(origem = it) }, dica = "Manual do equipamento, curso, anotação própria...", modificador = Modifier.fillMaxWidth())
+          Surface(
+            shape = RoundedCornerShape(14.dp),
+            color = MaterialTheme.coresEstendidas.superficieSutil,
+            modifier = Modifier.fillMaxWidth(),
+          ) {
+            Row(
+              modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 10.dp),
+              verticalAlignment = Alignment.CenterVertically,
+              horizontalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+              Column(Modifier.weight(1f)) {
+                Text("Informação confirmada", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
+                Text(
+                  "Desligue quando ainda não testou na bancada.",
+                  style = MaterialTheme.typography.bodySmall,
+                  color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+              }
+              Switch(checked = ficha.confirmado, onCheckedChange = { ficha = ficha.copy(confirmado = it) })
             }
-          }) { Text("Remover", color = MaterialTheme.colorScheme.error) }
+          }
         }
       }
 
-      Spacer(Modifier.height(8.dp))
-      Button(onClick = { salvar() }, enabled = !salvando, modifier = Modifier.fillMaxWidth()) {
-        Text(if (salvando) "Salvando..." else "Salvar ficha")
+      // Card 04 — Imagem de referência
+      CartaoSurface(raio = 20.dp) {
+        Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+          SecaoFormulario("04", "Imagem de referência", "Opcional: foto do chip, chave ou telecomando.")
+          val fotoAtual = fotoNova ?: ficha.foto
+          if (fotoAtual.isNotBlank()) {
+            ImagemLocal(
+              caminho = fotoAtual,
+              modificador = Modifier.fillMaxWidth().height(190.dp).clip(RoundedCornerShape(14.dp)),
+              ladoMaximo = 900,
+            )
+          }
+          Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            FilledTonalButton(onClick = { tirarFoto() }, shape = RoundedCornerShape(12.dp)) { Text("Tirar foto") }
+            OutlinedButton(onClick = { galeria.launch("image/*") }, shape = RoundedCornerShape(12.dp)) { Text("Galeria") }
+            if (fotoAtual.isNotBlank()) {
+              TextButton(onClick = {
+                if (fotoNova != null) {
+                  Fotos.excluir(contexto, fotoNova!!)
+                  fotoNova = null
+                } else {
+                  ficha = ficha.copy(foto = "")
+                }
+              }) { Text("Remover", color = MaterialTheme.colorScheme.error) }
+            }
+          }
+        }
       }
-      Spacer(Modifier.height(24.dp))
+
+      Button(
+        onClick = { salvar() },
+        enabled = !salvando,
+        modifier = Modifier.fillMaxWidth().height(52.dp),
+        shape = RoundedCornerShape(16.dp),
+      ) {
+        Text(if (salvando) "Salvando..." else "Salvar ficha", fontWeight = FontWeight.Bold, fontSize = 15.sp)
+      }
+      Spacer(Modifier.height(20.dp))
     }
   }
 }

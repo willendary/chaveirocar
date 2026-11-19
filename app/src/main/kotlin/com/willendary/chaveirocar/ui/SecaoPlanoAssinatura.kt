@@ -1,32 +1,13 @@
 package com.willendary.chaveirocar.ui
 
 import android.content.SharedPreferences
-import androidx.compose.foundation.BorderStroke
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.ExperimentalLayoutApi
-import androidx.compose.foundation.layout.FlowRow
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Button
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.HorizontalDivider
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.runtime.setValue
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
@@ -173,29 +154,32 @@ fun SecaoPlanoAssinatura(
     if (empresaId.isNotBlank()) atualizar()
   }
 
-  Card(
-    modifier = Modifier.fillMaxWidth(),
-    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
-  ) {
-    Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-      Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+  CartaoSurface(raio = 20.dp) {
+    Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+      Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.SpaceBetween,
+      ) {
         Text("Plano e módulos", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-        Selo(rotuloStatus(dados.status), pendente = dados.status != "ATIVA")
+        Selo(
+          texto = rotuloStatus(dados.status),
+          tom = if (dados.status == "ATIVA") TomSelo.SUCESSO else TomSelo.PENDENTE,
+        )
       }
       Text(
-        text = "Plano: ${rotuloPlano(dados.planoCodigo)}",
+        text = "Plano atual: ${rotuloPlano(dados.planoCodigo)}",
         style = MaterialTheme.typography.bodyMedium,
         fontWeight = FontWeight.SemiBold,
       )
       FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
         Selo(
           texto = if (SegmentoAtendimento.AUTOMOTIVO in dados.modulosAtivos) "Veicular ativo" else "Veicular inativo",
-          pendente = SegmentoAtendimento.AUTOMOTIVO !in dados.modulosAtivos,
+          tom = if (SegmentoAtendimento.AUTOMOTIVO in dados.modulosAtivos) TomSelo.PRIMARIO else TomSelo.PENDENTE,
         )
         Selo(
           texto = if (SegmentoAtendimento.RESIDENCIAL in dados.modulosAtivos) "Residencial ativo" else "Residencial inativo",
-          pendente = SegmentoAtendimento.RESIDENCIAL !in dados.modulosAtivos,
+          tom = if (SegmentoAtendimento.RESIDENCIAL in dados.modulosAtivos) TomSelo.RESIDENCIAL else TomSelo.PENDENTE,
         )
       }
       dados.proximaRenovacaoEm?.let { data ->
@@ -209,6 +193,7 @@ fun SecaoPlanoAssinatura(
         Text(
           text = dados.mudancaAgendada,
           style = MaterialTheme.typography.bodySmall,
+          fontWeight = FontWeight.SemiBold,
           color = MaterialTheme.colorScheme.primary,
         )
       }
@@ -219,11 +204,12 @@ fun SecaoPlanoAssinatura(
       )
 
       if (dados.podeGerenciar) {
-        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.7f))
         Text("Solicitar contratação ou troca de plano", style = MaterialTheme.typography.labelLarge)
         FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
           OutlinedButton(
             enabled = !carregando,
+            shape = RoundedCornerShape(12.dp),
             onClick = {
               executar("Solicitação registrada para Somente Veicular (aguarda confirmação).") {
                 it.solicitarAssinatura(empresaId, "CONTRATAR", listOf("AUTOMOTIVO"))
@@ -232,14 +218,16 @@ fun SecaoPlanoAssinatura(
           ) { Text("Somente Veicular") }
           OutlinedButton(
             enabled = !carregando,
+            shape = RoundedCornerShape(12.dp),
             onClick = {
               executar("Solicitação registrada para Somente Residencial (aguarda confirmação).") {
                 it.solicitarAssinatura(empresaId, "CONTRATAR", listOf("RESIDENCIAL"))
               }
             },
           ) { Text("Somente Residencial") }
-          OutlinedButton(
+          FilledTonalButton(
             enabled = !carregando,
+            shape = RoundedCornerShape(12.dp),
             onClick = {
               executar("Solicitação registrada para Veicular + Residencial (aguarda confirmação).") {
                 it.solicitarAssinatura(empresaId, "ALTERAR", listOf("AUTOMOTIVO", "RESIDENCIAL"))
@@ -256,6 +244,7 @@ fun SecaoPlanoAssinatura(
           FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
             Button(
               enabled = !carregando,
+              shape = RoundedCornerShape(10.dp),
               onClick = {
                 executar("Pagamento confirmado no backend. Módulos atualizados.") {
                   it.processarEventoAssinatura(empresaId, "app-${UUID.randomUUID()}", "PAGAMENTO_CONFIRMADO")
@@ -264,6 +253,7 @@ fun SecaoPlanoAssinatura(
             ) { Text("Confirmar pagamento") }
             OutlinedButton(
               enabled = !carregando,
+              shape = RoundedCornerShape(10.dp),
               onClick = {
                 executar("Renovação confirmada.") {
                   it.processarEventoAssinatura(empresaId, "app-${UUID.randomUUID()}", "RENOVACAO_CONFIRMADA")
@@ -272,6 +262,7 @@ fun SecaoPlanoAssinatura(
             ) { Text("Renovar") }
             OutlinedButton(
               enabled = !carregando,
+              shape = RoundedCornerShape(10.dp),
               onClick = {
                 executar("Falha de pagamento simulada; acesso suspenso.") {
                   it.processarEventoAssinatura(empresaId, "app-${UUID.randomUUID()}", "FALHA_PAGAMENTO")
@@ -334,7 +325,8 @@ fun DialogoPlanoAssinatura(
 
   AlertDialog(
     onDismissRequest = onFechar,
-    title = { Text("Planos e módulos") },
+    shape = RoundedCornerShape(24.dp),
+    title = { Text("Planos e módulos", fontWeight = FontWeight.Bold) },
     text = {
       Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
         if (empresaId.isBlank()) {
@@ -351,7 +343,7 @@ fun DialogoPlanoAssinatura(
       }
     },
     confirmButton = {
-      TextButton(onClick = onFechar) { Text("Fechar") }
+      Button(onClick = onFechar, shape = RoundedCornerShape(12.dp)) { Text("Fechar") }
     },
   )
 }

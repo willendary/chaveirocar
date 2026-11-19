@@ -1,52 +1,31 @@
 package com.willendary.chaveirocar.ui
 
 import androidx.activity.compose.BackHandler
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.ExperimentalLayoutApi
-import androidx.compose.foundation.layout.FlowRow
-import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.WindowInsets
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Search
-import androidx.compose.material3.AssistChip
-import androidx.compose.material3.Button
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.OutlinedTextFieldDefaults
-import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBar
-import androidx.compose.material3.TopAppBarDefaults
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.saveable.rememberSaveable
-import androidx.compose.runtime.setValue
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.willendary.chaveirocar.catalogo.CatalogoFichasPadrao
 import com.willendary.chaveirocar.dados.BancoDeAtendimentos
 import com.willendary.chaveirocar.modelo.FichaTecnica
 import com.willendary.chaveirocar.modelo.SegmentoAtendimento
+import com.willendary.chaveirocar.ui.theme.coresEstendidas
 import com.willendary.chaveirocar.util.normalizar
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -73,8 +52,8 @@ data class EstadoConsulta(
 )
 
 /**
- * Consulta técnica por etapas: equipamento -> marca -> modelo -> ano -> ficha.
- * A busca livre ignora as etapas e procura em chip, sistema e manual.
+ * Consulta técnica por etapas com barra visual de progresso:
+ * equipamento -> marca -> modelo -> ano -> ficha.
  */
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
@@ -182,35 +161,23 @@ fun TelaConsultaTecnica(
 
   Scaffold(
     topBar = {
-      Column {
-        TopAppBar(
-          navigationIcon = { if (onVoltar != null) BotaoVoltar(onVoltar) },
-          title = {
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-              MarcaChaveiro(42.dp)
-              Column {
-                Text("Consulta técnica", style = MaterialTheme.typography.titleLarge)
-                Text(
-                  text = if (segmento == SegmentoAtendimento.RESIDENCIAL)
-                    "Fechaduras, cilindros, digitais e manuais"
-                  else "Chip, chave, sistema e manuais por veículo",
-                  style = MaterialTheme.typography.bodySmall,
-                  color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-              }
+      CabecalhoTela(
+        titulo = "Consulta técnica",
+        subtitulo = if (segmento == SegmentoAtendimento.RESIDENCIAL)
+          "Fechaduras, cilindros e manuais offline"
+        else "Chip, chave, sistema e manuais offline",
+        aoVoltar = onVoltar,
+        acoesExtra = if (podeEditar) {
+          {
+            FilledTonalIconButton(
+              onClick = { onNova(baseNova()) },
+              modifier = Modifier.padding(end = 10.dp),
+            ) {
+              Icon(Icons.Default.Add, contentDescription = "Nova ficha técnica")
             }
-          },
-          actions = {
-            if (podeEditar) {
-              IconButton(onClick = { onNova(baseNova()) }) {
-                Icon(Icons.Default.Add, contentDescription = "Nova ficha técnica")
-              }
-            }
-          },
-          colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.surface),
-        )
-        androidx.compose.material3.HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.7f))
-      }
+          }
+        } else null,
+      )
     },
     contentWindowInsets = WindowInsets(0, 0, 0, 0),
     containerColor = MaterialTheme.colorScheme.background,
@@ -219,18 +186,27 @@ fun TelaConsultaTecnica(
       if (segmento != null && onTrocarArea != null) {
         BarraModalidadeAtiva(segmento, onTrocarArea)
       }
+
       OutlinedTextField(
         value = busca,
         onValueChange = { mudar(estado.copy(busca = it)) },
-        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
-        placeholder = { Text("Buscar por veículo, chip, sistema…") },
-        leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 6.dp),
+        placeholder = { Text("Buscar por veículo, chip, sistema ou manual…") },
+        leadingIcon = { Icon(Icons.Default.Search, contentDescription = null, tint = MaterialTheme.colorScheme.primary) },
+        trailingIcon = {
+          if (busca.isNotEmpty()) {
+            IconButton(onClick = { mudar(estado.copy(busca = "")) }) {
+              Icon(Icons.Default.Close, contentDescription = "Limpar busca")
+            }
+          }
+        },
         singleLine = true,
-        shape = MaterialTheme.shapes.medium,
+        shape = RoundedCornerShape(16.dp),
         colors = OutlinedTextFieldDefaults.colors(
           unfocusedContainerColor = MaterialTheme.colorScheme.surface,
           focusedContainerColor = MaterialTheme.colorScheme.surface,
           unfocusedBorderColor = MaterialTheme.colorScheme.outlineVariant,
+          focusedBorderColor = MaterialTheme.colorScheme.primary,
         ),
       )
 
@@ -245,7 +221,9 @@ fun TelaConsultaTecnica(
             "Sua consulta técnica começa aqui",
             "Cadastre uma ficha com o chip, a chave e as observações deste veículo. Fica tudo no aparelho e funciona sem internet.",
             acao = {
-              Button(onClick = { onNova(FichaTecnica()) }) { Text("Adicionar primeira ficha") }
+              Button(onClick = { onNova(FichaTecnica()) }, shape = RoundedCornerShape(12.dp)) {
+                Text("Adicionar primeira ficha")
+              }
             },
           )
         }
@@ -260,7 +238,9 @@ fun TelaConsultaTecnica(
         ) {
           item { TituloSecao("${resultadosBusca.size} ficha(s) encontrada(s)") }
           if (resultadosBusca.isEmpty()) {
-            item { Text("Nada encontrado. Tente outro termo.", color = MaterialTheme.colorScheme.onSurfaceVariant) }
+            item {
+              EstadoVazio("Nada encontrado", "Tente buscar por outro termo, marca ou código de chip.")
+            }
           }
           items(resultadosBusca, key = { it.id }) { ficha ->
             CartaoFicha(ficha = ficha, onAbrir = { onAbrir(ficha.id) })
@@ -269,32 +249,59 @@ fun TelaConsultaTecnica(
         return@Column
       }
 
-      if (equipamentoSel != null) {
-        FlowRow(
-          modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
-          horizontalArrangement = Arrangement.spacedBy(8.dp),
-        ) {
-          AssistChip(
-            onClick = { mudar(estado.copy(equipamento = null, marca = null, modelo = null, ano = null)) },
-            label = { Text(textoDoValor(equipamentoSel.orEmpty()), maxLines = 1, overflow = TextOverflow.Ellipsis) },
+      // Barra visual de progresso das 4 etapas
+      Surface(
+        shape = RoundedCornerShape(14.dp),
+        color = MaterialTheme.colorScheme.surface,
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp),
+      ) {
+        Column(Modifier.padding(horizontal = 12.dp, vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+          IndicadorEtapas(
+            etapas = listOf("Equip.", "Marca", "Modelo", "Ano"),
+            passoAtual = passo.coerceAtMost(3),
+            aoTocarEtapa = { alvo ->
+              when (alvo) {
+                0 -> mudar(estado.copy(equipamento = null, marca = null, modelo = null, ano = null))
+                1 -> mudar(estado.copy(marca = null, modelo = null, ano = null))
+                2 -> mudar(estado.copy(modelo = null, ano = null))
+                3 -> mudar(estado.copy(ano = null))
+              }
+            },
           )
-          marcaSel?.let { marca ->
-            AssistChip(
-              onClick = { mudar(estado.copy(marca = null, modelo = null, ano = null)) },
-              label = { Text(textoDoValor(marca), maxLines = 1, overflow = TextOverflow.Ellipsis) },
-            )
-          }
-          modeloSel?.let { modelo ->
-            AssistChip(
-              onClick = { mudar(estado.copy(modelo = null, ano = null)) },
-              label = { Text(textoDoValor(modelo), maxLines = 1, overflow = TextOverflow.Ellipsis) },
-            )
-          }
-          anoSel?.let { ano ->
-            AssistChip(
-              onClick = { mudar(estado.copy(ano = null)) },
-              label = { Text(textoDoValor(ano)) },
-            )
+          if (equipamentoSel != null) {
+            FlowRow(
+              modifier = Modifier.fillMaxWidth(),
+              horizontalArrangement = Arrangement.spacedBy(6.dp),
+              verticalArrangement = Arrangement.spacedBy(4.dp),
+            ) {
+              AssistChip(
+                onClick = { mudar(estado.copy(equipamento = null, marca = null, modelo = null, ano = null)) },
+                shape = RoundedCornerShape(10.dp),
+                label = { Text(textoDoValor(equipamentoSel.orEmpty()), maxLines = 1, overflow = TextOverflow.Ellipsis) },
+              )
+              marcaSel?.let { marca ->
+                AssistChip(
+                  onClick = { mudar(estado.copy(marca = null, modelo = null, ano = null)) },
+                  shape = RoundedCornerShape(10.dp),
+                  label = { Text(textoDoValor(marca), maxLines = 1, overflow = TextOverflow.Ellipsis) },
+                )
+              }
+              modeloSel?.let { modelo ->
+                AssistChip(
+                  onClick = { mudar(estado.copy(modelo = null, ano = null)) },
+                  shape = RoundedCornerShape(10.dp),
+                  label = { Text(textoDoValor(modelo), maxLines = 1, overflow = TextOverflow.Ellipsis) },
+                )
+              }
+              anoSel?.let { ano ->
+                AssistChip(
+                  onClick = { mudar(estado.copy(ano = null)) },
+                  shape = RoundedCornerShape(10.dp),
+                  label = { Text(textoDoValor(ano)) },
+                )
+              }
+            }
           }
         }
       }
@@ -302,7 +309,7 @@ fun TelaConsultaTecnica(
       when (passo) {
         0 -> ListaDeOpcoes(
           titulo = "Escolha o equipamento",
-          descricao = "A ferramenta usada no serviço.",
+          descricao = "A ferramenta ou linha usada no serviço.",
           opcoes = equipamentos,
           vazio = "Nenhum equipamento cadastrado.",
           onEscolher = { escolhido ->
@@ -361,8 +368,9 @@ fun TelaConsultaTecnica(
             item {
               Button(
                 onClick = { onNova(baseNova()) },
-                modifier = Modifier.fillMaxWidth(),
-              ) { Text("Adicionar outra ficha") }
+                modifier = Modifier.fillMaxWidth().height(48.dp),
+                shape = RoundedCornerShape(14.dp),
+              ) { Text("Adicionar outra ficha", fontWeight = FontWeight.Bold) }
             }
           }
         }
@@ -380,42 +388,64 @@ private fun ListaDeOpcoes(
   onEscolher: (String) -> Unit,
   onNova: () -> Unit,
 ) {
+  val estendidas = MaterialTheme.coresEstendidas
   LazyColumn(
     modifier = Modifier.fillMaxSize(),
     verticalArrangement = Arrangement.spacedBy(8.dp),
-    contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 4.dp, bottom = 24.dp),
+    contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 28.dp),
   ) {
     item {
-      Text(titulo, style = MaterialTheme.typography.titleMedium)
-      Text(descricao, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+      Column(modifier = Modifier.padding(bottom = 4.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+        Text(titulo, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+        Text(descricao, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+      }
     }
     if (opcoes.isEmpty()) {
       item {
         EstadoVazio(
           "Nada cadastrado",
           vazio,
-          acao = { Button(onClick = onNova) { Text("Adicionar ficha") } },
+          acao = { Button(onClick = onNova, shape = RoundedCornerShape(12.dp)) { Text("Adicionar ficha") } },
         )
       }
     }
     items(opcoes) { opcao ->
-      Card(
-        onClick = { onEscolher(opcao) },
-        modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-        border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
-      ) {
+      val texto = textoDoValor(opcao)
+      val inicial = texto.trim().take(2).uppercase()
+      CartaoSurface(onClick = { onEscolher(opcao) }, raio = 16.dp) {
         Row(
-          modifier = Modifier.fillMaxWidth().padding(horizontal = 18.dp, vertical = 16.dp),
+          modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 13.dp),
           verticalAlignment = Alignment.CenterVertically,
           horizontalArrangement = Arrangement.spacedBy(12.dp),
         ) {
+          Box(
+            modifier = Modifier
+              .size(36.dp)
+              .clip(RoundedCornerShape(10.dp))
+              .background(MaterialTheme.colorScheme.primaryContainer),
+            contentAlignment = Alignment.Center,
+          ) {
+            Text(
+              text = inicial,
+              style = MaterialTheme.typography.labelLarge,
+              fontWeight = FontWeight.ExtraBold,
+              color = MaterialTheme.colorScheme.primary,
+            )
+          }
           Text(
-            textoDoValor(opcao),
+            text = texto,
             style = MaterialTheme.typography.bodyLarge,
+            fontWeight = FontWeight.SemiBold,
             modifier = Modifier.weight(1f),
           )
-          Text("›", style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.primary)
+          Surface(shape = CircleShape, color = estendidas.superficieSutil) {
+            Icon(
+              Icons.AutoMirrored.Filled.KeyboardArrowRight,
+              contentDescription = null,
+              tint = MaterialTheme.colorScheme.primary,
+              modifier = Modifier.padding(5.dp).size(18.dp),
+            )
+          }
         }
       }
     }
@@ -425,30 +455,31 @@ private fun ListaDeOpcoes(
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun CartaoFicha(ficha: FichaTecnica, onAbrir: () -> Unit) {
-  Card(
-    onClick = onAbrir,
-    modifier = Modifier.fillMaxWidth(),
-    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-    border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
-  ) {
-    Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+  CartaoSurface(onClick = onAbrir, raio = 18.dp) {
+    Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
       Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         Text(
-          listOf(ficha.marca, ficha.modelo, ficha.ano).filter { it.isNotBlank() }.joinToString(" ")
+          text = listOf(ficha.marca, ficha.modelo, ficha.ano).filter { it.isNotBlank() }.joinToString(" ")
             .ifBlank { ficha.sistema.ifBlank { "Ficha técnica" } },
           style = MaterialTheme.typography.titleMedium,
+          fontWeight = FontWeight.Bold,
           modifier = Modifier.weight(1f),
           maxLines = 2,
           overflow = TextOverflow.Ellipsis,
         )
-        if (!ficha.confirmado) Selo("Não confirmado", pendente = true)
+        if (!ficha.confirmado) Selo("Não confirmado", tom = TomSelo.PENDENTE)
       }
       if (ficha.sistema.isNotBlank()) {
-        Text(ficha.sistema, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.primary)
+        Text(
+          text = ficha.sistema,
+          style = MaterialTheme.typography.bodyMedium,
+          fontWeight = FontWeight.SemiBold,
+          color = MaterialTheme.colorScheme.primary,
+        )
       }
       if (ficha.descricao.isNotBlank()) {
         Text(
-          ficha.descricao,
+          text = ficha.descricao,
           style = MaterialTheme.typography.bodySmall,
           color = MaterialTheme.colorScheme.onSurfaceVariant,
           maxLines = 2,
@@ -456,18 +487,13 @@ private fun CartaoFicha(ficha: FichaTecnica, onAbrir: () -> Unit) {
         )
       }
       FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-        Selo(if (ficha.ehCatalogoOficial) "Catálogo padrão" else "Da empresa")
-        if (ficha.temManualOffline) Selo("Manual offline")
-        if (ficha.chip.isNotBlank()) Selo("Chip ${ficha.chip}")
-        if (ficha.equipamento.isNotBlank()) {
-          Text(
-            ficha.equipamento,
-            style = MaterialTheme.typography.labelSmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-          )
-        }
+        Selo(
+          texto = if (ficha.ehCatalogoOficial) "Catálogo padrão" else "Da empresa",
+          tom = if (ficha.ehCatalogoOficial) TomSelo.PRIMARIO else TomSelo.RESIDENCIAL,
+        )
+        if (ficha.temManualOffline) Selo("Manual offline", tom = TomSelo.SUCESSO)
+        if (ficha.chip.isNotBlank()) Selo("Chip ${ficha.chip}", tom = TomSelo.NEUTRO)
+        if (ficha.equipamento.isNotBlank()) Selo(ficha.equipamento, tom = TomSelo.NEUTRO)
       }
     }
   }

@@ -4,6 +4,7 @@ import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
 import android.widget.Toast
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -11,14 +12,18 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.SuggestionChip
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -26,6 +31,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.onFocusChanged
@@ -34,15 +40,24 @@ import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.willendary.chaveirocar.dados.Fotos
+import com.willendary.chaveirocar.ui.theme.coresEstendidas
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
-/**
- * Carrega uma foto do armazenamento do app em segundo plano.
- */
+enum class TomSelo {
+  PRIMARIO,
+  SUCESSO,
+  PENDENTE,
+  RESIDENCIAL,
+  NEUTRO,
+  ERRO,
+}
+
+/** Carrega uma foto do armazenamento do app em segundo plano. */
 @Composable
 fun ImagemLocal(
   caminho: String,
@@ -66,15 +81,13 @@ fun ImagemLocal(
   } else {
     Box(
       modifier = modificador
-        .clip(RoundedCornerShape(12.dp))
+        .clip(RoundedCornerShape(14.dp))
         .background(MaterialTheme.colorScheme.surfaceVariant),
     )
   }
 }
 
-/**
- * Campo de texto com sugestões do próprio histórico, mostradas enquanto o campo está em foco.
- */
+/** Campo de texto com sugestões do próprio histórico, mostradas enquanto o campo está em foco. */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun CampoTexto(
@@ -103,23 +116,28 @@ fun CampoTexto(
       onValueChange = aoMudar,
       modifier = Modifier.fillMaxWidth().onFocusChanged { focado = it.isFocused },
       label = { Text(rotulo) },
-      placeholder = dica?.let { { Text(it) } },
+      placeholder = dica?.let { { Text(it, color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)) } },
       singleLine = linhaUnica,
       minLines = minimoLinhas,
       keyboardOptions = teclado,
       textStyle = estiloTexto,
-      shape = MaterialTheme.shapes.medium,
+      shape = RoundedCornerShape(14.dp),
       colors = OutlinedTextFieldDefaults.colors(
-        unfocusedContainerColor = MaterialTheme.colorScheme.surface,
+        unfocusedContainerColor = MaterialTheme.coresEstendidas.superficieSutil,
         focusedContainerColor = MaterialTheme.colorScheme.surface,
         unfocusedBorderColor = MaterialTheme.colorScheme.outlineVariant,
+        focusedBorderColor = MaterialTheme.colorScheme.primary,
       ),
     )
     if (visiveis.isNotEmpty()) {
-      FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+      FlowRow(
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        modifier = Modifier.padding(top = 4.dp),
+      ) {
         visiveis.forEach { sugestao ->
           SuggestionChip(
             onClick = { aoMudar(sugestao) },
+            shape = RoundedCornerShape(10.dp),
             label = {
               Text(sugestao, maxLines = 1, overflow = TextOverflow.Ellipsis)
             },
@@ -131,44 +149,76 @@ fun CampoTexto(
 }
 
 @Composable
-fun Selo(texto: String, modificador: Modifier = Modifier, pendente: Boolean = false) {
-  Text(
-    text = texto,
-    style = MaterialTheme.typography.labelSmall,
-    fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold,
-    color = if (pendente) MaterialTheme.colorScheme.onTertiaryContainer else MaterialTheme.colorScheme.onPrimaryContainer,
-    modifier = modificador
-      .clip(RoundedCornerShape(8.dp))
-      .background(if (pendente) MaterialTheme.colorScheme.tertiaryContainer else MaterialTheme.colorScheme.primaryContainer)
-      .padding(horizontal = 10.dp, vertical = 5.dp),
-  )
-}
-
-@Composable
-fun TituloSecao(texto: String, modificador: Modifier = Modifier) {
-  androidx.compose.foundation.layout.Row(
-    modifier = modificador.padding(top = 14.dp, bottom = 4.dp),
-    verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
-    horizontalArrangement = Arrangement.spacedBy(8.dp),
+fun Selo(
+  texto: String,
+  modificador: Modifier = Modifier,
+  pendente: Boolean = false,
+  tom: TomSelo? = null,
+) {
+  val estendidas = MaterialTheme.coresEstendidas
+  val tomFinal = tom ?: if (pendente) TomSelo.PENDENTE else TomSelo.PRIMARIO
+  val (fundo, corTexto) = when (tomFinal) {
+    TomSelo.PRIMARIO -> MaterialTheme.colorScheme.primaryContainer to MaterialTheme.colorScheme.onPrimaryContainer
+    TomSelo.SUCESSO -> estendidas.sucessoFundo to estendidas.sucesso
+    TomSelo.PENDENTE -> estendidas.alertaFundo to estendidas.alerta
+    TomSelo.RESIDENCIAL -> estendidas.residencialFundo to estendidas.residencial
+    TomSelo.NEUTRO -> MaterialTheme.colorScheme.surfaceVariant to MaterialTheme.colorScheme.onSurfaceVariant
+    TomSelo.ERRO -> MaterialTheme.colorScheme.errorContainer to MaterialTheme.colorScheme.onErrorContainer
+  }
+  Surface(
+    shape = RoundedCornerShape(999.dp),
+    color = fundo,
+    border = BorderStroke(0.75.dp, corTexto.copy(alpha = 0.16f)),
+    modifier = modificador,
   ) {
-    Box(
-      modifier = Modifier
-        .clip(RoundedCornerShape(99.dp))
-        .background(MaterialTheme.colorScheme.primary)
-        .padding(horizontal = 1.5.dp, vertical = 7.dp),
-    )
     Text(
       text = texto,
-      style = MaterialTheme.typography.titleMedium,
-      fontWeight = androidx.compose.ui.text.font.FontWeight.Bold,
-      color = MaterialTheme.colorScheme.onSurface,
+      style = MaterialTheme.typography.labelSmall,
+      fontWeight = FontWeight.Bold,
+      color = corTexto,
+      maxLines = 1,
+      overflow = TextOverflow.Ellipsis,
+      modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
     )
   }
 }
 
-/**
- * Copiar código evita erro de digitação na hora de passar para a máquina.
- */
+@Composable
+fun TituloSecao(
+  texto: String,
+  modificador: Modifier = Modifier,
+  detalhe: String? = null,
+) {
+  Row(
+    modifier = modificador.fillMaxWidth().padding(top = 12.dp, bottom = 4.dp),
+    verticalAlignment = Alignment.CenterVertically,
+    horizontalArrangement = Arrangement.spacedBy(8.dp),
+  ) {
+    Box(
+      modifier = Modifier
+        .width(4.dp)
+        .height(18.dp)
+        .clip(RoundedCornerShape(99.dp))
+        .background(MaterialTheme.colorScheme.primary),
+    )
+    Text(
+      text = texto,
+      style = MaterialTheme.typography.titleMedium,
+      fontWeight = FontWeight.Bold,
+      color = MaterialTheme.colorScheme.onSurface,
+      modifier = Modifier.weight(1f),
+    )
+    if (!detalhe.isNullOrBlank()) {
+      Text(
+        text = detalhe,
+        style = MaterialTheme.typography.labelSmall,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+      )
+    }
+  }
+}
+
+/** Copiar código evita erro de digitação na hora de passar para a máquina. */
 fun copiarTexto(contexto: Context, rotulo: String, texto: String) {
   if (texto.isBlank()) return
   val gerenciador = contexto.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager

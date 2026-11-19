@@ -118,7 +118,7 @@ fun EditorFotoDialog(
   ) {
     Surface(
       modifier = Modifier.fillMaxSize(),
-      color = Color(0xFF111318),
+      color = Color(0xFF080D18),
       contentColor = Color.White,
     ) {
       Column(
@@ -341,9 +341,10 @@ fun EditorFotoDialog(
               }
             },
             enabled = !salvando,
+            shape = RoundedCornerShape(14.dp),
             modifier = Modifier.weight(1f),
           ) {
-            Text(if (salvando) "Salvando..." else "Salvar anotações")
+            Text(if (salvando) "Salvando..." else "Salvar anotações", fontWeight = FontWeight.Bold)
           }
         }
       }

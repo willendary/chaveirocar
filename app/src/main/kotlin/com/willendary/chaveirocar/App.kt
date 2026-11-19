@@ -743,6 +743,8 @@ fun ChaveiroCarApp() {
               modulosAtivos = modulosAtivos,
               statusAssinatura = statusAssinatura,
               sincronizando = sincronizandoNuvem,
+              banco = banco,
+              versaoSincronia = versaoSincronia,
               onSelecionarArea = { area ->
                 modalidadeAtiva = area
                 aba = Aba.HISTORICO.name
@@ -760,11 +762,14 @@ fun ChaveiroCarApp() {
             bottomBar = {
               Column {
                 androidx.compose.material3.HorizontalDivider(
-                  color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.8f),
+                  color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.85f),
                 )
-                NavigationBar(containerColor = MaterialTheme.colorScheme.surface, tonalElevation = 0.dp) {
+                NavigationBar(
+                  containerColor = MaterialTheme.colorScheme.surface,
+                  tonalElevation = 0.dp,
+                ) {
                   val coresNav = androidx.compose.material3.NavigationBarItemDefaults.colors(
-                    selectedIconColor = MaterialTheme.colorScheme.onPrimaryContainer,
+                    selectedIconColor = MaterialTheme.colorScheme.primary,
                     selectedTextColor = MaterialTheme.colorScheme.primary,
                     indicatorColor = MaterialTheme.colorScheme.primaryContainer,
                     unselectedIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -774,28 +779,48 @@ fun ChaveiroCarApp() {
                     selected = aba == Aba.HISTORICO.name,
                     onClick = { aba = Aba.HISTORICO.name },
                     icon = { Icon(Icons.AutoMirrored.Filled.List, contentDescription = null) },
-                    label = { Text("Serviços") },
+                    label = {
+                      Text(
+                        "Serviços",
+                        fontWeight = if (aba == Aba.HISTORICO.name) androidx.compose.ui.text.font.FontWeight.Bold else androidx.compose.ui.text.font.FontWeight.Medium,
+                      )
+                    },
                     colors = coresNav,
                   )
                   NavigationBarItem(
                     selected = aba == Aba.FICHARIO.name,
                     onClick = { aba = Aba.FICHARIO.name },
-                    icon = { Icon(Icons.Default.Build, contentDescription = null) },
-                    label = { Text("Fichário") },
+                    icon = { Icon(com.willendary.chaveirocar.ui.IconesApp.Chave, contentDescription = null) },
+                    label = {
+                      Text(
+                        "Fichário",
+                        fontWeight = if (aba == Aba.FICHARIO.name) androidx.compose.ui.text.font.FontWeight.Bold else androidx.compose.ui.text.font.FontWeight.Medium,
+                      )
+                    },
                     colors = coresNav,
                   )
                   NavigationBarItem(
                     selected = aba == Aba.CONSULTA.name,
                     onClick = { aba = Aba.CONSULTA.name },
                     icon = { Icon(Icons.Default.Search, contentDescription = null) },
-                    label = { Text("Consulta") },
+                    label = {
+                      Text(
+                        "Consulta",
+                        fontWeight = if (aba == Aba.CONSULTA.name) androidx.compose.ui.text.font.FontWeight.Bold else androidx.compose.ui.text.font.FontWeight.Medium,
+                      )
+                    },
                     colors = coresNav,
                   )
                   NavigationBarItem(
                     selected = aba == Aba.AJUSTES.name,
                     onClick = { aba = Aba.AJUSTES.name },
                     icon = { Icon(Icons.Default.Settings, contentDescription = null) },
-                    label = { Text("Ajustes") },
+                    label = {
+                      Text(
+                        "Ajustes",
+                        fontWeight = if (aba == Aba.AJUSTES.name) androidx.compose.ui.text.font.FontWeight.Bold else androidx.compose.ui.text.font.FontWeight.Medium,
+                      )
+                    },
                     colors = coresNav,
                   )
                 }

@@ -7,51 +7,23 @@ import androidx.activity.result.IntentSenderRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.WindowInsets
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.border
+import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Email
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Person
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.HorizontalDivider
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Surface
-import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.runtime.setValue
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
@@ -60,6 +32,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.willendary.chaveirocar.dados.BancoDeAtendimentos
@@ -71,6 +44,7 @@ import com.willendary.chaveirocar.nuvem.MotorSinc
 import com.willendary.chaveirocar.ui.theme.Jade
 import com.willendary.chaveirocar.ui.theme.JadeVibrante
 import com.willendary.chaveirocar.ui.theme.Navy
+import com.willendary.chaveirocar.ui.theme.coresEstendidas
 import com.willendary.chaveirocar.util.Erros
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -88,45 +62,68 @@ fun TelaAutenticacaoObrigatoria(
     modifier = Modifier
       .fillMaxSize()
       .background(MaterialTheme.colorScheme.background),
-    contentAlignment = Alignment.Center,
   ) {
+    // Topo hero em gradiente Navy/Jade atrás do card de acesso
+    Box(
+      modifier = Modifier
+        .fillMaxWidth()
+        .height(270.dp)
+        .background(
+          Brush.verticalGradient(
+            listOf(Navy, Color(0xFF102A3A), Color(0xFF123F43)),
+          ),
+        ),
+    )
+
     Column(
       modifier = Modifier
         .conteudoResponsivo(maximo = 520.dp)
+        .safeDrawingPadding()
         .verticalScroll(rememberScrollState())
-        .padding(horizontal = 24.dp, vertical = 32.dp),
+        .padding(horizontal = 20.dp, vertical = 24.dp),
       horizontalAlignment = Alignment.CenterHorizontally,
       verticalArrangement = Arrangement.spacedBy(20.dp),
     ) {
-      // Branding Institucional Hero
+      // Hero Institucional
       Column(
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(8.dp),
+        modifier = Modifier.padding(top = 8.dp),
       ) {
-        MarcaChaveiro(tamanho = 72.dp)
+        Box(
+          modifier = Modifier
+            .size(88.dp)
+            .clip(RoundedCornerShape(26.dp))
+            .background(Color.White.copy(alpha = 0.09f))
+            .border(1.dp, Color.White.copy(alpha = 0.16f), RoundedCornerShape(26.dp)),
+          contentAlignment = Alignment.Center,
+        ) {
+          MarcaChaveiro(tamanho = 68.dp, elevacao = 4.dp)
+        }
         Text(
           text = "CHAVEIROCAR",
-          fontSize = 12.sp,
-          fontWeight = FontWeight.Bold,
-          letterSpacing = 2.sp,
-          color = Jade,
+          fontSize = 11.sp,
+          fontWeight = FontWeight.ExtraBold,
+          letterSpacing = 2.2.sp,
+          color = JadeVibrante,
         )
         Text(
-          text = "ChaveiroCar",
-          style = MaterialTheme.typography.headlineMedium,
-          fontWeight = FontWeight.Bold,
-          color = MaterialTheme.colorScheme.onBackground,
-        )
-        Text(
-          text = "Gestão e memória técnica para chaveiros automotivos e residenciais.",
-          style = MaterialTheme.typography.bodyMedium,
+          text = "Sua bancada sincronizada",
+          style = MaterialTheme.typography.headlineSmall,
+          fontWeight = FontWeight.ExtraBold,
+          color = Color.White,
           textAlign = TextAlign.Center,
-          color = MaterialTheme.colorScheme.onSurfaceVariant,
-          modifier = Modifier.padding(horizontal = 16.dp),
+        )
+        Text(
+          text = "Atendimentos, placas, códigos e manuais offline para chaveiros automotivos e residenciais.",
+          style = MaterialTheme.typography.bodySmall,
+          textAlign = TextAlign.Center,
+          color = Color(0xFFCBD5E1),
+          modifier = Modifier.padding(horizontal = 12.dp),
         )
       }
 
-      // Card de Acesso
+      // Card de Acesso sobreposto
       SecaoContaApi(
         banco = banco,
         aoAutenticar = aoAutenticar,
@@ -144,6 +141,7 @@ fun SecaoContaApi(
   aoAtualizarAssinatura: () -> Unit = {},
 ) {
   val contexto = LocalContext.current
+  val estendidas = MaterialTheme.coresEstendidas
   val preferencias = remember { Preferencias.obter(contexto) }
   val preferenciasApi = remember { Preferencias.obterApi(contexto) }
   val escopo = rememberCoroutineScope()
@@ -152,12 +150,8 @@ fun SecaoContaApi(
     ApiChaveiroCar.URL_PADRAO
   } else baseSalva
 
-  var baseUrl by remember {
-    mutableStateOf(baseInicial)
-  }
-  var email by remember {
-    mutableStateOf(preferencias.getString(Preferencias.API_EMAIL, "") ?: "")
-  }
+  var baseUrl by remember { mutableStateOf(baseInicial) }
+  var email by remember { mutableStateOf(preferencias.getString(Preferencias.API_EMAIL, "") ?: "") }
   var emailVerificado by remember { mutableStateOf(false) }
   var nome by remember { mutableStateOf("") }
   var empresaNova by remember { mutableStateOf("") }
@@ -174,9 +168,7 @@ fun SecaoContaApi(
   var logado by remember {
     mutableStateOf(!preferenciasApi.getString(Preferencias.API_ACESSO, "").isNullOrBlank())
   }
-  var empresaId by remember {
-    mutableStateOf(preferencias.getString(Preferencias.API_EMPRESA_ID, "") ?: "")
-  }
+  var empresaId by remember { mutableStateOf(preferencias.getString(Preferencias.API_EMPRESA_ID, "") ?: "") }
   var empresas by remember { mutableStateOf<List<Pair<String, String>>>(emptyList()) }
   var papeisPorEmpresa by remember { mutableStateOf<Map<String, String>>(emptyMap()) }
   var conflitos by remember { mutableStateOf(banco.conflitos()) }
@@ -287,15 +279,11 @@ fun SecaoContaApi(
             }
           }
           registrarEmpresas(empresasArray)
-          if (idEmpresa.isNotBlank()) {
-            empresaId = idEmpresa
-          }
+          if (idEmpresa.isNotBlank()) empresaId = idEmpresa
           preferencias.edit()
             .putString(Preferencias.API_BASE_URL, baseUrl.trim())
             .putString(Preferencias.API_EMAIL, email.trim())
-            .apply {
-              if (empresaId.isNotBlank()) putString(Preferencias.API_EMPRESA_ID, empresaId)
-            }
+            .apply { if (empresaId.isNotBlank()) putString(Preferencias.API_EMPRESA_ID, empresaId) }
             .apply()
           recarregar()
           aoAtualizarAssinatura()
@@ -339,15 +327,11 @@ fun SecaoContaApi(
             }
           }
           registrarEmpresas(empresasArray)
-          if (idEmpresa.isNotBlank()) {
-            empresaId = idEmpresa
-          }
+          if (idEmpresa.isNotBlank()) empresaId = idEmpresa
           preferencias.edit()
             .putString(Preferencias.API_BASE_URL, baseUrl.trim())
             .putString(Preferencias.API_EMAIL, emailConta)
-            .apply {
-              if (empresaId.isNotBlank()) putString(Preferencias.API_EMPRESA_ID, empresaId)
-            }
+            .apply { if (empresaId.isNotBlank()) putString(Preferencias.API_EMPRESA_ID, empresaId) }
             .apply()
           logado = true
           recarregar()
@@ -444,9 +428,7 @@ fun SecaoContaApi(
             }
           }
           registrarEmpresas(empresasArray)
-          if (idEmpresa.isNotBlank()) {
-            empresaId = idEmpresa
-          }
+          if (idEmpresa.isNotBlank()) empresaId = idEmpresa
           preferencias.edit()
             .putString(Preferencias.API_BASE_URL, baseUrl.trim())
             .putString(Preferencias.API_EMAIL, email.trim())
@@ -592,44 +574,45 @@ fun SecaoContaApi(
     if (logado) carregarEmpresas()
   }
 
-  Card(
-    shape = RoundedCornerShape(16.dp),
-    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
-    modifier = Modifier.fillMaxWidth(),
-  ) {
-    Column(modifier = Modifier.padding(22.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-      if (logado) {
-        Text("Sua conta e empresa", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-        Text(
-          text = "Conectado ${if (email.isBlank()) "" else "como $email"}. Seus registros e fotos são sincronizados automaticamente em todos os seus dispositivos.",
-          style = MaterialTheme.typography.bodySmall,
-          color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-      }
-
+  CartaoSurface(raio = 22.dp) {
+    Column(modifier = Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
       if (!logado) {
-        Text(
-          text = when {
-            modoConvite -> "Aceitar convite de equipe"
-            modoCadastro -> "Criar nova conta"
-            modoEsqueciSenha -> "Recuperar senha"
-            modoRedefinicao -> "Definir nova senha"
-            else -> "Acesse sua conta"
-          },
-          style = MaterialTheme.typography.titleMedium,
-          fontWeight = FontWeight.Bold,
-          color = MaterialTheme.colorScheme.onSurface,
-        )
+        // Seletor segmentado limpo (Login / Criar conta / Convite)
+        if (!modoEsqueciSenha && !modoRedefinicao) {
+          Surface(
+            shape = RoundedCornerShape(14.dp),
+            color = estendidas.superficieSutil,
+            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+            modifier = Modifier.fillMaxWidth(),
+          ) {
+            Row(modifier = Modifier.fillMaxWidth().padding(4.dp), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+              AbaAuth("Acesso", !modoCadastro && !modoConvite, Modifier.weight(1f)) {
+                modoCadastro = false; modoConvite = false; modoEsqueciSenha = false; modoRedefinicao = false
+              }
+              AbaAuth("Criar conta", modoCadastro, Modifier.weight(1f)) {
+                modoCadastro = true; modoConvite = false; modoEsqueciSenha = false; modoRedefinicao = false
+              }
+              AbaAuth("Convite", modoConvite, Modifier.weight(1f)) {
+                modoConvite = true; modoCadastro = false; modoEsqueciSenha = false; modoRedefinicao = false
+              }
+            }
+          }
+        } else {
+          Text(
+            text = if (modoEsqueciSenha) "Recuperar senha" else "Definir nova senha",
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.Bold,
+          )
+        }
 
-        // Botão Oficial Google
+        // Botão Google estilizado (texto exato preservado para testes)
         Surface(
           onClick = { entrarComGoogle() },
           enabled = !entrando,
-          shape = RoundedCornerShape(10.dp),
-          color = Color.White,
-          border = BorderStroke(1.dp, Color(0xFFCBD5E1)),
-          modifier = Modifier.fillMaxWidth().height(48.dp),
+          shape = RoundedCornerShape(14.dp),
+          color = if (estendidas.escuro) MaterialTheme.colorScheme.surfaceVariant else Color.White,
+          border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+          modifier = Modifier.fillMaxWidth().height(50.dp),
         ) {
           Row(
             verticalAlignment = Alignment.CenterVertically,
@@ -638,43 +621,50 @@ fun SecaoContaApi(
           ) {
             Box(
               modifier = Modifier
-                .size(24.dp)
-                .background(Color(0xFFEA4335), CircleShape),
+                .size(26.dp)
+                .background(Color(0xFF4285F4), CircleShape),
               contentAlignment = Alignment.Center,
             ) {
-              Text("G", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+              Text("G", color = Color.White, fontWeight = FontWeight.ExtraBold, fontSize = 14.sp)
             }
             Spacer(Modifier.width(12.dp))
             Text(
-              text = if (entrando) "Conectando..." else "Continuar com Google",
-              color = Color(0xFF1E293B),
-              fontWeight = FontWeight.SemiBold,
+              text = if (entrando) "Conectando..." else "Entrar com Google",
+              color = MaterialTheme.colorScheme.onSurface,
+              fontWeight = FontWeight.Bold,
               fontSize = 15.sp,
             )
           }
         }
 
-        // Divisor
         Row(
-          modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+          modifier = Modifier.fillMaxWidth(),
           verticalAlignment = Alignment.CenterVertically,
         ) {
           HorizontalDivider(modifier = Modifier.weight(1f), color = MaterialTheme.colorScheme.outlineVariant)
           Text(
-            text = "ou entre com seu e-mail",
-            style = MaterialTheme.typography.bodySmall,
+            text = "ou com e-mail",
+            style = MaterialTheme.typography.labelSmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.padding(horizontal = 12.dp),
           )
           HorizontalDivider(modifier = Modifier.weight(1f), color = MaterialTheme.colorScheme.outlineVariant)
         }
 
+        val coresCampo = OutlinedTextFieldDefaults.colors(
+          unfocusedContainerColor = estendidas.superficieSutil,
+          focusedContainerColor = MaterialTheme.colorScheme.surface,
+          unfocusedBorderColor = MaterialTheme.colorScheme.outlineVariant,
+          focusedBorderColor = MaterialTheme.colorScheme.primary,
+        )
+
         if (modoCadastro || modoConvite) {
           OutlinedTextField(
             value = nome, onValueChange = { nome = it },
             label = { Text("Nome completo") }, singleLine = true,
-            leadingIcon = { Icon(Icons.Default.Person, contentDescription = null, tint = Jade) },
-            shape = RoundedCornerShape(10.dp),
+            leadingIcon = { Icon(Icons.Default.Person, contentDescription = null, tint = MaterialTheme.colorScheme.primary) },
+            shape = RoundedCornerShape(14.dp),
+            colors = coresCampo,
             modifier = Modifier.fillMaxWidth(),
           )
         }
@@ -682,7 +672,8 @@ fun SecaoContaApi(
           OutlinedTextField(
             value = empresaNova, onValueChange = { empresaNova = it },
             label = { Text("Nome da empresa / chaveiro") }, singleLine = true,
-            shape = RoundedCornerShape(10.dp),
+            shape = RoundedCornerShape(14.dp),
+            colors = coresCampo,
             modifier = Modifier.fillMaxWidth(),
           )
         }
@@ -690,9 +681,10 @@ fun SecaoContaApi(
           OutlinedTextField(
             value = email, onValueChange = { email = it },
             label = { Text("E-mail profissional") }, singleLine = true,
-            leadingIcon = { Icon(Icons.Default.Email, contentDescription = null, tint = Jade) },
+            leadingIcon = { Icon(Icons.Default.Email, contentDescription = null, tint = MaterialTheme.colorScheme.primary) },
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
-            shape = RoundedCornerShape(10.dp),
+            shape = RoundedCornerShape(14.dp),
+            colors = coresCampo,
             modifier = Modifier.fillMaxWidth(),
           )
         }
@@ -700,7 +692,8 @@ fun SecaoContaApi(
           OutlinedTextField(
             value = tokenRedefinicao, onValueChange = { tokenRedefinicao = it },
             label = { Text("Código recebido no e-mail") },
-            shape = RoundedCornerShape(10.dp),
+            shape = RoundedCornerShape(14.dp),
+            colors = coresCampo,
             modifier = Modifier.fillMaxWidth(),
           )
         }
@@ -708,7 +701,8 @@ fun SecaoContaApi(
           OutlinedTextField(
             value = tokenConvite, onValueChange = { tokenConvite = it },
             label = { Text("Código do convite") },
-            shape = RoundedCornerShape(10.dp),
+            shape = RoundedCornerShape(14.dp),
+            colors = coresCampo,
             modifier = Modifier.fillMaxWidth(),
           )
         }
@@ -716,25 +710,23 @@ fun SecaoContaApi(
           OutlinedTextField(
             value = senha, onValueChange = { senha = it },
             label = { Text(if (modoRedefinicao) "Nova senha" else "Senha") }, singleLine = true,
-            leadingIcon = { Icon(Icons.Default.Lock, contentDescription = null, tint = Jade) },
+            leadingIcon = { Icon(Icons.Default.Lock, contentDescription = null, tint = MaterialTheme.colorScheme.primary) },
             trailingIcon = {
-              IconButton(onClick = { senhaVisivel = !senhaVisivel }) {
+              TextButton(onClick = { senhaVisivel = !senhaVisivel }) {
                 Text(
                   text = if (senhaVisivel) "Ocultar" else "Ver",
-                  style = MaterialTheme.typography.labelSmall,
-                  color = Jade,
+                  style = MaterialTheme.typography.labelMedium,
+                  color = MaterialTheme.colorScheme.primary,
                 )
               }
             },
             visualTransformation = if (senhaVisivel) VisualTransformation.None else PasswordVisualTransformation(),
-            shape = RoundedCornerShape(10.dp),
+            shape = RoundedCornerShape(14.dp),
+            colors = coresCampo,
             modifier = Modifier.fillMaxWidth(),
           )
         }
 
-        Spacer(Modifier.height(4.dp))
-
-        // Botão de Ação Primário
         Button(
           onClick = {
             when {
@@ -746,9 +738,9 @@ fun SecaoContaApi(
             }
           },
           enabled = !entrando && (!modoConvite || tokenConvite.isNotBlank()),
-          shape = RoundedCornerShape(10.dp),
+          shape = RoundedCornerShape(14.dp),
           colors = ButtonDefaults.buttonColors(containerColor = Jade, contentColor = Color.White),
-          modifier = Modifier.fillMaxWidth().height(48.dp),
+          modifier = Modifier.fillMaxWidth().height(50.dp),
         ) {
           if (entrando) {
             CircularProgressIndicator(color = Color.White, modifier = Modifier.size(22.dp), strokeWidth = 2.5.dp)
@@ -759,7 +751,7 @@ fun SecaoContaApi(
                 modoCadastro -> "Criar conta"
                 modoEsqueciSenha -> "Enviar instruções"
                 modoRedefinicao -> "Alterar senha"
-                else -> "Entrar na conta"
+                else -> "Entrar"
               },
               fontWeight = FontWeight.Bold,
               fontSize = 15.sp,
@@ -767,95 +759,189 @@ fun SecaoContaApi(
           }
         }
 
-        // Navegação entre modos
-        if (modoCadastro || modoEsqueciSenha || modoRedefinicao || modoConvite) {
-          TextButton(
-            onClick = {
-              modoCadastro = false
-              modoEsqueciSenha = false
-              modoRedefinicao = false
-              modoConvite = false
-            },
-            modifier = Modifier.align(Alignment.CenterHorizontally),
-          ) {
-            Text("← Voltar ao login", color = Jade, fontWeight = FontWeight.SemiBold)
-          }
-        } else {
-          Row(
-            horizontalArrangement = Arrangement.Center,
-            verticalAlignment = Alignment.CenterVertically,
-            modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
-          ) {
-            TextButton(onClick = { modoCadastro = true }) {
-              Text("Criar conta", color = Jade, fontSize = 13.sp)
+        if (modoEsqueciSenha || modoRedefinicao) {
+          Column(modifier = Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
+            if (modoEsqueciSenha) {
+              TextButton(onClick = { modoRedefinicao = true; modoEsqueciSenha = false }) {
+                Text("Já tenho o código de redefinição", color = MaterialTheme.colorScheme.primary)
+              }
             }
-            Text("·", color = MaterialTheme.colorScheme.outlineVariant, modifier = Modifier.padding(horizontal = 2.dp))
-            TextButton(onClick = { modoEsqueciSenha = true }) {
-              Text("Esqueci a senha", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 13.sp)
-            }
-            Text("·", color = MaterialTheme.colorScheme.outlineVariant, modifier = Modifier.padding(horizontal = 2.dp))
-            TextButton(onClick = { modoConvite = true }) {
-              Text("Tenho convite", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 13.sp)
+            TextButton(onClick = { modoEsqueciSenha = false; modoRedefinicao = false }) {
+              Text("← Voltar ao login", fontWeight = FontWeight.SemiBold)
             }
           }
-        }
-        if (modoEsqueciSenha) {
+        } else if (!modoCadastro && !modoConvite) {
           TextButton(
-            onClick = { modoRedefinicao = true; modoEsqueciSenha = false },
+            onClick = { modoEsqueciSenha = true },
             modifier = Modifier.align(Alignment.CenterHorizontally),
           ) {
-            Text("Já tenho o código de redefinição", color = Jade, fontSize = 13.sp)
+            Text("Esqueci minha senha", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 13.sp)
           }
         }
       } else {
-        if (!emailVerificado) {
-          Text(
-            "E-mail ainda não confirmado. Confirme para proteger o acesso à conta.",
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.error,
+        // Estado logado (dentro de Ajustes)
+        val inicial = email.trim().firstOrNull()?.uppercaseChar()?.toString() ?: "C"
+        Row(
+          modifier = Modifier.fillMaxWidth(),
+          verticalAlignment = Alignment.CenterVertically,
+          horizontalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+          Box(
+            modifier = Modifier
+              .size(46.dp)
+              .clip(CircleShape)
+              .background(MaterialTheme.colorScheme.primaryContainer),
+            contentAlignment = Alignment.Center,
+          ) {
+            Text(
+              text = inicial,
+              style = MaterialTheme.typography.titleLarge,
+              fontWeight = FontWeight.ExtraBold,
+              color = MaterialTheme.colorScheme.primary,
+            )
+          }
+          Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+            Text("Conta conectada", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+            Text(
+              text = email.ifBlank { "Sessão ativa na nuvem" },
+              style = MaterialTheme.typography.bodySmall,
+              color = MaterialTheme.colorScheme.onSurfaceVariant,
+              maxLines = 1,
+              overflow = TextOverflow.Ellipsis,
+            )
+          }
+          Selo(
+            texto = if (emailVerificado) "Verificada" else "Pendente",
+            tom = if (emailVerificado) TomSelo.SUCESSO else TomSelo.PENDENTE,
           )
-          OutlinedButton(onClick = { reenviarVerificacao() }, enabled = !entrando) {
-            Text(if (entrando) "Enviando..." else "Reenviar confirmação")
+        }
+
+        if (!emailVerificado) {
+          Surface(
+            shape = RoundedCornerShape(14.dp),
+            color = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.6f),
+            modifier = Modifier.fillMaxWidth(),
+          ) {
+            Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+              Text(
+                "E-mail ainda não confirmado. Confirme para proteger o acesso à conta.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onErrorContainer,
+              )
+              OutlinedButton(
+                onClick = { reenviarVerificacao() },
+                enabled = !entrando,
+                shape = RoundedCornerShape(10.dp),
+              ) {
+                Text(if (entrando) "Enviando..." else "Reenviar confirmação")
+              }
+            }
           }
         }
+
+        if (empresas.size > 1) {
+          Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            Text(
+              "EMPRESA ATIVA",
+              style = MaterialTheme.typography.labelSmall,
+              letterSpacing = 0.8.sp,
+              color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            empresas.forEach { (id, nomeEmpresa) ->
+              val selecionada = id == empresaId
+              Surface(
+                onClick = {
+                  empresaId = id
+                  preferencias.edit().putString(Preferencias.API_EMPRESA_ID, id).apply()
+                  aoAtualizarAssinatura()
+                },
+                shape = RoundedCornerShape(12.dp),
+                color = if (selecionada) MaterialTheme.colorScheme.primaryContainer else estendidas.superficieSutil,
+                border = BorderStroke(
+                  1.dp,
+                  if (selecionada) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant,
+                ),
+                modifier = Modifier.fillMaxWidth(),
+              ) {
+                Row(
+                  modifier = Modifier.padding(horizontal = 14.dp, vertical = 11.dp),
+                  verticalAlignment = Alignment.CenterVertically,
+                  horizontalArrangement = Arrangement.SpaceBetween,
+                ) {
+                  Text(
+                    text = nomeEmpresa,
+                    style = MaterialTheme.typography.bodyMedium,
+                    fontWeight = if (selecionada) FontWeight.Bold else FontWeight.Medium,
+                  )
+                  if (selecionada) {
+                    Icon(Icons.Default.Check, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(18.dp))
+                  }
+                }
+              }
+            }
+          }
+        } else if (empresaId.isNotBlank()) {
+          Surface(
+            shape = RoundedCornerShape(12.dp),
+            color = estendidas.superficieSutil,
+            modifier = Modifier.fillMaxWidth(),
+          ) {
+            Row(
+              modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
+              verticalAlignment = Alignment.CenterVertically,
+              horizontalArrangement = Arrangement.SpaceBetween,
+            ) {
+              Text("Empresa", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+              Text(
+                text = empresas.firstOrNull { it.first == empresaId }?.second ?: empresaId,
+                style = MaterialTheme.typography.titleSmall,
+                fontWeight = FontWeight.Bold,
+              )
+            }
+          }
+        }
+
         if (mostrarAceitarConvite) {
           OutlinedTextField(
             value = tokenConviteLogado,
             onValueChange = { tokenConviteLogado = it },
             label = { Text("Código do convite") },
+            shape = RoundedCornerShape(12.dp),
             modifier = Modifier.fillMaxWidth(),
           )
           Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            Button(onClick = { aceitarConviteLogado() }, enabled = !entrando && tokenConviteLogado.isNotBlank()) {
-              Text(if (entrando) "Aceitando..." else "Aceitar convite")
-            }
-            OutlinedButton(onClick = { mostrarAceitarConvite = false }) { Text("Cancelar") }
+            Button(
+              onClick = { aceitarConviteLogado() },
+              enabled = !entrando && tokenConviteLogado.isNotBlank(),
+              shape = RoundedCornerShape(12.dp),
+            ) { Text(if (entrando) "Aceitando..." else "Aceitar convite") }
+            OutlinedButton(
+              onClick = { mostrarAceitarConvite = false },
+              shape = RoundedCornerShape(12.dp),
+            ) { Text("Cancelar") }
           }
         } else {
-          androidx.compose.material3.TextButton(onClick = { mostrarAceitarConvite = true }) {
-            Text("Tenho um código de convite")
-          }
+          OutlinedButton(
+            onClick = { mostrarAceitarConvite = true },
+            shape = RoundedCornerShape(12.dp),
+            modifier = Modifier.fillMaxWidth(),
+          ) { Text("Tenho um código de convite") }
         }
-        if (empresas.size > 1) {
-          empresas.forEach { (id, nome) ->
-            OutlinedButton(
-              onClick = {
-                empresaId = id
-                preferencias.edit().putString(Preferencias.API_EMPRESA_ID, id).apply()
-                aoAtualizarAssinatura()
-              },
-              modifier = Modifier.fillMaxWidth(),
-            ) { Text(if (id == empresaId) "✓ $nome" else nome) }
-          }
-        } else if (empresaId.isNotBlank()) {
-          Text("Empresa: ${empresas.firstOrNull { it.first == empresaId }?.second ?: empresaId}",
-            style = MaterialTheme.typography.bodySmall)
-        }
+
         if (conflitos.isNotEmpty()) {
           conflitos.forEach { conflito ->
-            Card(modifier = Modifier.fillMaxWidth()) {
-              Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                Text("Conflito: ${conflito.placa.ifBlank { conflito.uuid }}", style = MaterialTheme.typography.titleSmall)
+            Surface(
+              shape = RoundedCornerShape(14.dp),
+              color = estendidas.alertaFundo.copy(alpha = 0.55f),
+              border = BorderStroke(1.dp, estendidas.alerta.copy(alpha = 0.4f)),
+              modifier = Modifier.fillMaxWidth(),
+            ) {
+              Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text(
+                  "Conflito: ${conflito.placa.ifBlank { conflito.uuid }}",
+                  style = MaterialTheme.typography.titleSmall,
+                  fontWeight = FontWeight.Bold,
+                )
                 Text(
                   "Sua edição local divergiu da versão ${conflito.revisaoServidor} no servidor. Nada foi perdido.",
                   style = MaterialTheme.typography.bodySmall,
@@ -877,7 +963,8 @@ fun SecaoContaApi(
                       }
                     },
                     enabled = !resolvendoConflito,
-                  ) { Text("Manter meu aparelho") }
+                    shape = RoundedCornerShape(10.dp),
+                  ) { Text("Manter meu aparelho", fontSize = 12.sp) }
                   OutlinedButton(
                     onClick = {
                       if (resolvendoConflito) return@OutlinedButton
@@ -893,12 +980,14 @@ fun SecaoContaApi(
                       }
                     },
                     enabled = !resolvendoConflito,
-                  ) { Text("Aceitar servidor") }
+                    shape = RoundedCornerShape(10.dp),
+                  ) { Text("Aceitar servidor", fontSize = 12.sp) }
                 }
               }
             }
           }
         }
+
         if (empresaId.isNotBlank() && papeisPorEmpresa.containsKey(empresaId)) {
           SecaoEquipeApi(
             empresaId = empresaId,
@@ -907,18 +996,50 @@ fun SecaoContaApi(
             guardarTokens = { guardarTokens(it) },
           )
         }
-        androidx.compose.material3.TextButton(onClick = {
-          escopo.launch {
-            withContext(Dispatchers.IO) { api().sair() }
-            preferenciasApi.edit().remove(Preferencias.API_ACESSO).remove(Preferencias.API_REFRESH).apply()
-            logado = false
-            empresas = emptyList()
-            papeisPorEmpresa = emptyMap()
-            aoSair()
-          }
-          Toast.makeText(contexto, "Sessão encerrada neste aparelho.", Toast.LENGTH_SHORT).show()
-        }) { Text("Sair da conta") }
+
+        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.7f))
+        TextButton(
+          onClick = {
+            escopo.launch {
+              withContext(Dispatchers.IO) { api().sair() }
+              preferenciasApi.edit().remove(Preferencias.API_ACESSO).remove(Preferencias.API_REFRESH).apply()
+              logado = false
+              empresas = emptyList()
+              papeisPorEmpresa = emptyMap()
+              aoSair()
+            }
+            Toast.makeText(contexto, "Sessão encerrada neste aparelho.", Toast.LENGTH_SHORT).show()
+          },
+          modifier = Modifier.align(Alignment.CenterHorizontally),
+        ) { Text("Sair da conta", color = MaterialTheme.colorScheme.error, fontWeight = FontWeight.SemiBold) }
       }
     }
+  }
+}
+
+@Composable
+private fun AbaAuth(
+  rotulo: String,
+  selecionado: Boolean,
+  modificador: Modifier = Modifier,
+  onClick: () -> Unit,
+) {
+  Surface(
+    onClick = onClick,
+    shape = RoundedCornerShape(10.dp),
+    color = if (selecionado) MaterialTheme.colorScheme.surface else Color.Transparent,
+    shadowElevation = if (selecionado) 1.dp else 0.dp,
+    modifier = modificador,
+  ) {
+    Text(
+      text = rotulo,
+      style = MaterialTheme.typography.labelMedium,
+      fontWeight = if (selecionado) FontWeight.Bold else FontWeight.Medium,
+      color = if (selecionado) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+      textAlign = TextAlign.Center,
+      maxLines = 1,
+      overflow = TextOverflow.Ellipsis,
+      modifier = Modifier.padding(vertical = 9.dp, horizontal = 6.dp),
+    )
   }
 }

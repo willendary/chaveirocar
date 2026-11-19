@@ -1,28 +1,21 @@
 package com.willendary.chaveirocar.ui
 
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.padding
-import androidx.compose.material3.Button
-import androidx.compose.material3.Card
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.runtime.setValue
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.willendary.chaveirocar.nuvem.ApiChaveiroCar
+import com.willendary.chaveirocar.ui.theme.coresEstendidas
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -31,6 +24,7 @@ import org.json.JSONObject
 private data class MembroEquipeUi(val id: String, val nome: String, val email: String, val papel: String)
 private data class ConviteEquipeUi(val id: String, val email: String, val papel: String, val status: String)
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun SecaoEquipeApi(
   empresaId: String,
@@ -40,6 +34,7 @@ fun SecaoEquipeApi(
 ) {
   val escopo = rememberCoroutineScope()
   val contexto = LocalContext.current
+  val estendidas = MaterialTheme.coresEstendidas
   val podeGerenciar = papelEmpresa == "proprietario" || papelEmpresa == "administrador"
   var emailConvite by remember { mutableStateOf("") }
   var papelConvite by remember { mutableStateOf("colaborador") }
@@ -109,22 +104,42 @@ fun SecaoEquipeApi(
 
   LaunchedEffect(empresaId, papelEmpresa) { atualizar() }
 
-  Card(modifier = Modifier.fillMaxWidth()) {
-    Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-      Text("Equipe e acessos", style = MaterialTheme.typography.titleSmall)
+  Surface(
+    shape = RoundedCornerShape(16.dp),
+    color = estendidas.superficieSutil,
+    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+    modifier = Modifier.fillMaxWidth(),
+  ) {
+    Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+      Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.SpaceBetween,
+      ) {
+        Text("Equipe e acessos", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
+        TextButton(onClick = { atualizar() }, enabled = !carregando) {
+          Text(if (carregando) "Atualizando..." else "Atualizar", fontSize = 12.sp)
+        }
+      }
+
       if (podeGerenciar) {
         OutlinedTextField(
           value = emailConvite,
           onValueChange = { emailConvite = it },
           label = { Text("E-mail do colaborador") },
           singleLine = true,
+          shape = RoundedCornerShape(12.dp),
           modifier = Modifier.fillMaxWidth(),
         )
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
           listOf("administrador", "colaborador", "leitor").forEach { papel ->
-            OutlinedButton(onClick = { papelConvite = papel }, enabled = !carregando) {
-              Text(if (papelConvite == papel) "✓ $papel" else papel)
-            }
+            FilterChip(
+              selected = papelConvite == papel,
+              onClick = { papelConvite = papel },
+              enabled = !carregando,
+              shape = RoundedCornerShape(10.dp),
+              label = { Text(papel.replaceFirstChar { it.uppercase() }) },
+            )
           }
         }
         Button(
@@ -155,56 +170,120 @@ fun SecaoEquipeApi(
             }
           },
           enabled = !carregando && emailConvite.isNotBlank(),
-        ) { Text(if (carregando) "Aguarde..." else "Convidar") }
+          shape = RoundedCornerShape(12.dp),
+          modifier = Modifier.fillMaxWidth(),
+        ) { Text(if (carregando) "Aguarde..." else "Convidar colaborador", fontWeight = FontWeight.Bold) }
+
         if (codigoConvite.isNotBlank()) {
           OutlinedTextField(
             value = codigoConvite,
             onValueChange = {},
             readOnly = true,
             label = { Text("Código do convite") },
+            shape = RoundedCornerShape(12.dp),
             modifier = Modifier.fillMaxWidth(),
           )
-          TextButton(onClick = { copiarTexto(contexto, "Código do convite", codigoConvite) }) {
-            Text("Copiar código")
-          }
+          FilledTonalButton(
+            onClick = { copiarTexto(contexto, "Código do convite", codigoConvite) },
+            shape = RoundedCornerShape(10.dp),
+          ) { Text("Copiar código") }
         }
       }
-      OutlinedButton(onClick = { atualizar() }, enabled = !carregando) {
-        Text(if (carregando) "Atualizando..." else "Atualizar equipe")
-      }
+
       membros.forEach { membro ->
-        Text("${membro.nome} · ${membro.email} · ${membro.papel}", style = MaterialTheme.typography.bodySmall)
-        if (podeGerenciar && membro.papel != "proprietario") {
-          Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-            listOf("administrador", "colaborador", "leitor").forEach { papel ->
-              OutlinedButton(onClick = {
-                executar { api ->
-                  api.alterarPapel(empresaId, membro.id, papel)
-                  "Permissão de ${membro.email} alterada para $papel."
-                }
-              }, enabled = !carregando && membro.papel != papel) { Text(papel) }
-            }
-            OutlinedButton(onClick = {
-              executar { api ->
-                api.removerMembro(empresaId, membro.id)
-                "Acesso de ${membro.email} removido."
+        Surface(
+          shape = RoundedCornerShape(12.dp),
+          color = MaterialTheme.colorScheme.surface,
+          border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+          modifier = Modifier.fillMaxWidth(),
+        ) {
+          Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+              Box(
+                modifier = Modifier
+                  .size(34.dp)
+                  .clip(CircleShape)
+                  .background(MaterialTheme.colorScheme.primaryContainer),
+                contentAlignment = Alignment.Center,
+              ) {
+                Text(
+                  text = membro.nome.trim().firstOrNull()?.uppercaseChar()?.toString() ?: "M",
+                  style = MaterialTheme.typography.labelLarge,
+                  fontWeight = FontWeight.Bold,
+                  color = MaterialTheme.colorScheme.primary,
+                )
               }
-            }, enabled = !carregando) { Text("Remover") }
+              Column(Modifier.weight(1f)) {
+                Text(membro.nome.ifBlank { membro.email }, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
+                Text(membro.email, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+              }
+              Selo(membro.papel, tom = TomSelo.NEUTRO)
+            }
+
+            if (podeGerenciar && membro.papel != "proprietario") {
+              FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                listOf("administrador", "colaborador", "leitor").forEach { papel ->
+                  OutlinedButton(
+                    onClick = {
+                      executar { api ->
+                        api.alterarPapel(empresaId, membro.id, papel)
+                        "Permissão de ${membro.email} alterada para $papel."
+                      }
+                    },
+                    enabled = !carregando && membro.papel != papel,
+                    shape = RoundedCornerShape(10.dp),
+                    contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp),
+                  ) { Text(papel, fontSize = 11.sp) }
+                }
+                TextButton(
+                  onClick = {
+                    executar { api ->
+                      api.removerMembro(empresaId, membro.id)
+                      "Acesso de ${membro.email} removido."
+                    }
+                  },
+                  enabled = !carregando,
+                ) { Text("Remover", color = MaterialTheme.colorScheme.error, fontSize = 11.sp) }
+              }
+            }
           }
         }
       }
+
       convites.filter { it.status == "pendente" }.forEach { convite ->
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-          Text("Convite: ${convite.email} · ${convite.papel}", modifier = Modifier.weight(1f))
-          if (podeGerenciar) OutlinedButton(onClick = {
-            executar { api ->
-              api.cancelarConvite(empresaId, convite.id)
-              "Convite de ${convite.email} cancelado."
+        Surface(
+          shape = RoundedCornerShape(12.dp),
+          color = MaterialTheme.colorScheme.surface,
+          border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+          modifier = Modifier.fillMaxWidth(),
+        ) {
+          Row(
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+          ) {
+            Column(Modifier.weight(1f)) {
+              Text("Convite pendente", style = MaterialTheme.typography.labelSmall, color = estendidas.alerta)
+              Text("${convite.email} · ${convite.papel}", style = MaterialTheme.typography.bodySmall)
             }
-          }, enabled = !carregando) { Text("Cancelar") }
+            if (podeGerenciar) {
+              TextButton(
+                onClick = {
+                  executar { api ->
+                    api.cancelarConvite(empresaId, convite.id)
+                    "Convite de ${convite.email} cancelado."
+                  }
+                },
+                enabled = !carregando,
+              ) { Text("Cancelar", color = MaterialTheme.colorScheme.error, fontSize = 12.sp) }
+            }
+          }
         }
       }
-      if (estado.isNotBlank()) Text(estado, style = MaterialTheme.typography.bodySmall)
+
+      if (estado.isNotBlank()) {
+        Text(estado, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+      }
     }
   }
 }

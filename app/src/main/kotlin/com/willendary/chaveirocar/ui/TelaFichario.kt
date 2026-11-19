@@ -1,54 +1,23 @@
 package com.willendary.chaveirocar.ui
 
-import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.IconButton
-import androidx.compose.material3.OutlinedTextFieldDefaults
-import androidx.compose.material.icons.filled.Star
-import androidx.compose.material.icons.filled.Build
-import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.ExperimentalLayoutApi
-import androidx.compose.foundation.layout.FlowRow
-import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.WindowInsets
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.heightIn
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Search
-import androidx.compose.material3.Button
-import androidx.compose.material3.Card
-import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.Icon
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
-import androidx.compose.material3.TopAppBar
-import androidx.compose.material3.TopAppBarDefaults
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
+import androidx.compose.material.icons.filled.Star
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -59,7 +28,6 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
-import androidx.compose.material3.FilterChip
 import com.willendary.chaveirocar.dados.BancoDeAtendimentos
 import com.willendary.chaveirocar.dados.Preferencias
 import com.willendary.chaveirocar.modelo.Atendimento
@@ -68,6 +36,8 @@ import com.willendary.chaveirocar.modelo.Foto
 import com.willendary.chaveirocar.modelo.ResumoModelo
 import com.willendary.chaveirocar.modelo.ResumoResidencial
 import com.willendary.chaveirocar.modelo.SegmentoAtendimento
+import com.willendary.chaveirocar.ui.theme.Ambar
+import com.willendary.chaveirocar.ui.theme.coresEstendidas
 import com.willendary.chaveirocar.util.formatarData
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -135,9 +105,7 @@ fun TelaFichario(
   }
 
   Scaffold(
-    topBar = {
-      CabecalhoTela("Fichário", "Sua biblioteca de soluções")
-    },
+    topBar = { CabecalhoTela("Fichário", "Sua biblioteca de soluções") },
     contentWindowInsets = WindowInsets(0, 0, 0, 0),
     containerColor = MaterialTheme.colorScheme.background,
   ) { espacamento ->
@@ -145,41 +113,50 @@ fun TelaFichario(
       if (segmentoFixo != null && onTrocarArea != null) {
         BarraModalidadeAtiva(segmentoFixo, onTrocarArea)
       }
+
       OutlinedTextField(
         value = busca,
         onValueChange = { busca = it },
-        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 6.dp),
         placeholder = {
-          Text(if (segmento == SegmentoAtendimento.RESIDENCIAL) "Buscar local, porta ou fechadura" else "Buscar marca ou modelo")
+          Text(if (segmento == SegmentoAtendimento.RESIDENCIAL) "Buscar local, porta ou fechadura…" else "Buscar marca ou modelo…")
         },
-        leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
+        leadingIcon = { Icon(Icons.Default.Search, contentDescription = null, tint = MaterialTheme.colorScheme.primary) },
+        trailingIcon = {
+          if (busca.isNotEmpty()) {
+            IconButton(onClick = { busca = "" }) {
+              Icon(Icons.Default.Close, contentDescription = "Limpar")
+            }
+          }
+        },
         singleLine = true,
-        shape = MaterialTheme.shapes.medium,
+        shape = RoundedCornerShape(16.dp),
         colors = OutlinedTextFieldDefaults.colors(
           unfocusedContainerColor = MaterialTheme.colorScheme.surface,
           focusedContainerColor = MaterialTheme.colorScheme.surface,
           unfocusedBorderColor = MaterialTheme.colorScheme.outlineVariant,
+          focusedBorderColor = MaterialTheme.colorScheme.primary,
         ),
       )
 
       if (segmentoFixo == null) {
         Row(
-          modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
+          modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp),
           horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {
           FilterChip(
             selected = segmento == SegmentoAtendimento.AUTOMOTIVO,
             onClick = { segmentoEstado = SegmentoAtendimento.AUTOMOTIVO },
+            shape = RoundedCornerShape(12.dp),
             label = { Text("Veículos (${modelos.size})") },
           )
           FilterChip(
             selected = segmento == SegmentoAtendimento.RESIDENCIAL,
             onClick = { segmentoEstado = SegmentoAtendimento.RESIDENCIAL },
+            shape = RoundedCornerShape(12.dp),
             label = { Text("Residencial (${residenciais.size})") },
           )
         }
-      } else {
-        Spacer(Modifier.height(8.dp))
       }
 
       when {
@@ -188,12 +165,12 @@ fun TelaFichario(
         }
 
         segmento == SegmentoAtendimento.RESIDENCIAL && residenciaisVisiveis.isEmpty() -> Box(
-          Modifier.fillMaxSize().padding(32.dp),
+          Modifier.fillMaxSize().padding(20.dp),
           contentAlignment = Alignment.Center,
         ) {
           EstadoVazio(
             if (busca.isBlank()) "Fichário residencial vazio" else "Nenhuma fechadura ou local encontrado",
-            if (busca.isBlank()) "Os serviços de chaveiro residencial aparecem organizados aqui por tipo de local e fechadura."
+            if (busca.isBlank()) "Os serviços residenciais aparecem organizados aqui por tipo de local e fechadura."
             else "Tente buscar por outra marca de fechadura ou ambiente.",
           )
         }
@@ -201,7 +178,7 @@ fun TelaFichario(
         segmento == SegmentoAtendimento.RESIDENCIAL -> LazyColumn(
           modifier = Modifier.fillMaxSize(),
           verticalArrangement = Arrangement.spacedBy(10.dp),
-          contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 4.dp, bottom = 24.dp),
+          contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 6.dp, bottom = 28.dp),
         ) {
           item {
             PainelDestaque(
@@ -210,30 +187,41 @@ fun TelaFichario(
               "${residenciais.size} ITEM(NS) RESIDENCIAIS",
             )
           }
-          item { TituloSecao("Locais e fechaduras") }
+          item { TituloSecao("Locais e fechaduras", detalhe = "${residenciaisVisiveis.size}") }
           items(residenciaisVisiveis) { item ->
             CartaoResidencial(item = item, onAbrir = { onAbrirResidencial(item) })
           }
         }
 
         visiveis.isEmpty() -> Box(
-          Modifier.fillMaxSize().padding(32.dp),
+          Modifier.fillMaxSize().padding(20.dp),
           contentAlignment = Alignment.Center,
         ) {
-          EstadoVazio(if (busca.isBlank()) "Sua biblioteca começa aqui" else "Nenhum modelo encontrado",
+          EstadoVazio(
+            if (busca.isBlank()) "Sua biblioteca começa aqui" else "Nenhum modelo encontrado",
             if (busca.isBlank()) "Os veículos e procedimentos aparecem aqui depois do primeiro serviço."
-            else "Tente outra marca ou modelo.")
+            else "Tente outra marca ou modelo.",
+          )
         }
 
         else -> LazyColumn(
           modifier = Modifier.fillMaxSize(),
           verticalArrangement = Arrangement.spacedBy(10.dp),
-          contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 4.dp, bottom = 24.dp),
+          contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 6.dp, bottom = 28.dp),
         ) {
           item {
-            PainelDestaque("Conhecimento que fica.", "Aberturas, códigos e procedimentos organizados por veículo.", "${modelos.size} MODELO(S) NA BIBLIOTECA")
+            PainelDestaque(
+              "Conhecimento que fica.",
+              "Aberturas, códigos e procedimentos organizados por veículo.",
+              "${modelos.size} MODELO(S) NA BIBLIOTECA",
+            )
           }
-          item { TituloSecao(if (favoritos.isEmpty()) "Seus veículos" else "Seus veículos · favoritos primeiro") }
+          item {
+            TituloSecao(
+              if (favoritos.isEmpty()) "Seus veículos" else "Seus veículos · favoritos primeiro",
+              detalhe = "${visiveis.size}",
+            )
+          }
           items(visiveis) { modelo ->
             CartaoModelo(
               modelo = modelo,
@@ -250,53 +238,149 @@ fun TelaFichario(
 
 @Composable
 private fun CartaoResidencial(item: ResumoResidencial, onAbrir: () -> Unit) {
+  val estendidas = MaterialTheme.coresEstendidas
   val titulo = item.tipoLocal.ifBlank { "Serviço residencial" }
-  val fechadura = listOf(item.marcaFechadura, item.modeloFechadura).filter { it.isNotBlank() }.joinToString(" ").ifBlank { "Fechadura não informada" }
-  Card(
-    onClick = onAbrir,
-    modifier = Modifier.fillMaxWidth(),
-    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-    border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
-  ) {
-    Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-      Text(titulo, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
-      Text(fechadura, style = MaterialTheme.typography.titleLarge)
-      Text(
-        "${item.quantidade} serviço(s) · último em ${formatarData(item.ultimaData)}",
-        style = MaterialTheme.typography.bodySmall,
-        color = MaterialTheme.colorScheme.onSurfaceVariant,
-      )
-      Text(
-        if (item.temProcedimento) "Procedimentos disponíveis" else "Adicione técnicas de abertura ou fotos no próximo serviço",
-        style = MaterialTheme.typography.bodySmall,
-        color = if (item.temProcedimento) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+  val fechadura = listOf(item.marcaFechadura, item.modeloFechadura)
+    .filter { it.isNotBlank() }.joinToString(" ").ifBlank { "Fechadura não informada" }
+
+  CartaoSurface(onClick = onAbrir, raio = 18.dp) {
+    Row(
+      modifier = Modifier.fillMaxWidth().padding(16.dp),
+      verticalAlignment = Alignment.CenterVertically,
+      horizontalArrangement = Arrangement.spacedBy(14.dp),
+    ) {
+      Box(
+        modifier = Modifier
+          .size(46.dp)
+          .clip(RoundedCornerShape(14.dp))
+          .background(estendidas.residencialFundo),
+        contentAlignment = Alignment.Center,
+      ) {
+        Icon(Icons.Default.Home, contentDescription = null, tint = estendidas.residencial, modifier = Modifier.size(22.dp))
+      }
+      Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        Text(
+          text = titulo.uppercase(),
+          style = MaterialTheme.typography.labelSmall,
+          letterSpacing = 0.6.sp,
+          color = estendidas.residencial,
+        )
+        Text(fechadura, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+        Text(
+          text = "${item.quantidade} serviço(s) · último em ${formatarData(item.ultimaData)}",
+          style = MaterialTheme.typography.bodySmall,
+          color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        Row(
+          verticalAlignment = Alignment.CenterVertically,
+          horizontalArrangement = Arrangement.spacedBy(6.dp),
+          modifier = Modifier.padding(top = 2.dp),
+        ) {
+          Box(
+            modifier = Modifier
+              .size(7.dp)
+              .clip(CircleShape)
+              .background(if (item.temProcedimento) estendidas.sucesso else MaterialTheme.colorScheme.outline),
+          )
+          Text(
+            text = if (item.temProcedimento) "Procedimentos disponíveis" else "Sem procedimentos salvos",
+            style = MaterialTheme.typography.labelSmall,
+            color = if (item.temProcedimento) estendidas.sucesso else MaterialTheme.colorScheme.onSurfaceVariant,
+          )
+        }
+      }
+      Icon(
+        Icons.AutoMirrored.Filled.KeyboardArrowRight,
+        contentDescription = null,
+        tint = MaterialTheme.colorScheme.onSurfaceVariant,
       )
     }
   }
 }
 
 @Composable
-private fun CartaoModelo(modelo: ResumoModelo, onAbrir: () -> Unit, fixado: Boolean = false, onFixar: () -> Unit = {}) {
-  Card(onClick = onAbrir, modifier = Modifier.fillMaxWidth(),
-    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-    border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)) {
-    Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-      Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-        Column(Modifier.weight(1f)) {
-          Text(modelo.marca.ifBlank { "Veículo" }, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
-          Text(modelo.modelo.ifBlank { "Modelo não informado" }, style = MaterialTheme.typography.titleLarge)
+private fun CartaoModelo(
+  modelo: ResumoModelo,
+  onAbrir: () -> Unit,
+  fixado: Boolean = false,
+  onFixar: () -> Unit = {},
+) {
+  val estendidas = MaterialTheme.coresEstendidas
+  val iniciais = modelo.marca.trim().take(2).uppercase().ifBlank { "VC" }
+
+  CartaoSurface(onClick = onAbrir, raio = 18.dp) {
+    Row(
+      modifier = Modifier.fillMaxWidth().padding(16.dp),
+      verticalAlignment = Alignment.CenterVertically,
+      horizontalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+      Box(
+        modifier = Modifier
+          .size(46.dp)
+          .clip(RoundedCornerShape(14.dp))
+          .background(MaterialTheme.colorScheme.primaryContainer),
+        contentAlignment = Alignment.Center,
+      ) {
+        Text(
+          text = iniciais,
+          style = MaterialTheme.typography.titleMedium,
+          fontWeight = FontWeight.ExtraBold,
+          color = MaterialTheme.colorScheme.primary,
+        )
+      }
+
+      Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        Row(
+          verticalAlignment = Alignment.CenterVertically,
+          horizontalArrangement = Arrangement.spacedBy(6.dp),
+        ) {
+          Text(
+            text = modelo.marca.ifBlank { "Veículo" }.uppercase(),
+            style = MaterialTheme.typography.labelSmall,
+            letterSpacing = 0.6.sp,
+            color = MaterialTheme.colorScheme.primary,
+          )
+          if (modelo.ano.isNotBlank()) {
+            Selo(texto = modelo.ano, tom = TomSelo.NEUTRO)
+          }
         }
-        IconButton(onClick = onFixar) {
-          Icon(Icons.Default.Star, if (fixado) "Desafixar modelo" else "Fixar modelo",
-            tint = if (fixado) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline)
+        Text(
+          text = modelo.modelo.ifBlank { "Modelo não informado" },
+          style = MaterialTheme.typography.titleMedium,
+          fontWeight = FontWeight.Bold,
+          maxLines = 1,
+          overflow = TextOverflow.Ellipsis,
+        )
+        Text(
+          text = "${modelo.quantidade} serviço(s) · último em ${formatarData(modelo.ultimaData)}",
+          style = MaterialTheme.typography.bodySmall,
+          color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        Row(
+          verticalAlignment = Alignment.CenterVertically,
+          horizontalArrangement = Arrangement.spacedBy(6.dp),
+        ) {
+          Box(
+            modifier = Modifier
+              .size(7.dp)
+              .clip(CircleShape)
+              .background(if (modelo.temProcedimento) estendidas.sucesso else MaterialTheme.colorScheme.outline),
+          )
+          Text(
+            text = if (modelo.temProcedimento) "Procedimentos disponíveis" else "Adicione no próximo serviço",
+            style = MaterialTheme.typography.labelSmall,
+            color = if (modelo.temProcedimento) estendidas.sucesso else MaterialTheme.colorScheme.onSurfaceVariant,
+          )
         }
       }
-      if (modelo.ano.isNotBlank()) Selo(modelo.ano)
-      Text("${modelo.quantidade} serviço(s) · último em ${formatarData(modelo.ultimaData)}",
-        style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-      Text(if (modelo.temProcedimento) "Procedimentos disponíveis" else "Adicione um procedimento no próximo serviço",
-        style = MaterialTheme.typography.bodySmall,
-        color = if (modelo.temProcedimento) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant)
+
+      IconButton(onClick = onFixar) {
+        Icon(
+          Icons.Default.Star,
+          contentDescription = if (fixado) "Desafixar modelo" else "Fixar modelo",
+          tint = if (fixado) Ambar else MaterialTheme.colorScheme.outline.copy(alpha = 0.65f),
+        )
+      }
     }
   }
 }
@@ -332,28 +416,25 @@ fun TelaFicharioModelo(
   val abertura = servicos.firstOrNull { it.abertura.isNotBlank() }?.abertura
   val codigoChave = servicos.firstOrNull { it.codigoChave.isNotBlank() }?.codigoChave
   val codigoConfiguracao = servicos.firstOrNull { it.codigoConfiguracao.isNotBlank() }?.codigoConfiguracao
+  val tituloVeiculo = listOf(marca, modelo, ano).filter { it.isNotBlank() }.joinToString(" ")
 
   Scaffold(
     topBar = {
-      TopAppBar(
-        title = {
-          Column {
-            Text(
-              listOf(marca, modelo, ano).filter { it.isNotBlank() }.joinToString(" "),
-              style = MaterialTheme.typography.titleMedium,
-              maxLines = 1,
-              overflow = TextOverflow.Ellipsis,
-            )
-            Text(
-              text = "${servicos.size} serviço(s)",
-              style = MaterialTheme.typography.bodySmall,
-              color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-          }
-        },
-        navigationIcon = { BotaoVoltar(onVoltar) },
-      )
+      Column {
+        TopAppBar(
+          title = {
+            Column {
+              Text(tituloVeiculo, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+              Text("${servicos.size} serviço(s) registrados", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+          },
+          navigationIcon = { BotaoVoltar(onVoltar) },
+          colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.surface),
+        )
+        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.75f))
+      }
     },
+    containerColor = MaterialTheme.colorScheme.background,
   ) { espacamento ->
     if (!carregado) {
       Box(Modifier.fillMaxSize().padding(espacamento), contentAlignment = Alignment.Center) {
@@ -371,11 +452,11 @@ fun TelaFicharioModelo(
       verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
       if (abertura.isNullOrBlank() && codigoChave.isNullOrBlank() && codigoConfiguracao.isNullOrBlank()) {
-        Card(modifier = Modifier.fillMaxWidth()) {
-          Column(Modifier.padding(14.dp)) {
-            Text("Sem procedimento registrado", style = MaterialTheme.typography.titleSmall)
+        CartaoSurface(raio = 16.dp) {
+          Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            Text("Sem procedimento registrado", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
             Text(
-              text = "Na próxima vez, preencha a abertura ou os códigos no serviço.",
+              "Na próxima vez, preencha a técnica de abertura ou os códigos no atendimento.",
               style = MaterialTheme.typography.bodySmall,
               color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
@@ -384,158 +465,87 @@ fun TelaFicharioModelo(
       }
 
       if (onVerFicha != null) {
-        OutlinedButton(onClick = onVerFicha, modifier = Modifier.fillMaxWidth()) {
-          Text("Consultar ficha técnica e manual deste veículo")
+        Button(
+          onClick = onVerFicha,
+          modifier = Modifier.fillMaxWidth().height(48.dp),
+          shape = RoundedCornerShape(14.dp),
+        ) {
+          Icon(Icons.Default.Search, contentDescription = null, modifier = Modifier.size(18.dp))
+          Spacer(Modifier.width(8.dp))
+          Text("Consultar ficha técnica e manual", fontWeight = FontWeight.Bold)
         }
       }
 
       if (!abertura.isNullOrBlank()) {
-        Card(
+        TituloSecao("Técnica de abertura")
+        Surface(
+          shape = RoundedCornerShape(18.dp),
+          color = MaterialTheme.colorScheme.primaryContainer,
+          border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.3f)),
           modifier = Modifier.fillMaxWidth(),
-          colors = androidx.compose.material3.CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.secondaryContainer,
-          ),
         ) {
-          Column(Modifier.padding(14.dp)) {
-            Text("Abertura", style = MaterialTheme.typography.labelLarge)
-            Spacer(Modifier.height(4.dp))
-            Text(abertura, style = MaterialTheme.typography.bodyLarge)
-          }
+          Text(
+            text = abertura,
+            style = MaterialTheme.typography.bodyLarge,
+            fontWeight = FontWeight.Medium,
+            color = MaterialTheme.colorScheme.onSurface,
+            modifier = Modifier.padding(16.dp),
+          )
         }
       }
 
-      if (!codigoChave.isNullOrBlank()) {
-        Card(modifier = Modifier.fillMaxWidth()) {
-          Row(modifier = Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
-            Column(modifier = Modifier.weight(1f)) {
-              Text("Código de chave", style = MaterialTheme.typography.labelMedium)
-              Text(
-                codigoChave,
-                fontFamily = FontFamily.Monospace,
-                fontWeight = FontWeight.Bold,
-                fontSize = 20.sp,
-              )
+      if (!codigoChave.isNullOrBlank() || !codigoConfiguracao.isNullOrBlank()) {
+        TituloSecao("Códigos salvos")
+        CartaoSurface(raio = 18.dp) {
+          Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            if (!codigoChave.isNullOrBlank()) {
+              LinhaCodigoFichario("Código de chave", codigoChave) {
+                copiarTexto(contexto, "Código de chave", codigoChave)
+              }
             }
-            TextButton(onClick = { copiarTexto(contexto, "Código de chave", codigoChave) }) {
-              Text("Copiar")
+            if (!codigoConfiguracao.isNullOrBlank()) {
+              LinhaCodigoFichario("Código de configuração", codigoConfiguracao) {
+                copiarTexto(contexto, "Código de configuração", codigoConfiguracao)
+              }
             }
-          }
-        }
-      }
-
-      if (!codigoConfiguracao.isNullOrBlank()) {
-        Card(modifier = Modifier.fillMaxWidth()) {
-          Row(modifier = Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
-            Column(modifier = Modifier.weight(1f)) {
-              Text("Código de configuração", style = MaterialTheme.typography.labelMedium)
-              Text(
-                codigoConfiguracao,
-                fontFamily = FontFamily.Monospace,
-                fontWeight = FontWeight.Bold,
-                fontSize = 20.sp,
-              )
-            }
-            TextButton(
-              onClick = { copiarTexto(contexto, "Código de configuração", codigoConfiguracao) },
-            ) { Text("Copiar") }
           }
         }
       }
 
       if (procedimentos.isNotEmpty()) {
-        TituloSecao("Como se faz")
+        TituloSecao("Como se faz", detalhe = "${procedimentos.size} foto(s)")
         FlowRow(
-          horizontalArrangement = Arrangement.spacedBy(8.dp),
-          verticalArrangement = Arrangement.spacedBy(8.dp),
+          horizontalArrangement = Arrangement.spacedBy(10.dp),
+          verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
           procedimentos.forEach { foto ->
-            Column(modifier = Modifier.width(140.dp)) {
-              ImagemLocal(
-                caminho = foto.caminho,
-                ladoMaximo = 800,
-                modificador = Modifier
-                  .width(140.dp)
-                  .height(140.dp)
-                  .clip(RoundedCornerShape(12.dp))
-                  .clickable { fotoAberta = foto.caminho },
-              )
-              if (foto.legenda.isNotBlank()) {
-                Text(
-                  text = foto.legenda,
-                  style = MaterialTheme.typography.bodySmall,
-                  maxLines = 2,
-                  overflow = TextOverflow.Ellipsis,
-                )
+            CartaoSurface(modificador = Modifier.width(148.dp), raio = 16.dp, onClick = { fotoAberta = foto.caminho }) {
+              Column {
+                ImagemLocal(caminho = foto.caminho, ladoMaximo = 800, modificador = Modifier.fillMaxWidth().height(132.dp))
+                if (foto.legenda.isNotBlank()) {
+                  Text(
+                    foto.legenda,
+                    style = MaterialTheme.typography.bodySmall,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.padding(8.dp),
+                  )
+                }
               }
             }
           }
         }
       }
 
-      TituloSecao("Serviços deste carro")
+      TituloSecao("Serviços deste carro", detalhe = "${servicos.size}")
       servicos.forEach { servico ->
-        Card(
-          modifier = Modifier.fillMaxWidth().clickable { onAbrirServico(servico.id) },
-        ) {
-          Column(Modifier.padding(14.dp)) {
-            FlowRow(
-              horizontalArrangement = Arrangement.spacedBy(6.dp),
-              verticalArrangement = Arrangement.spacedBy(6.dp),
-            ) {
-              servico.tiposOrdenados.forEach { Selo(it.rotulo) }
-            }
-            Row(verticalAlignment = Alignment.CenterVertically) {
-              Text(
-                text = formatarData(servico.dataServico),
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-              )
-              if (servico.quantidadeFotos > 0) {
-                Spacer(Modifier.width(8.dp))
-                Text(
-                  text = "${servico.quantidadeFotos} foto(s)",
-                  style = MaterialTheme.typography.bodySmall,
-                  color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-              }
-            }
-            val resumo = servico.solucao.ifBlank { servico.defeito }.ifBlank { servico.abertura }
-            if (resumo.isNotBlank()) {
-              Spacer(Modifier.height(4.dp))
-              Text(
-                text = resumo,
-                style = MaterialTheme.typography.bodyMedium,
-                maxLines = 2,
-                overflow = TextOverflow.Ellipsis,
-              )
-            }
-          }
-        }
+        CartaoServicoFichario(servico = servico, onAbrir = { onAbrirServico(servico.id) })
       }
-      Spacer(Modifier.height(24.dp))
+      Spacer(Modifier.height(20.dp))
     }
   }
 
-  val foto = fotoAberta
-  if (foto != null) {
-    Dialog(onDismissRequest = { fotoAberta = null }) {
-      Card {
-        Column {
-          ImagemLocal(
-            caminho = foto,
-            ladoMaximo = 2000,
-            modificador = Modifier
-              .fillMaxWidth()
-              .heightIn(max = 520.dp)
-              .clickable { fotoAberta = null },
-          )
-          TextButton(onClick = { fotoAberta = null }, modifier = Modifier.fillMaxWidth()) {
-            Text("Fechar")
-          }
-        }
-      }
-    }
-  }
+  DialogoFotoSimples(fotoAberta) { fotoAberta = null }
 }
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
@@ -549,6 +559,7 @@ fun TelaFicharioResidencial(
   onVoltar: () -> Unit,
 ) {
   val contexto = LocalContext.current
+  val estendidas = MaterialTheme.coresEstendidas
   var servicos by remember { mutableStateOf<List<Atendimento>>(emptyList()) }
   var procedimentos by remember { mutableStateOf<List<Foto>>(emptyList()) }
   var carregado by remember { mutableStateOf(false) }
@@ -576,25 +587,21 @@ fun TelaFicharioResidencial(
 
   Scaffold(
     topBar = {
-      TopAppBar(
-        title = {
-          Column {
-            Text(
-              titulo,
-              style = MaterialTheme.typography.titleMedium,
-              maxLines = 1,
-              overflow = TextOverflow.Ellipsis,
-            )
-            Text(
-              text = "${servicos.size} serviço(s)",
-              style = MaterialTheme.typography.bodySmall,
-              color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-          }
-        },
-        navigationIcon = { BotaoVoltar(onVoltar) },
-      )
+      Column {
+        TopAppBar(
+          title = {
+            Column {
+              Text(titulo, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+              Text("${servicos.size} serviço(s) registrados", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+          },
+          navigationIcon = { BotaoVoltar(onVoltar) },
+          colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.surface),
+        )
+        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.75f))
+      }
     },
+    containerColor = MaterialTheme.colorScheme.background,
   ) { espacamento ->
     if (!carregado) {
       Box(Modifier.fillMaxSize().padding(espacamento), contentAlignment = Alignment.Center) {
@@ -612,11 +619,11 @@ fun TelaFicharioResidencial(
       verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
       if (abertura.isNullOrBlank() && codigoChave.isNullOrBlank() && codigoConfiguracao.isNullOrBlank() && procedimentos.isEmpty()) {
-        Card(modifier = Modifier.fillMaxWidth()) {
-          Column(Modifier.padding(14.dp)) {
-            Text("Sem procedimento registrado", style = MaterialTheme.typography.titleSmall)
+        CartaoSurface(raio = 16.dp) {
+          Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            Text("Sem procedimento registrado", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
             Text(
-              text = "Na próxima vez, preencha a técnica de abertura, códigos ou fotos de passo a passo.",
+              "Na próxima vez, preencha a técnica de abertura, códigos ou fotos de passo a passo.",
               style = MaterialTheme.typography.bodySmall,
               color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
@@ -625,136 +632,135 @@ fun TelaFicharioResidencial(
       }
 
       if (!abertura.isNullOrBlank()) {
-        Card(
+        TituloSecao("Técnica de abertura / observações")
+        Surface(
+          shape = RoundedCornerShape(18.dp),
+          color = estendidas.residencialFundo,
+          border = BorderStroke(1.dp, estendidas.residencial.copy(alpha = 0.3f)),
           modifier = Modifier.fillMaxWidth(),
-          colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer),
         ) {
-          Column(Modifier.padding(14.dp)) {
-            Text("Técnica de abertura / observações", style = MaterialTheme.typography.labelLarge)
-            Spacer(Modifier.height(4.dp))
-            Text(abertura, style = MaterialTheme.typography.bodyLarge)
-          }
+          Text(
+            text = abertura,
+            style = MaterialTheme.typography.bodyLarge,
+            fontWeight = FontWeight.Medium,
+            modifier = Modifier.padding(16.dp),
+          )
         }
       }
 
-      if (!codigoChave.isNullOrBlank()) {
-        Card(modifier = Modifier.fillMaxWidth()) {
-          Row(modifier = Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
-            Column(modifier = Modifier.weight(1f)) {
-              Text("Código de chave", style = MaterialTheme.typography.labelMedium)
-              Text(codigoChave, fontFamily = FontFamily.Monospace, fontWeight = FontWeight.Bold, fontSize = 20.sp)
+      if (!codigoChave.isNullOrBlank() || !codigoConfiguracao.isNullOrBlank()) {
+        TituloSecao("Códigos e senhas")
+        CartaoSurface(raio = 18.dp) {
+          Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            if (!codigoChave.isNullOrBlank()) {
+              LinhaCodigoFichario("Código de chave", codigoChave) {
+                copiarTexto(contexto, "Código de chave", codigoChave)
+              }
             }
-            TextButton(onClick = { copiarTexto(contexto, "Código de chave", codigoChave) }) {
-              Text("Copiar")
-            }
-          }
-        }
-      }
-
-      if (!codigoConfiguracao.isNullOrBlank()) {
-        Card(modifier = Modifier.fillMaxWidth()) {
-          Row(modifier = Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
-            Column(modifier = Modifier.weight(1f)) {
-              Text("Senha / configuração", style = MaterialTheme.typography.labelMedium)
-              Text(codigoConfiguracao, fontFamily = FontFamily.Monospace, fontWeight = FontWeight.Bold, fontSize = 20.sp)
-            }
-            TextButton(onClick = { copiarTexto(contexto, "Senha / configuração", codigoConfiguracao) }) {
-              Text("Copiar")
+            if (!codigoConfiguracao.isNullOrBlank()) {
+              LinhaCodigoFichario("Senha / configuração", codigoConfiguracao) {
+                copiarTexto(contexto, "Senha / configuração", codigoConfiguracao)
+              }
             }
           }
         }
       }
 
       if (procedimentos.isNotEmpty()) {
-        TituloSecao("Como se faz")
+        TituloSecao("Como se faz", detalhe = "${procedimentos.size} foto(s)")
         FlowRow(
-          horizontalArrangement = Arrangement.spacedBy(8.dp),
-          verticalArrangement = Arrangement.spacedBy(8.dp),
+          horizontalArrangement = Arrangement.spacedBy(10.dp),
+          verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
           procedimentos.forEach { foto ->
-            Column(modifier = Modifier.width(140.dp)) {
-              ImagemLocal(
-                caminho = foto.caminho,
-                ladoMaximo = 800,
-                modificador = Modifier
-                  .width(140.dp)
-                  .height(140.dp)
-                  .clip(RoundedCornerShape(12.dp))
-                  .clickable { fotoAberta = foto.caminho },
-              )
-              if (foto.legenda.isNotBlank()) {
-                Text(
-                  text = foto.legenda,
-                  style = MaterialTheme.typography.bodySmall,
-                  maxLines = 2,
-                  overflow = TextOverflow.Ellipsis,
-                )
+            CartaoSurface(modificador = Modifier.width(148.dp), raio = 16.dp, onClick = { fotoAberta = foto.caminho }) {
+              Column {
+                ImagemLocal(caminho = foto.caminho, ladoMaximo = 800, modificador = Modifier.fillMaxWidth().height(132.dp))
+                if (foto.legenda.isNotBlank()) {
+                  Text(
+                    foto.legenda,
+                    style = MaterialTheme.typography.bodySmall,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.padding(8.dp),
+                  )
+                }
               }
             }
           }
         }
       }
 
-      TituloSecao("Serviços realizados")
+      TituloSecao("Serviços realizados", detalhe = "${servicos.size}")
       servicos.forEach { servico ->
-        Card(
-          modifier = Modifier.fillMaxWidth().clickable { onAbrirServico(servico.id) },
-        ) {
-          Column(Modifier.padding(14.dp)) {
-            FlowRow(
-              horizontalArrangement = Arrangement.spacedBy(6.dp),
-              verticalArrangement = Arrangement.spacedBy(6.dp),
-            ) {
-              servico.tiposOrdenados.forEach { Selo(it.rotulo) }
-            }
-            Row(verticalAlignment = Alignment.CenterVertically) {
-              Text(
-                text = formatarData(servico.dataServico),
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-              )
-              if (servico.quantidadeFotos > 0) {
-                Spacer(Modifier.width(8.dp))
-                Text(
-                  text = "${servico.quantidadeFotos} foto(s)",
-                  style = MaterialTheme.typography.bodySmall,
-                  color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-              }
-            }
-            val resumo = servico.solucao.ifBlank { servico.defeito }.ifBlank { servico.abertura }
-            if (resumo.isNotBlank()) {
-              Spacer(Modifier.height(4.dp))
-              Text(
-                text = resumo,
-                style = MaterialTheme.typography.bodyMedium,
-                maxLines = 2,
-                overflow = TextOverflow.Ellipsis,
-              )
-            }
-          }
-        }
+        CartaoServicoFichario(servico = servico, onAbrir = { onAbrirServico(servico.id) })
       }
-      Spacer(Modifier.height(24.dp))
+      Spacer(Modifier.height(20.dp))
     }
   }
 
-  val foto = fotoAberta
-  if (foto != null) {
-    Dialog(onDismissRequest = { fotoAberta = null }) {
-      Card {
-        Column {
-          ImagemLocal(
-            caminho = foto,
-            ladoMaximo = 2000,
-            modificador = Modifier
-              .fillMaxWidth()
-              .heightIn(max = 520.dp)
-              .clickable { fotoAberta = null },
-          )
-          TextButton(onClick = { fotoAberta = null }, modifier = Modifier.fillMaxWidth()) {
-            Text("Fechar")
-          }
+  DialogoFotoSimples(fotoAberta) { fotoAberta = null }
+}
+
+@Composable
+private fun LinhaCodigoFichario(rotulo: String, valor: String, onCopiar: () -> Unit) {
+  Surface(
+    shape = RoundedCornerShape(14.dp),
+    color = MaterialTheme.coresEstendidas.superficieSutil,
+    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+    modifier = Modifier.fillMaxWidth(),
+  ) {
+    Row(
+      modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 12.dp),
+      verticalAlignment = Alignment.CenterVertically,
+      horizontalArrangement = Arrangement.spacedBy(10.dp),
+    ) {
+      Column(Modifier.weight(1f)) {
+        Text(rotulo.uppercase(), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Text(valor, fontFamily = FontFamily.Monospace, fontWeight = FontWeight.ExtraBold, fontSize = 20.sp)
+      }
+      FilledTonalButton(onClick = onCopiar, shape = RoundedCornerShape(10.dp)) {
+        Text("Copiar", fontWeight = FontWeight.Bold)
+      }
+    }
+  }
+}
+
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun CartaoServicoFichario(servico: Atendimento, onAbrir: () -> Unit) {
+  CartaoSurface(onClick = onAbrir, raio = 16.dp) {
+    Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+      FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        servico.tiposOrdenados.forEach { Selo(it.rotulo, tom = TomSelo.PRIMARIO) }
+      }
+      Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        Text(formatarData(servico.dataServico), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        if (servico.quantidadeFotos > 0) {
+          Selo("${servico.quantidadeFotos} foto(s)", tom = TomSelo.NEUTRO)
+        }
+      }
+      val resumo = servico.solucao.ifBlank { servico.defeito }.ifBlank { servico.abertura }
+      if (resumo.isNotBlank()) {
+        Text(resumo, style = MaterialTheme.typography.bodyMedium, maxLines = 2, overflow = TextOverflow.Ellipsis)
+      }
+    }
+  }
+}
+
+@Composable
+private fun DialogoFotoSimples(foto: String?, onFechar: () -> Unit) {
+  if (foto == null) return
+  Dialog(onDismissRequest = onFechar) {
+    CartaoSurface(raio = 20.dp) {
+      Column {
+        ImagemLocal(
+          caminho = foto,
+          ladoMaximo = 2000,
+          modificador = Modifier.fillMaxWidth().heightIn(max = 520.dp).clickable { onFechar() },
+        )
+        TextButton(onClick = onFechar, modifier = Modifier.fillMaxWidth()) {
+          Text("Fechar", fontWeight = FontWeight.Bold)
         }
       }
     }

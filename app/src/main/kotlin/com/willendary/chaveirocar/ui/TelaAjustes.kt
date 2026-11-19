@@ -1,37 +1,28 @@
 package com.willendary.chaveirocar.ui
 
 import android.widget.Toast
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.WindowInsets
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Button
-import androidx.compose.material3.Card
-import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Switch
-import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.Lock
+import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
@@ -41,6 +32,7 @@ import com.willendary.chaveirocar.atualizacao.Atualizacoes
 import com.willendary.chaveirocar.dados.BancoDeAtendimentos
 import com.willendary.chaveirocar.dados.Preferencias
 import com.willendary.chaveirocar.nuvem.ApiChaveiroCar
+import com.willendary.chaveirocar.ui.theme.coresEstendidas
 import com.willendary.chaveirocar.util.Biometria
 import com.willendary.chaveirocar.util.Erros
 import com.willendary.chaveirocar.util.Seguranca
@@ -60,6 +52,7 @@ fun TelaAjustes(
   onVoltar: (() -> Unit)? = null,
 ) {
   val contexto = LocalContext.current
+  val estendidas = MaterialTheme.coresEstendidas
   val atividade = contexto as? FragmentActivity
   val preferencias = remember { Preferencias.obter(contexto) }
   val preferenciasApi = remember { Preferencias.obterApi(contexto) }
@@ -103,9 +96,7 @@ fun TelaAjustes(
   val aparelhoTemBiometria = remember { Biometria.disponivel(contexto) }
 
   Scaffold(
-    topBar = {
-      CabecalhoTela("Ajustes", "Seu aplicativo, do seu jeito", aoVoltar = onVoltar)
-    },
+    topBar = { CabecalhoTela("Ajustes", "Preferências, segurança e conta", aoVoltar = onVoltar) },
     contentWindowInsets = WindowInsets(0, 0, 0, 0),
     containerColor = MaterialTheme.colorScheme.background,
   ) { espacamento ->
@@ -114,33 +105,59 @@ fun TelaAjustes(
         .conteudoResponsivo()
         .padding(espacamento)
         .verticalScroll(rememberScrollState())
-        .padding(16.dp),
-      verticalArrangement = Arrangement.spacedBy(10.dp),
+        .padding(horizontal = 16.dp, vertical = 14.dp),
+      verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-      PainelDestaque("Tudo em ordem.", "Gerencie sua conta, proteja seus registros e mantenha o app atualizado.", "CHAVEIROCAR · $versao")
+      // Cartão compacto de identidade do app (sem bloco escuro gigante)
+      CartaoSurface(raio = 20.dp) {
+        Row(
+          modifier = Modifier.fillMaxWidth().padding(16.dp),
+          verticalAlignment = Alignment.CenterVertically,
+          horizontalArrangement = Arrangement.spacedBy(14.dp),
+        ) {
+          MarcaChaveiro(52.dp, elevacao = 2.dp)
+          Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+            Text("ChaveiroCar", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.ExtraBold)
+            Text(
+              "Gestão veicular e residencial",
+              style = MaterialTheme.typography.bodySmall,
+              color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+          }
+          Selo("v$versao", tom = TomSelo.PRIMARIO)
+        }
+      }
+
       TituloSecao("Segurança")
-      Card(
-        modifier = Modifier.fillMaxWidth(),
-        shape = androidx.compose.foundation.shape.RoundedCornerShape(16.dp),
-        colors = androidx.compose.material3.CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-        border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
-      ) {
-        Column(modifier = Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+      CartaoSurface(raio = 20.dp) {
+        Column(modifier = Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+          CabecalhoCardAjuste(
+            icone = IconesApp.Escudo,
+            titulo = "Proteção de acesso",
+            subtitulo = "Bloqueio rápido para uso na bancada",
+            cor = MaterialTheme.colorScheme.primary,
+            fundo = MaterialTheme.colorScheme.primaryContainer,
+          )
+          HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f))
           LinhaInterruptor(
             titulo = "Exigir PIN ao abrir",
             descricao = "Protege o histórico quando o celular fica na bancada.",
             ativo = pinAtivo,
             aoMudar = { ligar ->
-              if (ligar) {
-                definindoPin = true
-              } else {
-                pedindoPinAtual = AcaoComPin.DESATIVAR
-              }
+              if (ligar) definindoPin = true else pedindoPinAtual = AcaoComPin.DESATIVAR
             },
           )
           if (pinAtivo) {
-            TextButton(onClick = { pedindoPinAtual = AcaoComPin.ALTERAR }) { Text("Alterar PIN") }
+            FilledTonalButton(
+              onClick = { pedindoPinAtual = AcaoComPin.ALTERAR },
+              shape = RoundedCornerShape(12.dp),
+            ) {
+              Icon(Icons.Default.Lock, contentDescription = null, modifier = Modifier.size(16.dp))
+              Spacer(Modifier.width(6.dp))
+              Text("Alterar PIN", fontWeight = FontWeight.SemiBold)
+            }
             if (aparelhoTemBiometria) {
+              HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f))
               LinhaInterruptor(
                 titulo = "Usar digital",
                 descricao = "A digital abre o app; o PIN continua valendo.",
@@ -180,81 +197,74 @@ fun TelaAjustes(
 
       if (empresaAtualId.isNotBlank()) {
         TituloSecao("Plano e assinatura")
-        Card(
-        modifier = Modifier.fillMaxWidth(),
-        shape = androidx.compose.foundation.shape.RoundedCornerShape(16.dp),
-        colors = androidx.compose.material3.CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-        border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
-      ) {
-          Column(modifier = Modifier.padding(20.dp)) {
-            SecaoPlanoAssinatura(
-              empresaId = empresaAtualId,
-              preferencias = preferencias,
-              criarApi = ::criarApiAssinatura,
-              guardarTokens = ::guardarTokensAssinatura,
-              aoAtualizarAssinatura = ::notificarMudancaAssinatura,
-            )
-          }
-        }
+        SecaoPlanoAssinatura(
+          empresaId = empresaAtualId,
+          preferencias = preferencias,
+          criarApi = ::criarApiAssinatura,
+          guardarTokens = ::guardarTokensAssinatura,
+          aoAtualizarAssinatura = ::notificarMudancaAssinatura,
+        )
       }
 
       TituloSecao("Atualizações")
-      Card(
-        modifier = Modifier.fillMaxWidth(),
-        shape = androidx.compose.foundation.shape.RoundedCornerShape(16.dp),
-        colors = androidx.compose.material3.CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-        border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
-      ) {
-        Column(modifier = Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-          Text(
-            text = if (atualizacao != null) "Versão ${atualizacao.versao} disponível para baixar."
-            else "Versão instalada: $versao. Verifique se há novidades.",
-            style = MaterialTheme.typography.bodyMedium,
+      CartaoSurface(raio = 20.dp) {
+        Column(modifier = Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+          CabecalhoCardAjuste(
+            icone = Icons.Default.Refresh,
+            titulo = if (atualizacao != null) "Nova versão ${atualizacao.versao}" else "Aplicativo atualizado",
+            subtitulo = if (atualizacao != null) "Pronta para baixar e instalar."
+            else "Versão instalada: $versao",
+            cor = if (atualizacao != null) estendidas.alerta else estendidas.sucesso,
+            fundo = if (atualizacao != null) estendidas.alertaFundo else estendidas.sucessoFundo,
           )
-          Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            OutlinedButton(onClick = onVerNovidades, modifier = Modifier.weight(1f)) {
-              Text("Ver novidades")
-            }
+          Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            OutlinedButton(
+              onClick = onVerNovidades,
+              shape = RoundedCornerShape(12.dp),
+              modifier = Modifier.weight(1f),
+            ) { Text("Ver novidades") }
             if (atualizacao != null) {
               Button(
                 onClick = onAtualizarApp,
                 enabled = !baixandoAtualizacao,
+                shape = RoundedCornerShape(12.dp),
                 modifier = Modifier.weight(1f),
-              ) { Text(if (baixandoAtualizacao) "Baixando..." else "Atualizar") }
+              ) { Text(if (baixandoAtualizacao) "Baixando..." else "Atualizar", fontWeight = FontWeight.Bold) }
             } else {
-              OutlinedButton(onClick = onProcurarAtualizacao, modifier = Modifier.weight(1f)) {
-                Text("Procurar")
-              }
+              FilledTonalButton(
+                onClick = onProcurarAtualizacao,
+                shape = RoundedCornerShape(12.dp),
+                modifier = Modifier.weight(1f),
+              ) { Text("Procurar", fontWeight = FontWeight.SemiBold) }
             }
           }
         }
       }
 
       TituloSecao("Sobre")
-      Card(
-        modifier = Modifier.fillMaxWidth(),
-        shape = androidx.compose.foundation.shape.RoundedCornerShape(16.dp),
-        colors = androidx.compose.material3.CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-        border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
-      ) {
-        Column(modifier = Modifier.padding(20.dp)) {
-          Text("ChaveiroCar $versao", style = MaterialTheme.typography.titleSmall)
-          Spacer(Modifier.height(4.dp))
+      CartaoSurface(raio = 20.dp) {
+        Column(modifier = Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+          CabecalhoCardAjuste(
+            icone = Icons.Default.Info,
+            titulo = "ChaveiroCar $versao",
+            subtitulo = "Sincronizado entre Android, iOS e Windows",
+            cor = estendidas.residencial,
+            fundo = estendidas.residencialFundo,
+          )
           Text(
-            text = "Seus atendimentos, fichas técnicas, códigos e fotos são sincronizados automaticamente " +
-              "na nuvem pela sua conta ChaveiroCar entre Android, iOS e Windows.",
+            text = "Seus atendimentos, fichas técnicas, códigos e fotos ficam protegidos e sincronizados automaticamente pela sua conta ChaveiroCar.",
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
           )
           if (erroRegistrado != null) {
-            Spacer(Modifier.height(8.dp))
-            TextButton(onClick = { mostrandoErro = true }) {
-              Text("Ver último erro do app")
-            }
+            OutlinedButton(
+              onClick = { mostrandoErro = true },
+              shape = RoundedCornerShape(12.dp),
+            ) { Text("Ver último erro do app") }
           }
         }
       }
-      Spacer(Modifier.height(24.dp))
+      Spacer(Modifier.height(20.dp))
     }
   }
 
@@ -262,21 +272,21 @@ fun TelaAjustes(
     val texto = erroRegistrado.orEmpty()
     AlertDialog(
       onDismissRequest = { mostrandoErro = false },
-      title = { Text("Último erro do app") },
+      shape = RoundedCornerShape(22.dp),
+      title = { Text("Último erro do app", fontWeight = FontWeight.Bold) },
       text = {
         Column(modifier = Modifier.height(320.dp).verticalScroll(rememberScrollState())) {
-          Text(
-            text = texto,
-            style = MaterialTheme.typography.bodySmall,
-            fontFamily = FontFamily.Monospace,
-          )
+          Text(text = texto, style = MaterialTheme.typography.bodySmall, fontFamily = FontFamily.Monospace)
         }
       },
       confirmButton = {
-        TextButton(onClick = {
-          copiarTexto(contexto, "Erro do ChaveiroCar", texto)
-          mostrandoErro = false
-        }) { Text("Copiar") }
+        Button(
+          onClick = {
+            copiarTexto(contexto, "Erro do ChaveiroCar", texto)
+            mostrandoErro = false
+          },
+          shape = RoundedCornerShape(12.dp),
+        ) { Text("Copiar") }
       },
       dismissButton = {
         TextButton(onClick = {
@@ -328,6 +338,34 @@ fun TelaAjustes(
   }
 }
 
+@Composable
+private fun CabecalhoCardAjuste(
+  icone: ImageVector,
+  titulo: String,
+  subtitulo: String,
+  cor: Color,
+  fundo: Color,
+) {
+  Row(
+    verticalAlignment = Alignment.CenterVertically,
+    horizontalArrangement = Arrangement.spacedBy(12.dp),
+  ) {
+    Box(
+      modifier = Modifier
+        .size(40.dp)
+        .clip(RoundedCornerShape(12.dp))
+        .background(fundo),
+      contentAlignment = Alignment.Center,
+    ) {
+      Icon(icone, contentDescription = null, tint = cor, modifier = Modifier.size(20.dp))
+    }
+    Column(Modifier.weight(1f)) {
+      Text(titulo, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
+      Text(subtitulo, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+    }
+  }
+}
+
 private enum class AcaoComPin { ALTERAR, DESATIVAR }
 
 @Composable
@@ -337,9 +375,12 @@ private fun LinhaInterruptor(
   ativo: Boolean,
   aoMudar: (Boolean) -> Unit,
 ) {
-  Row(verticalAlignment = Alignment.CenterVertically) {
-    Column(modifier = Modifier.weight(1f)) {
-      Text(titulo, style = MaterialTheme.typography.titleSmall)
+  Row(
+    verticalAlignment = Alignment.CenterVertically,
+    horizontalArrangement = Arrangement.spacedBy(12.dp),
+  ) {
+    Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+      Text(titulo, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
       Text(
         text = descricao,
         style = MaterialTheme.typography.bodySmall,
@@ -358,15 +399,17 @@ private fun DialogoDefinirPin(onSalvar: (String) -> Unit, onCancelar: () -> Unit
 
   AlertDialog(
     onDismissRequest = onCancelar,
-    title = { Text("Definir PIN") },
+    shape = RoundedCornerShape(22.dp),
+    title = { Text("Definir PIN", fontWeight = FontWeight.Bold) },
     text = {
-      Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+      Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
         Text("Use de 4 a 6 números que você não esqueça.", style = MaterialTheme.typography.bodySmall)
         OutlinedTextField(
           value = pin,
           onValueChange = { pin = it.filter { letra -> letra.isDigit() }.take(6) },
           label = { Text("PIN") },
           singleLine = true,
+          shape = RoundedCornerShape(12.dp),
           visualTransformation = PasswordVisualTransformation(),
           keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.NumberPassword),
           modifier = Modifier.fillMaxWidth(),
@@ -376,6 +419,7 @@ private fun DialogoDefinirPin(onSalvar: (String) -> Unit, onCancelar: () -> Unit
           onValueChange = { confirmacao = it.filter { letra -> letra.isDigit() }.take(6) },
           label = { Text("Confirme o PIN") },
           singleLine = true,
+          shape = RoundedCornerShape(12.dp),
           visualTransformation = PasswordVisualTransformation(),
           keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.NumberPassword),
           modifier = Modifier.fillMaxWidth(),
@@ -386,14 +430,17 @@ private fun DialogoDefinirPin(onSalvar: (String) -> Unit, onCancelar: () -> Unit
       }
     },
     confirmButton = {
-      TextButton(onClick = {
-        erro = when {
-          pin.length < 4 || pin.length > 6 -> "O PIN precisa ter de 4 a 6 números."
-          pin != confirmacao -> "Os PINs não são iguais."
-          else -> null
-        }
-        if (erro == null) onSalvar(pin)
-      }) { Text("Ativar") }
+      Button(
+        onClick = {
+          erro = when {
+            pin.length < 4 || pin.length > 6 -> "O PIN precisa ter de 4 a 6 números."
+            pin != confirmacao -> "Os PINs não são iguais."
+            else -> null
+          }
+          if (erro == null) onSalvar(pin)
+        },
+        shape = RoundedCornerShape(12.dp),
+      ) { Text("Ativar") }
     },
     dismissButton = { TextButton(onClick = onCancelar) { Text("Cancelar") } },
   )
@@ -412,7 +459,8 @@ private fun DialogoConfirmarPin(
 
   AlertDialog(
     onDismissRequest = onCancelar,
-    title = { Text(titulo) },
+    shape = RoundedCornerShape(22.dp),
+    title = { Text(titulo, fontWeight = FontWeight.Bold) },
     text = {
       Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         OutlinedTextField(
@@ -420,6 +468,7 @@ private fun DialogoConfirmarPin(
           onValueChange = { pin = it.filter { letra -> letra.isDigit() }.take(6) },
           label = { Text("PIN atual") },
           singleLine = true,
+          shape = RoundedCornerShape(12.dp),
           visualTransformation = PasswordVisualTransformation(),
           keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.NumberPassword),
           modifier = Modifier.fillMaxWidth(),
@@ -430,15 +479,18 @@ private fun DialogoConfirmarPin(
       }
     },
     confirmButton = {
-      TextButton(onClick = {
-        val sal = preferencias.getString(Preferencias.PIN_SAL, null)
-        val hash = preferencias.getString(Preferencias.PIN_HASH, null)
-        val correto = sal != null && hash != null && Seguranca.conferir(pin, sal, hash)
-        if (correto) onConfirmado() else {
-          erro = "PIN incorreto."
-          pin = ""
-        }
-      }) { Text("Confirmar") }
+      Button(
+        onClick = {
+          val sal = preferencias.getString(Preferencias.PIN_SAL, null)
+          val hash = preferencias.getString(Preferencias.PIN_HASH, null)
+          val correto = sal != null && hash != null && Seguranca.conferir(pin, sal, hash)
+          if (correto) onConfirmado() else {
+            erro = "PIN incorreto."
+            pin = ""
+          }
+        },
+        shape = RoundedCornerShape(12.dp),
+      ) { Text("Confirmar") }
     },
     dismissButton = { TextButton(onClick = onCancelar) { Text("Cancelar") } },
   )
