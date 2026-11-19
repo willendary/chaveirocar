@@ -11,6 +11,7 @@ public partial class CadastroWindow : Window
     {
         _local = local;
         InitializeComponent();
+        IconeApp.Aplicar(this);
         Email.Focus();
     }
 

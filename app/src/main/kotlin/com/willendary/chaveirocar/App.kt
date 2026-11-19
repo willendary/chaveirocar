@@ -758,31 +758,47 @@ fun ChaveiroCarApp() {
         } else {
           Scaffold(
             bottomBar = {
-              NavigationBar(containerColor = MaterialTheme.colorScheme.surface, tonalElevation = 0.dp) {
-                NavigationBarItem(
-                  selected = aba == Aba.HISTORICO.name,
-                  onClick = { aba = Aba.HISTORICO.name },
-                  icon = { Icon(Icons.AutoMirrored.Filled.List, contentDescription = null) },
-                  label = { Text("Serviços") },
+              Column {
+                androidx.compose.material3.HorizontalDivider(
+                  color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.8f),
                 )
-                NavigationBarItem(
-                  selected = aba == Aba.FICHARIO.name,
-                  onClick = { aba = Aba.FICHARIO.name },
-                  icon = { Icon(Icons.Default.Build, contentDescription = null) },
-                  label = { Text("Fichário") },
-                )
-                NavigationBarItem(
-                  selected = aba == Aba.CONSULTA.name,
-                  onClick = { aba = Aba.CONSULTA.name },
-                  icon = { Icon(Icons.Default.Search, contentDescription = null) },
-                  label = { Text("Consulta") },
-                )
-                NavigationBarItem(
-                  selected = aba == Aba.AJUSTES.name,
-                  onClick = { aba = Aba.AJUSTES.name },
-                  icon = { Icon(Icons.Default.Settings, contentDescription = null) },
-                  label = { Text("Ajustes") },
-                )
+                NavigationBar(containerColor = MaterialTheme.colorScheme.surface, tonalElevation = 0.dp) {
+                  val coresNav = androidx.compose.material3.NavigationBarItemDefaults.colors(
+                    selectedIconColor = MaterialTheme.colorScheme.onPrimaryContainer,
+                    selectedTextColor = MaterialTheme.colorScheme.primary,
+                    indicatorColor = MaterialTheme.colorScheme.primaryContainer,
+                    unselectedIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                    unselectedTextColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                  )
+                  NavigationBarItem(
+                    selected = aba == Aba.HISTORICO.name,
+                    onClick = { aba = Aba.HISTORICO.name },
+                    icon = { Icon(Icons.AutoMirrored.Filled.List, contentDescription = null) },
+                    label = { Text("Serviços") },
+                    colors = coresNav,
+                  )
+                  NavigationBarItem(
+                    selected = aba == Aba.FICHARIO.name,
+                    onClick = { aba = Aba.FICHARIO.name },
+                    icon = { Icon(Icons.Default.Build, contentDescription = null) },
+                    label = { Text("Fichário") },
+                    colors = coresNav,
+                  )
+                  NavigationBarItem(
+                    selected = aba == Aba.CONSULTA.name,
+                    onClick = { aba = Aba.CONSULTA.name },
+                    icon = { Icon(Icons.Default.Search, contentDescription = null) },
+                    label = { Text("Consulta") },
+                    colors = coresNav,
+                  )
+                  NavigationBarItem(
+                    selected = aba == Aba.AJUSTES.name,
+                    onClick = { aba = Aba.AJUSTES.name },
+                    icon = { Icon(Icons.Default.Settings, contentDescription = null) },
+                    label = { Text("Ajustes") },
+                    colors = coresNav,
+                  )
+                }
               }
             },
             contentWindowInsets = WindowInsets(0, 0, 0, 0),

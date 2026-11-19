@@ -1,11 +1,12 @@
 ﻿using System.Diagnostics;
 using System.Globalization;
+using System.IO;
 using System.Net.Http;
 using System.Text;
 using System.Windows;
+using System.Windows.Controls;
 using System.Windows.Documents;
 using System.Windows.Input;
-using System.Windows.Controls;
 using System.Windows.Media;
 using System.Windows.Threading;
 using ChaveiroCar.Windows.Services;
@@ -14,15 +15,43 @@ namespace ChaveiroCar.Windows;
 
 public partial class MainWindow : Window
 {
+    private enum SecaoAtiva { Inicio, Atendimentos, Fichario, Fichas, Conflitos }
+
+    private sealed record ItemFicharioVeiculo(
+        string Marca,
+        string Modelo,
+        string Ano,
+        int Servicos,
+        string Ultimo,
+        string Abertura,
+        string CodigoChave,
+        string Chip);
+
+    private sealed record ItemFicharioResidencial(
+        string TipoLocal,
+        string Ambiente,
+        string MarcaFechadura,
+        string ModeloFechadura,
+        string Cilindro,
+        int Servicos,
+        string Ultimo,
+        string Abertura,
+        string CodigoChave);
+
     private readonly ArmazenamentoLocal _local;
     private readonly DispatcherTimer _timerSincronia = new() { Interval = TimeSpan.FromSeconds(20) };
     private ClienteApi? _api;
     private List<ClienteApi.Empresa> _empresas = [];
     private string? _modalidadeAtiva;
+    private SecaoAtiva _secaoAtiva = SecaoAtiva.Inicio;
+    private string _filtroPagamento = "TODOS"; // TODOS | PAGOS | PENDENTES
     private bool _sincronizando;
     private bool _sincronizarNovamente;
     private bool _editandoModal;
+    private bool _inicializandoEmpresas;
+    private bool _sessaoExpiradaNotificada;
     private DateTimeOffset _ultimaSincronia = DateTimeOffset.MinValue;
+    private AtualizacaoDisponivel? _atualizacaoPendente;
 
     public bool SaiuDaConta { get; private set; }
 
@@ -49,19 +78,12 @@ public partial class MainWindow : Window
 
     private void CarregarIconeSeguro()
     {
-        try
+        IconeApp.Aplicar(this);
+        var logo = IconeApp.ObterLogoSimbolo();
+        if (logo is not null)
         {
-            var uri = new Uri("pack://application:,,,/ChaveiroCar.Windows;component/Assets/logo.png", UriKind.Absolute);
-            Icon = System.Windows.Media.Imaging.BitmapFrame.Create(uri);
+            LogoCabecalho.Source = logo;
         }
-        catch { }
-
-        try
-        {
-            var uriLogo = new Uri("pack://application:,,,/ChaveiroCar.Windows;component/Assets/logo-simbolo.png", UriKind.Absolute);
-            LogoCabecalho.Source = System.Windows.Media.Imaging.BitmapFrame.Create(uriLogo);
-        }
-        catch { }
     }
 
     private async void MainWindow_Loaded(object sender, RoutedEventArgs e)
@@ -77,11 +99,11 @@ public partial class MainWindow : Window
             }
         }
 
-        RecarregarGrade();
+        var versaoAtual = System.Reflection.Assembly.GetEntryAssembly()?.GetName().Version?.ToString(3) ?? "1.15.0";
+        TxtVersaoApp.Text = $"Desktop v{versaoAtual}";
         AtualizarInterfaceModalidade();
+        RecarregarGrade();
         AtualizarStatus();
-        var versaoAtual = System.Reflection.Assembly.GetEntryAssembly()?.GetName().Version?.ToString(3) ?? "1.12.0";
-        TxtVersaoApp.Text = $"ChaveiroCar Desktop v{versaoAtual}";
         await Inicializar();
         _timerSincronia.Start();
         await VerificarAtualizacao();
@@ -97,8 +119,6 @@ public partial class MainWindow : Window
 
     private void MainWindow_Closed(object? sender, EventArgs e) => _timerSincronia.Stop();
 
-    private AtualizacaoDisponivel? _atualizacaoPendente;
-
     private async Task VerificarAtualizacao(bool interativo = false)
     {
         var atualizacao = await VerificadorAtualizacao.VerificarAsync();
@@ -106,6 +126,7 @@ public partial class MainWindow : Window
         if (atualizacao is null)
         {
             BtnAtualizacaoDisponivel.Visibility = Visibility.Collapsed;
+            PontoAtualizacaoSidebar.Visibility = Visibility.Collapsed;
             if (interativo)
             {
                 MessageBox.Show("Você já está utilizando a versão mais recente do ChaveiroCar.",
@@ -114,8 +135,9 @@ public partial class MainWindow : Window
             return;
         }
 
-        BtnAtualizacaoDisponivel.Content = $"Nova versão v{atualizacao.Versao} disponível";
+        BtnAtualizacaoDisponivel.Content = $"Atualizar para v{atualizacao.Versao}";
         BtnAtualizacaoDisponivel.Visibility = Visibility.Visible;
+        PontoAtualizacaoSidebar.Visibility = Visibility.Visible;
 
         if (interativo)
         {
@@ -151,8 +173,6 @@ public partial class MainWindow : Window
             AbrirJanelaAtualizacao(_atualizacaoPendente);
         }
     }
-
-    private bool _sessaoExpiradaNotificada = false;
 
     private void TratarSessaoExpirada()
     {
@@ -190,14 +210,22 @@ public partial class MainWindow : Window
         {
             _empresas = (await _api.EmpresasAsync()).ToList();
             RegistrarEmpresas(_empresas);
-            Empresas.ItemsSource = _empresas;
-            Empresas.DisplayMemberPath = "Nome";
-            var atual = _empresas.FirstOrDefault(x => x.Id == _local.Estado.EmpresaId) ?? _empresas.FirstOrDefault();
-            if (atual is not null)
+            _inicializandoEmpresas = true;
+            try
             {
-                Empresas.SelectedItem = atual;
-                _local.Estado.EmpresaId = atual.Id;
-                _local.Salvar();
+                Empresas.ItemsSource = _empresas;
+                Empresas.DisplayMemberPath = "Nome";
+                var atual = _empresas.FirstOrDefault(x => x.Id == _local.Estado.EmpresaId) ?? _empresas.FirstOrDefault();
+                if (atual is not null)
+                {
+                    Empresas.SelectedItem = atual;
+                    _local.Estado.EmpresaId = atual.Id;
+                    _local.Salvar();
+                }
+            }
+            finally
+            {
+                _inicializandoEmpresas = false;
             }
             AtualizarInterfaceModalidade();
             await Sincronizar();
@@ -210,6 +238,7 @@ public partial class MainWindow : Window
         catch
         {
             Status.Text = "Modo offline ativo: exibindo dados sincronizados neste computador.";
+            TxtStatusNuvem.Text = "Modo offline";
         }
         AtualizarInterfaceModalidade();
         RecarregarGrade();
@@ -249,9 +278,35 @@ public partial class MainWindow : Window
         _local.Salvar();
     }
 
+    private string GarantirModalidadeAtiva(string? preferida = null)
+    {
+        var modulos = ModulosAtivosAtuais();
+        if (!string.IsNullOrWhiteSpace(preferida) && modulos.Contains(preferida))
+        {
+            _modalidadeAtiva = preferida;
+            return preferida;
+        }
+        if (_modalidadeAtiva is not null && modulos.Contains(_modalidadeAtiva))
+        {
+            return _modalidadeAtiva;
+        }
+        if (modulos.Contains("AUTOMOTIVO"))
+        {
+            _modalidadeAtiva = "AUTOMOTIVO";
+            return "AUTOMOTIVO";
+        }
+        if (modulos.Contains("RESIDENCIAL"))
+        {
+            _modalidadeAtiva = "RESIDENCIAL";
+            return "RESIDENCIAL";
+        }
+        return "";
+    }
+
     private void AtualizarInterfaceModalidade()
     {
-        if (PainelEscolhaModalidade is null || PainelToolbar is null || PainelConteudo is null) return;
+        if (PainelEscolhaModalidade is null || PainelAtendimentos is null || PainelFichario is null || PainelFichas is null)
+            return;
 
         var modulos = ModulosAtivosAtuais();
         var veicAtivo = modulos.Contains("AUTOMOTIVO");
@@ -260,6 +315,7 @@ public partial class MainWindow : Window
         if (_modalidadeAtiva is not null && !modulos.Contains(_modalidadeAtiva))
         {
             _modalidadeAtiva = null;
+            _secaoAtiva = SecaoAtiva.Inicio;
         }
 
         if (ResumoPlanoEscolha is not null)
@@ -268,7 +324,7 @@ public partial class MainWindow : Window
             var ativosTxt = modulos.Count == 0
                 ? "Nenhum módulo ativo"
                 : string.Join(" + ", modulos.Select(m => m == "RESIDENCIAL" ? "Residencial" : "Veicular"));
-            ResumoPlanoEscolha.Text = status == "ATIVA" ? $"Ativo: {ativosTxt}" : $"{status} · {ativosTxt}";
+            ResumoPlanoEscolha.Text = status == "ATIVA" ? $"Plano ativo · {ativosTxt}" : $"{status} · {ativosTxt}";
         }
 
         AtualizarCartaoModalidade(
@@ -280,35 +336,88 @@ public partial class MainWindow : Window
             BtnEntrarResidencial, BtnConsultaResidencial,
             "Entrar em Residencial", "Contratar / Ativar Residencial");
 
-        var escolhendo = _modalidadeAtiva is null;
-        PainelEscolhaModalidade.Visibility = escolhendo ? Visibility.Visible : Visibility.Collapsed;
-        PainelToolbar.Visibility = escolhendo ? Visibility.Collapsed : Visibility.Visible;
-        PainelConteudo.Visibility = escolhendo ? Visibility.Collapsed : Visibility.Visible;
-        SeloModalidadeAtiva.Visibility = escolhendo ? Visibility.Collapsed : Visibility.Visible;
-        BtnTrocarArea.Visibility = escolhendo ? Visibility.Collapsed : Visibility.Visible;
-        PainelFiltroSegmento.Visibility = Visibility.Collapsed;
+        // Alternador rápido na Sidebar
+        var estiloSidebar = (Style)FindResource("BotaoSidebar");
+        var estiloSidebarAtivo = (Style)FindResource("BotaoSidebarAtivo");
+        BtnAreaVeicular.Style = _modalidadeAtiva == "AUTOMOTIVO" ? estiloSidebarAtivo : estiloSidebar;
+        BtnAreaResidencial.Style = _modalidadeAtiva == "RESIDENCIAL" ? estiloSidebarAtivo : estiloSidebar;
+        BtnAreaVeicular.Opacity = veicAtivo ? 1.0 : 0.45;
+        BtnAreaResidencial.Opacity = resAtivo ? 1.0 : 0.45;
 
-        if (!escolhendo)
+        // Navegação ativa
+        BtnNavInicio.Style = _secaoAtiva == SecaoAtiva.Inicio ? estiloSidebarAtivo : estiloSidebar;
+        BtnNavAtendimentos.Style = _secaoAtiva == SecaoAtiva.Atendimentos ? estiloSidebarAtivo : estiloSidebar;
+        BtnNavFichario.Style = _secaoAtiva == SecaoAtiva.Fichario ? estiloSidebarAtivo : estiloSidebar;
+        BtnNavFichas.Style = _secaoAtiva == SecaoAtiva.Fichas ? estiloSidebarAtivo : estiloSidebar;
+        BtnNavConflitos.Style = _secaoAtiva == SecaoAtiva.Conflitos ? estiloSidebarAtivo : estiloSidebar;
+
+        // Visibilidade dos painéis
+        PainelEscolhaModalidade.Visibility = _secaoAtiva == SecaoAtiva.Inicio ? Visibility.Visible : Visibility.Collapsed;
+        PainelAtendimentos.Visibility = _secaoAtiva == SecaoAtiva.Atendimentos ? Visibility.Visible : Visibility.Collapsed;
+        PainelFichario.Visibility = _secaoAtiva == SecaoAtiva.Fichario ? Visibility.Visible : Visibility.Collapsed;
+        PainelFichas.Visibility = _secaoAtiva == SecaoAtiva.Fichas ? Visibility.Visible : Visibility.Collapsed;
+        PainelConflitos.Visibility = _secaoAtiva == SecaoAtiva.Conflitos ? Visibility.Visible : Visibility.Collapsed;
+
+        // Selo da área e cabeçalho contextual
+        var emVeicular = _modalidadeAtiva != "RESIDENCIAL";
+        SeloModalidadeAtiva.Visibility = _secaoAtiva != SecaoAtiva.Inicio && _modalidadeAtiva is not null
+            ? Visibility.Visible
+            : Visibility.Collapsed;
+        TxtModalidadeAtiva.Text = emVeicular ? "Área Veicular" : "Área Residencial";
+
+        switch (_secaoAtiva)
         {
-            var emVeicular = _modalidadeAtiva == "AUTOMOTIVO";
-            TxtModalidadeAtiva.Text = emVeicular ? "Área: Veicular" : "Área: Residencial";
-            TituloFicharioVeiculos.Visibility = emVeicular ? Visibility.Visible : Visibility.Collapsed;
-            GradeFicharioVeiculos.Visibility = emVeicular ? Visibility.Visible : Visibility.Collapsed;
-            RowDefFicharioVeiculos.Height = emVeicular ? new GridLength(1, GridUnitType.Star) : new GridLength(0);
-
-            TituloFicharioResidencial.Visibility = emVeicular ? Visibility.Collapsed : Visibility.Visible;
-            GradeFicharioResidencial.Visibility = emVeicular ? Visibility.Collapsed : Visibility.Visible;
-            RowDefFicharioResidencial.Height = emVeicular ? new GridLength(0) : new GridLength(1, GridUnitType.Star);
-
-            var podeEditar = PodeEditarEmpresa();
-            BtnNovoAtendimento.IsEnabled = podeEditar;
-            BtnEditarAtendimento.IsEnabled = podeEditar;
-            BtnExcluirAtendimento.IsEnabled = podeEditar;
-            BtnNovaFicha.IsEnabled = podeEditar;
-            BtnEditarFicha.IsEnabled = podeEditar;
-            BtnNovoAtendimentoFicha.IsEnabled = podeEditar;
-            BtnExcluirFicha.IsEnabled = podeEditar;
+            case SecaoAtiva.Inicio:
+                TxtTituloPagina.Text = "Painel Inicial";
+                TxtSubtituloPagina.Text = "Visão geral da operação e acesso rápido às modalidades.";
+                BtnAcaoPrincipalTopo.Content = "+ Novo atendimento";
+                BtnAcaoPrincipalTopo.Visibility = modulos.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
+                break;
+            case SecaoAtiva.Atendimentos:
+                TxtTituloPagina.Text = "Atendimentos";
+                TxtSubtituloPagina.Text = emVeicular
+                    ? "Histórico veicular, placas, códigos de chave, chips, recibos e PDF."
+                    : "Histórico residencial, imóveis, fechaduras, cilindros, recibos e PDF.";
+                BtnAcaoPrincipalTopo.Content = "+ Novo atendimento";
+                BtnAcaoPrincipalTopo.Visibility = Visibility.Visible;
+                break;
+            case SecaoAtiva.Fichario:
+                TxtTituloPagina.Text = "Fichário Inteligente";
+                TxtSubtituloPagina.Text = emVeicular
+                    ? "Memória técnica consolidada por marca, modelo e ano."
+                    : "Memória técnica consolidada por tipo de local, porta e fechadura.";
+                BtnAcaoPrincipalTopo.Content = "+ Novo atendimento";
+                BtnAcaoPrincipalTopo.Visibility = Visibility.Visible;
+                break;
+            case SecaoAtiva.Fichas:
+                TxtTituloPagina.Text = "Fichas Técnicas e Manuais";
+                TxtSubtituloPagina.Text = "Base técnica da empresa e catálogo padrão disponíveis offline.";
+                BtnAcaoPrincipalTopo.Content = "+ Nova ficha técnica";
+                BtnAcaoPrincipalTopo.Visibility = Visibility.Visible;
+                break;
+            case SecaoAtiva.Conflitos:
+                TxtTituloPagina.Text = "Conflitos de Sincronia";
+                TxtSubtituloPagina.Text = "Resolva divergências entre este computador e o servidor sem perder dados.";
+                BtnAcaoPrincipalTopo.Visibility = Visibility.Collapsed;
+                break;
         }
+
+        // Colunas e tabelas por segmento
+        ColPlacaOuFechadura.Header = emVeicular ? "Placa" : "Fechadura";
+        ColVeiculoOuLocal.Header = emVeicular ? "Veículo" : "Imóvel / Ambiente";
+        GradeFicharioVeiculos.Visibility = emVeicular ? Visibility.Visible : Visibility.Collapsed;
+        GradeFicharioResidencial.Visibility = emVeicular ? Visibility.Collapsed : Visibility.Visible;
+
+        var podeEditar = PodeEditarEmpresa();
+        BtnAcaoPrincipalTopo.IsEnabled = podeEditar;
+        BtnNovoAtendimento.IsEnabled = podeEditar;
+        BtnEditarAtendimento.IsEnabled = podeEditar;
+        BtnRepetirAtendimento.IsEnabled = podeEditar;
+        BtnExcluirAtendimento.IsEnabled = podeEditar;
+        BtnNovaFicha.IsEnabled = podeEditar;
+        BtnEditarFicha.IsEnabled = podeEditar;
+        BtnNovoAtendimentoFicha.IsEnabled = podeEditar;
+        BtnExcluirFicha.IsEnabled = podeEditar;
     }
 
     private void AtualizarCartaoModalidade(
@@ -343,42 +452,95 @@ public partial class MainWindow : Window
         }
     }
 
-    private string SegmentoSelecionado() =>
-        _modalidadeAtiva ?? (FiltroSegmento?.SelectedItem as ComboBoxItem)?.Tag?.ToString() ?? "";
+    private string SegmentoSelecionado() => _modalidadeAtiva ?? "";
+
+    private long? InicioPeriodoSelecionado()
+    {
+        var tag = (FiltroPeriodo?.SelectedItem as ComboBoxItem)?.Tag?.ToString() ?? "TODOS";
+        var agora = DateTimeOffset.Now;
+        return tag switch
+        {
+            "30" => agora.AddDays(-30).ToUnixTimeMilliseconds(),
+            "90" => agora.AddDays(-90).ToUnixTimeMilliseconds(),
+            "ANO" => new DateTimeOffset(agora.Year, 1, 1, 0, 0, 0, agora.Offset).ToUnixTimeMilliseconds(),
+            _ => null,
+        };
+    }
 
     private void RecarregarGrade()
     {
         if (Grade is null || Busca is null || GradeFicharioVeiculos is null ||
             GradeFicharioResidencial is null || GradeFichas is null || GradeConflitos is null) return;
-        var termo = normalizar(Busca.Text);
+
+        var ativos = _local.Estado.Atendimentos.Where(a => a.ExcluidoEm is null).ToList();
         var seg = SegmentoSelecionado();
-        var itens = _local.Estado.Atendimentos
-            .Where(a => a.ExcluidoEm is null && (string.IsNullOrEmpty(seg) || a.Segmento == seg) &&
-                (termo.Length == 0 ||
-                normalizar($"{a.Placa} {a.Marca} {a.Modelo} {a.TipoLocal} {a.AmbientePorta} {a.MarcaFechadura} {a.ModeloFechadura} {a.TipoCilindro} {a.EnderecoLocal} {a.ClienteNome}").Contains(termo)))
+
+        // KPIs globais do painel inicial
+        var totalVeicular = ativos.Count(a => a.Segmento != "RESIDENCIAL");
+        var totalResidencial = ativos.Count(a => a.Segmento == "RESIDENCIAL");
+        var pendentesLista = ativos.Where(a => !a.Pago).ToList();
+        var totalValorPendente = pendentesLista.Sum(a => a.ValorCentavos);
+        var fichasEmpresaTodas = _local.Estado.Fichas.Where(f => f.ExcluidoEm is null).ToList();
+        var fichasCatalogoTodas = CatalogoFichasPadrao.Listar(null, "");
+
+        TxtKpiVeicular.Text = totalVeicular.ToString();
+        TxtKpiResidencial.Text = totalResidencial.ToString();
+        TxtKpiFichas.Text = (fichasEmpresaTodas.Count + fichasCatalogoTodas.Count).ToString();
+        TxtKpiPendentes.Text = pendentesLista.Count.ToString();
+        TxtKpiPendentesValor.Text = $"{(totalValorPendente / 100m).ToString("C2", CultureInfo.GetCultureInfo("pt-BR"))} a receber";
+
+        // Atendimentos filtrados
+        var selecionadoAnteriorUuid = Selecionado()?.Uuid;
+        var termo = Normalizar(Busca.Text);
+        var desde = InicioPeriodoSelecionado();
+
+        var itens = ativos
+            .Where(a =>
+                (string.IsNullOrEmpty(seg) || a.Segmento == seg) &&
+                (!desde.HasValue || a.DataServico >= desde.Value) &&
+                (_filtroPagamento == "TODOS" || (_filtroPagamento == "PAGOS" ? a.Pago : !a.Pago)) &&
+                (termo.Length == 0 || Normalizar(
+                    $"{a.Placa} {a.Marca} {a.Modelo} {a.Ano} {a.Chassi} {a.Defeito} {a.Solucao} {a.Abertura} " +
+                    $"{a.CodigoChave} {a.CodigoConfiguracao} {a.ChipTransponder} {a.Ferramenta} {a.TiposFormatados} " +
+                    $"{a.TipoLocal} {a.AmbientePorta} {a.MarcaFechadura} {a.ModeloFechadura} {a.TipoCilindro} {a.EnderecoLocal} " +
+                    $"{a.ClienteNome} {a.ClienteTelefone}").Contains(termo)))
             .OrderByDescending(a => a.DataServico)
             .ToList();
-        Grade.ItemsSource = itens;
 
-        GradeFicharioVeiculos.ItemsSource = _local.Estado.Atendimentos
+        Grade.ItemsSource = itens;
+        TxtContadorLista.Text = itens.Count == 1 ? "1 registro" : $"{itens.Count} registros";
+        PainelVazioAtendimentos.Visibility = itens.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
+        TxtVazioAtendimentosSub.Text = termo.Length > 0 || _filtroPagamento != "TODOS" || desde.HasValue
+            ? "Nenhum registro corresponde aos filtros atuais. Tente limpar a busca ou mudar o período."
+            : "Registre o primeiro atendimento desta área para começar sua memória técnica.";
+
+        if (!string.IsNullOrWhiteSpace(selecionadoAnteriorUuid))
+        {
+            var reencontrado = itens.FirstOrDefault(x => x.Uuid == selecionadoAnteriorUuid);
+            if (reencontrado is not null) Grade.SelectedItem = reencontrado;
+        }
+        AtualizarPainelDetalhe();
+
+        // Fichário (somente atendimentos ativos — exclui soft-deleted!)
+        var termoFichario = Normalizar(BuscaFichario?.Text ?? "");
+        var ficharioVeic = ativos
             .Where(a => a.Segmento != "RESIDENCIAL" && (!string.IsNullOrWhiteSpace(a.Marca) || !string.IsNullOrWhiteSpace(a.Modelo)))
             .GroupBy(a => new { Marca = a.Marca.Trim(), Modelo = a.Modelo.Trim(), Ano = a.Ano.Trim() })
-            .Select(g => new
-            {
+            .Select(g => new ItemFicharioVeiculo(
                 g.Key.Marca,
                 g.Key.Modelo,
                 g.Key.Ano,
-                Servicos = g.Count(),
-                Ultimo = DateTimeOffset.FromUnixTimeMilliseconds(g.Max(x => x.DataServico)).ToLocalTime().ToString("dd/MM/yyyy"),
-                Abertura = g.Select(x => x.Abertura).FirstOrDefault(x => !string.IsNullOrWhiteSpace(x)) ?? "",
-                CodigoChave = g.Select(x => x.CodigoChave).FirstOrDefault(x => !string.IsNullOrWhiteSpace(x)) ?? "",
-                Chip = g.Select(x => x.ChipTransponder).FirstOrDefault(x => !string.IsNullOrWhiteSpace(x)) ?? "",
-            })
-            .Where(f => termo.Length == 0 || normalizar($"{f.Marca} {f.Modelo} {f.Ano}").Contains(termo))
+                g.Count(),
+                DateTimeOffset.FromUnixTimeMilliseconds(g.Max(x => x.DataServico)).ToLocalTime().ToString("dd/MM/yyyy"),
+                g.Select(x => x.Abertura).FirstOrDefault(x => !string.IsNullOrWhiteSpace(x)) ?? "",
+                g.Select(x => x.CodigoChave).FirstOrDefault(x => !string.IsNullOrWhiteSpace(x)) ?? "",
+                g.Select(x => x.ChipTransponder).FirstOrDefault(x => !string.IsNullOrWhiteSpace(x)) ?? ""))
+            .Where(f => termoFichario.Length == 0 || Normalizar($"{f.Marca} {f.Modelo} {f.Ano} {f.CodigoChave} {f.Chip} {f.Abertura}").Contains(termoFichario))
             .OrderByDescending(f => f.Servicos)
             .ToList();
+        GradeFicharioVeiculos.ItemsSource = ficharioVeic;
 
-        GradeFicharioResidencial.ItemsSource = _local.Estado.Atendimentos
+        var ficharioRes = ativos
             .Where(a => a.Segmento == "RESIDENCIAL")
             .GroupBy(a => new
             {
@@ -388,72 +550,257 @@ public partial class MainWindow : Window
                 ModeloFechadura = a.ModeloFechadura.Trim(),
                 Cilindro = a.TipoCilindro.Trim(),
             })
-            .Select(g => new
-            {
+            .Select(g => new ItemFicharioResidencial(
                 g.Key.TipoLocal,
                 g.Key.Ambiente,
                 g.Key.MarcaFechadura,
                 g.Key.ModeloFechadura,
                 g.Key.Cilindro,
-                Servicos = g.Count(),
-                Ultimo = DateTimeOffset.FromUnixTimeMilliseconds(g.Max(x => x.DataServico)).ToLocalTime().ToString("dd/MM/yyyy"),
-                Abertura = g.Select(x => x.Abertura).FirstOrDefault(x => !string.IsNullOrWhiteSpace(x)) ?? "",
-                CodigoChave = g.Select(x => x.CodigoChave).FirstOrDefault(x => !string.IsNullOrWhiteSpace(x)) ?? "",
-            })
-            .Where(f => termo.Length == 0 || normalizar($"{f.TipoLocal} {f.Ambiente} {f.MarcaFechadura} {f.ModeloFechadura} {f.Cilindro}").Contains(termo))
+                g.Count(),
+                DateTimeOffset.FromUnixTimeMilliseconds(g.Max(x => x.DataServico)).ToLocalTime().ToString("dd/MM/yyyy"),
+                g.Select(x => x.Abertura).FirstOrDefault(x => !string.IsNullOrWhiteSpace(x)) ?? "",
+                g.Select(x => x.CodigoChave).FirstOrDefault(x => !string.IsNullOrWhiteSpace(x)) ?? ""))
+            .Where(f => termoFichario.Length == 0 || Normalizar($"{f.TipoLocal} {f.Ambiente} {f.MarcaFechadura} {f.ModeloFechadura} {f.Cilindro} {f.CodigoChave} {f.Abertura}").Contains(termoFichario))
             .OrderByDescending(f => f.Servicos)
             .ToList();
+        GradeFicharioResidencial.ItemsSource = ficharioRes;
 
-        var fichasEmpresa = _local.Estado.Fichas
-            .Where(f => f.ExcluidoEm is null &&
+        // Fichas Técnicas
+        var termoFichas = Normalizar(BuscaFichas?.Text ?? "");
+        var fichasEmpresa = fichasEmpresaTodas
+            .Where(f =>
                 (string.IsNullOrEmpty(seg) || string.Equals(f.Segmento, seg, StringComparison.OrdinalIgnoreCase)) &&
-                (termo.Length == 0 ||
-                normalizar($"{f.Equipamento} {f.Marca} {f.Modelo} {f.Ano} {f.Sistema} {f.Chip} {f.Chave} {f.Manual}").Contains(termo)));
-        var fichasCatalogo = CatalogoFichasPadrao.Listar(string.IsNullOrEmpty(seg) ? null : seg, Busca.Text);
-        GradeFichas.ItemsSource = fichasEmpresa
+                (termoFichas.Length == 0 ||
+                 Normalizar($"{f.Equipamento} {f.Marca} {f.Modelo} {f.Ano} {f.Sistema} {f.Chip} {f.Chave} {f.Manual}").Contains(termoFichas)));
+        var fichasCatalogo = CatalogoFichasPadrao.Listar(string.IsNullOrEmpty(seg) ? null : seg, BuscaFichas?.Text ?? "");
+        var listaFichas = fichasEmpresa
             .Concat(fichasCatalogo)
             .OrderBy(f => f.EhCatalogoOficial ? 1 : 0)
             .ThenBy(f => f.Marca)
             .ThenBy(f => f.Modelo)
             .ToList();
+        GradeFichas.ItemsSource = listaFichas;
+
+        // Badges da Sidebar
+        var qtdArea = string.IsNullOrEmpty(seg) ? ativos.Count : ativos.Count(a => a.Segmento == seg);
+        TxtBadgeAtendimentos.Text = qtdArea.ToString();
+        TxtBadgeFichario.Text = (seg == "RESIDENCIAL" ? ficharioRes.Count : ficharioVeic.Count).ToString();
+        TxtBadgeFichas.Text = listaFichas.Count.ToString();
+
         GradeConflitos.ItemsSource = _local.Estado.Conflitos.ToList();
     }
 
-    private static string normalizar(string texto) => texto.ToLowerInvariant().Trim();
+    private void AtualizarPainelDetalhe()
+    {
+        var item = Selecionado();
+        if (item is null)
+        {
+            PainelDetalheVazio.Visibility = Visibility.Visible;
+            PainelDetalheConteudo.Visibility = Visibility.Collapsed;
+            return;
+        }
+
+        PainelDetalheVazio.Visibility = Visibility.Collapsed;
+        PainelDetalheConteudo.Visibility = Visibility.Visible;
+
+        var residencial = item.Segmento == "RESIDENCIAL";
+        TxtDetalheTitulo.Text = residencial
+            ? (string.IsNullOrWhiteSpace(item.TipoLocal) ? "Serviço residencial" : $"{item.TipoLocal}{(string.IsNullOrWhiteSpace(item.AmbientePorta) ? "" : " · " + item.AmbientePorta)}")
+            : (string.IsNullOrWhiteSpace(item.Placa) ? item.IdentificacaoPrincipal : item.Placa);
+        TxtDetalheTitulo.FontFamily = !residencial && !string.IsNullOrWhiteSpace(item.Placa)
+            ? new FontFamily("Consolas")
+            : new FontFamily("Segoe UI");
+
+        TxtDetalheSubtitulo.Text = residencial
+            ? string.Join(" · ", new[] { item.MarcaFechadura, item.ModeloFechadura, item.TipoCilindro }.Where(s => !string.IsNullOrWhiteSpace(s)))
+            : string.Join(" ", new[] { item.Marca, item.Modelo, item.Ano }.Where(s => !string.IsNullOrWhiteSpace(s)));
+        if (string.IsNullOrWhiteSpace(TxtDetalheSubtitulo.Text))
+            TxtDetalheSubtitulo.Text = residencial ? "Chaveiro residencial" : "Veículo sem detalhes adicionais";
+
+        TxtDetalheData.Text = $"{item.SegmentoFormatado} · {item.DataFormatada}";
+        TxtDetalheValor.Text = item.ValorFormatado;
+        TxtDetalhePago.Text = item.Pago ? "Pago" : "A receber";
+        BadgeDetalhePago.Background = item.Pago
+            ? new SolidColorBrush(Color.FromRgb(19, 78, 74))
+            : new SolidColorBrush(Color.FromRgb(120, 53, 15));
+        TxtDetalhePago.Foreground = item.Pago
+            ? new SolidColorBrush(Color.FromRgb(94, 234, 212))
+            : new SolidColorBrush(Color.FromRgb(253, 230, 138));
+
+        StackDetalheCampos.Children.Clear();
+
+        void AddSecao(string titulo, string valor, bool copiavel = false, bool mono = false)
+        {
+            if (string.IsNullOrWhiteSpace(valor)) return;
+            var bloco = new Border
+            {
+                Background = copiavel ? new SolidColorBrush(Color.FromRgb(248, 250, 252)) : Brushes.Transparent,
+                BorderBrush = copiavel ? new SolidColorBrush(Color.FromRgb(226, 232, 240)) : Brushes.Transparent,
+                BorderThickness = copiavel ? new Thickness(1) : new Thickness(0),
+                CornerRadius = new CornerRadius(8),
+                Padding = copiavel ? new Thickness(10, 8, 10, 8) : new Thickness(0, 0, 0, 2),
+                Margin = new Thickness(0, 0, 0, 10),
+            };
+            var dock = new DockPanel { LastChildFill = true };
+            if (copiavel)
+            {
+                var btnCopiar = new Button
+                {
+                    Content = "Copiar",
+                    Style = (Style)FindResource("BotaoCompacto"),
+                    Margin = new Thickness(8, 0, 0, 0),
+                    VerticalAlignment = VerticalAlignment.Center,
+                };
+                btnCopiar.Click += (_, _) =>
+                {
+                    try
+                    {
+                        Clipboard.SetText(valor);
+                        Status.Text = $"{titulo} copiado para a área de transferência.";
+                    }
+                    catch { }
+                };
+                DockPanel.SetDock(btnCopiar, Dock.Right);
+                dock.Children.Add(btnCopiar);
+            }
+            var stack = new StackPanel();
+            stack.Children.Add(new TextBlock
+            {
+                Text = titulo.ToUpperInvariant(),
+                FontSize = 10.5,
+                FontWeight = FontWeights.Bold,
+                Foreground = (Brush)FindResource("CorTextoMudo"),
+                Margin = new Thickness(0, 0, 0, 2),
+            });
+            stack.Children.Add(new TextBlock
+            {
+                Text = valor,
+                FontSize = mono ? 14 : 13,
+                FontWeight = mono ? FontWeights.Bold : FontWeights.Normal,
+                FontFamily = mono ? new FontFamily("Consolas") : new FontFamily("Segoe UI"),
+                Foreground = (Brush)FindResource("CorTextoPrimario"),
+                TextWrapping = TextWrapping.Wrap,
+            });
+            dock.Children.Add(stack);
+            bloco.Child = dock;
+            StackDetalheCampos.Children.Add(bloco);
+        }
+
+        AddSecao("Serviços realizados", item.TiposFormatados);
+        if (!residencial && !string.IsNullOrWhiteSpace(item.Placa))
+            AddSecao("Placa", item.Placa, copiavel: true, mono: true);
+        AddSecao("Código da chave", item.CodigoChave, copiavel: true, mono: true);
+        AddSecao(residencial ? "Senha / configuração" : "Código de configuração", item.CodigoConfiguracao, copiavel: true, mono: true);
+        if (!residencial) AddSecao("Chip / transponder", item.ChipTransponder, copiavel: true, mono: true);
+        if (!residencial) AddSecao("Chassi", item.Chassi, copiavel: true, mono: true);
+        if (residencial) AddSecao("Endereço / referência", item.EnderecoLocal);
+        AddSecao("Defeito relatado", item.Defeito);
+        AddSecao("Solução aplicada", item.Solucao);
+        AddSecao("Abertura / procedimento", item.Abertura);
+        AddSecao("Ferramenta utilizada", item.Ferramenta);
+
+        var clienteInfo = string.Join(" · ", new[] { item.ClienteNome, item.ClienteTelefone }.Where(s => !string.IsNullOrWhiteSpace(s)));
+        AddSecao("Cliente", clienteInfo);
+
+        var fotos = _local.Estado.Fotos.Where(f => f.AtendimentoUuid == item.Uuid).ToList();
+        if (fotos.Count > 0)
+        {
+            var cardFotos = new Border
+            {
+                Background = new SolidColorBrush(Color.FromRgb(240, 253, 250)),
+                BorderBrush = new SolidColorBrush(Color.FromRgb(153, 246, 228)),
+                BorderThickness = new Thickness(1),
+                CornerRadius = new CornerRadius(8),
+                Padding = new Thickness(10, 8, 10, 8),
+                Margin = new Thickness(0, 2, 0, 6),
+            };
+            var dock = new DockPanel { LastChildFill = true };
+            var btnAbrir = new Button
+            {
+                Content = "Ver fotos",
+                Style = (Style)FindResource("BotaoCompacto"),
+                VerticalAlignment = VerticalAlignment.Center,
+            };
+            btnAbrir.Click += (_, _) =>
+            {
+                var primeira = fotos.FirstOrDefault(f => File.Exists(f.CaminhoLocal));
+                if (primeira is not null)
+                {
+                    Process.Start(new ProcessStartInfo(primeira.CaminhoLocal) { UseShellExecute = true });
+                }
+                else
+                {
+                    Editar_Click(this, new RoutedEventArgs());
+                }
+            };
+            DockPanel.SetDock(btnAbrir, Dock.Right);
+            dock.Children.Add(btnAbrir);
+            dock.Children.Add(new TextBlock
+            {
+                Text = $"{fotos.Count} foto(s) vinculada(s)",
+                Foreground = (Brush)FindResource("CorPrimariaEscura"),
+                FontWeight = FontWeights.SemiBold,
+                FontSize = 12.5,
+                VerticalAlignment = VerticalAlignment.Center,
+            });
+            cardFotos.Child = dock;
+            StackDetalheCampos.Children.Add(cardFotos);
+        }
+    }
+
+    private static string Normalizar(string texto)
+    {
+        if (string.IsNullOrWhiteSpace(texto)) return "";
+        var decom = texto.Trim().ToLowerInvariant().Normalize(NormalizationForm.FormD);
+        var sb = new StringBuilder(decom.Length);
+        foreach (var ch in decom)
+        {
+            if (CharUnicodeInfo.GetUnicodeCategory(ch) != UnicodeCategory.NonSpacingMark)
+                sb.Append(ch);
+        }
+        return sb.ToString().Normalize(NormalizationForm.FormC);
+    }
 
     private void AtualizarStatus(string? mensagemConexao = null)
     {
         var conflitos = _local.Estado.Conflitos.Count;
-        var total = _local.Estado.Atendimentos.Count;
-        EmailUsuario.Text = string.IsNullOrWhiteSpace(_local.Estado.Email)
-            ? "Sessão ativa"
-            : _local.Estado.Email;
+        var total = _local.Estado.Atendimentos.Count(a => a.ExcluidoEm is null);
+        var pendentesSync = _local.Estado.Outbox.Count + _local.Estado.Fotos.Count(f => f.Pendente);
 
-        if (AbaConflitos is not null)
+        var email = string.IsNullOrWhiteSpace(_local.Estado.Email) ? "Sessão ativa" : _local.Estado.Email;
+        EmailUsuario.Text = email;
+        TxtInicialUsuario.Text = email.Length > 0 ? char.ToUpperInvariant(email[0]).ToString() : "C";
+
+        BtnNavConflitos.Visibility = conflitos > 0 ? Visibility.Visible : Visibility.Collapsed;
+        TxtBadgeConflitos.Text = conflitos.ToString();
+        if (conflitos == 0 && _secaoAtiva == SecaoAtiva.Conflitos)
         {
-            if (conflitos > 0)
-            {
-                AbaConflitos.Visibility = Visibility.Visible;
-            }
-            else
-            {
-                AbaConflitos.Visibility = Visibility.Collapsed;
-                if (AbasPrincipal.SelectedIndex == 3)
-                {
-                    AbasPrincipal.SelectedIndex = 0;
-                }
-            }
+            _secaoAtiva = SecaoAtiva.Atendimentos;
+            AtualizarInterfaceModalidade();
         }
 
-        if (StatusDot is not null)
+        TxtPendenciasRodape.Text = pendentesSync > 0
+            ? $"{pendentesSync} alteração(ões) na fila local"
+            : "Sincronia automática ativa";
+
+        if (StatusDot is not null && TxtStatusNuvem is not null)
         {
-            if (!string.IsNullOrWhiteSpace(mensagemConexao) && mensagemConexao.Contains("Sem conexão"))
+            if (_sincronizando)
+            {
+                StatusDot.Fill = new SolidColorBrush(Color.FromRgb(245, 158, 11));
+                TxtStatusNuvem.Text = "Sincronizando…";
+            }
+            else if (!string.IsNullOrWhiteSpace(mensagemConexao) && mensagemConexao.Contains("Sem conexão"))
             {
                 StatusDot.Fill = new SolidColorBrush(Color.FromRgb(148, 163, 184));
+                TxtStatusNuvem.Text = "Modo offline";
             }
             else
             {
                 StatusDot.Fill = (Brush)FindResource("CorPrimaria");
+                TxtStatusNuvem.Text = _ultimaSincronia > DateTimeOffset.MinValue
+                    ? $"Nuvem · {_ultimaSincronia.ToLocalTime():HH:mm}"
+                    : "Nuvem ativa";
             }
         }
 
@@ -477,10 +824,8 @@ public partial class MainWindow : Window
             return;
         }
         _sincronizando = true;
-        if (StatusDot is not null)
-        {
-            StatusDot.Fill = new SolidColorBrush(Color.FromRgb(245, 158, 11));
-        }
+        BtnSincronizar.IsEnabled = false;
+        AtualizarStatus();
         string? mensagem = null;
         try
         {
@@ -494,15 +839,14 @@ public partial class MainWindow : Window
             var resumo = await MotorSincronia.SincronizarAsync(_local, _api, _local.Estado.EmpresaId);
             await SalvarTokens();
             _ultimaSincronia = DateTimeOffset.UtcNow;
-            var total = _local.Estado.Atendimentos.Count;
+            var total = _local.Estado.Atendimentos.Count(a => a.ExcluidoEm is null);
             if (resumo.Conflitos > 0)
             {
                 var detalhe = string.Join(", ", _local.Estado.Conflitos.Select(c =>
                     c.Placa.Length > 0 ? c.Placa : c.Uuid));
-                AbaConflitos.Visibility = Visibility.Visible;
                 MessageBox.Show($"Conflitos detectados: {detalhe}. Nenhum registro foi descartado.",
                     "ChaveiroCar", MessageBoxButton.OK, MessageBoxImage.Warning);
-                AbasPrincipal.SelectedIndex = 3;
+                _secaoAtiva = SecaoAtiva.Conflitos;
                 mensagem = $"{total} atendimento(s) · {_local.Estado.Conflitos.Count} conflito(s) aguardando decisão";
             }
             else
@@ -522,6 +866,7 @@ public partial class MainWindow : Window
         finally
         {
             _sincronizando = false;
+            BtnSincronizar.IsEnabled = true;
             AtualizarInterfaceModalidade();
             RecarregarGrade();
             AtualizarStatus(mensagem);
@@ -533,15 +878,163 @@ public partial class MainWindow : Window
         }
     }
 
-    private void Pesquisar_Click(object sender, RoutedEventArgs e) => RecarregarGrade();
-    private void FiltroSegmento_Mudou(object sender, SelectionChangedEventArgs e) => RecarregarGrade();
+    // ==================== NAVEGAÇÃO SIDEBAR E KPIs ====================
+
+    private void NavInicio_Click(object sender, RoutedEventArgs e)
+    {
+        _secaoAtiva = SecaoAtiva.Inicio;
+        AtualizarInterfaceModalidade();
+        RecarregarGrade();
+    }
+
+    private void NavAtendimentos_Click(object sender, RoutedEventArgs e)
+    {
+        if (string.IsNullOrEmpty(GarantirModalidadeAtiva()))
+        {
+            Plano_Click(sender, e);
+            return;
+        }
+        _secaoAtiva = SecaoAtiva.Atendimentos;
+        AtualizarInterfaceModalidade();
+        RecarregarGrade();
+    }
+
+    private void NavFichario_Click(object sender, RoutedEventArgs e)
+    {
+        if (string.IsNullOrEmpty(GarantirModalidadeAtiva()))
+        {
+            Plano_Click(sender, e);
+            return;
+        }
+        _secaoAtiva = SecaoAtiva.Fichario;
+        AtualizarInterfaceModalidade();
+        RecarregarGrade();
+    }
+
+    private void NavFichas_Click(object sender, RoutedEventArgs e)
+    {
+        if (string.IsNullOrEmpty(GarantirModalidadeAtiva()))
+        {
+            Plano_Click(sender, e);
+            return;
+        }
+        _secaoAtiva = SecaoAtiva.Fichas;
+        AtualizarInterfaceModalidade();
+        RecarregarGrade();
+    }
+
+    private void NavConflitos_Click(object sender, RoutedEventArgs e)
+    {
+        _secaoAtiva = SecaoAtiva.Conflitos;
+        AtualizarInterfaceModalidade();
+        RecarregarGrade();
+    }
+
+    private void SelecionarAreaVeicular_Click(object sender, RoutedEventArgs e)
+    {
+        EntrarNaArea("AUTOMOTIVO", _secaoAtiva == SecaoAtiva.Inicio ? SecaoAtiva.Atendimentos : _secaoAtiva);
+    }
+
+    private void SelecionarAreaResidencial_Click(object sender, RoutedEventArgs e)
+    {
+        EntrarNaArea("RESIDENCIAL", _secaoAtiva == SecaoAtiva.Inicio ? SecaoAtiva.Atendimentos : _secaoAtiva);
+    }
+
+    private void EntrarVeicular_Click(object sender, RoutedEventArgs e) => EntrarNaArea("AUTOMOTIVO", SecaoAtiva.Atendimentos);
+    private void ConsultarVeicularInicial_Click(object sender, RoutedEventArgs e) => EntrarNaArea("AUTOMOTIVO", SecaoAtiva.Fichas);
+    private void EntrarResidencial_Click(object sender, RoutedEventArgs e) => EntrarNaArea("RESIDENCIAL", SecaoAtiva.Atendimentos);
+    private void ConsultarResidencialInicial_Click(object sender, RoutedEventArgs e) => EntrarNaArea("RESIDENCIAL", SecaoAtiva.Fichas);
+
+    private void KpiVeicular_Click(object sender, MouseButtonEventArgs e) => EntrarNaArea("AUTOMOTIVO", SecaoAtiva.Atendimentos);
+    private void KpiResidencial_Click(object sender, MouseButtonEventArgs e) => EntrarNaArea("RESIDENCIAL", SecaoAtiva.Atendimentos);
+    private void KpiFichas_Click(object sender, MouseButtonEventArgs e)
+    {
+        if (string.IsNullOrEmpty(GarantirModalidadeAtiva())) { Plano_Click(this, new RoutedEventArgs()); return; }
+        _secaoAtiva = SecaoAtiva.Fichas;
+        AtualizarInterfaceModalidade();
+        RecarregarGrade();
+    }
+
+    private void KpiPendentes_Click(object sender, MouseButtonEventArgs e)
+    {
+        if (string.IsNullOrEmpty(GarantirModalidadeAtiva())) { Plano_Click(this, new RoutedEventArgs()); return; }
+        DefinirFiltroPagamento("PENDENTES");
+        _secaoAtiva = SecaoAtiva.Atendimentos;
+        AtualizarInterfaceModalidade();
+        RecarregarGrade();
+    }
+
+    private void EntrarNaArea(string seg, SecaoAtiva secao)
+    {
+        if (!ModulosAtivosAtuais().Contains(seg))
+        {
+            Plano_Click(this, new RoutedEventArgs());
+            return;
+        }
+        _modalidadeAtiva = seg;
+        _secaoAtiva = secao;
+        AtualizarInterfaceModalidade();
+        RecarregarGrade();
+    }
+
+    private async void SincronizarManual_Click(object sender, RoutedEventArgs e) => await Sincronizar();
+
+    private void AcaoPrincipalTopo_Click(object sender, RoutedEventArgs e)
+    {
+        if (_secaoAtiva == SecaoAtiva.Fichas)
+            NovaFicha_Click(sender, e);
+        else
+            Novo_Click(sender, e);
+    }
+
+    // ==================== FILTROS E EVENTOS DE BUSCA ====================
+
+    private void Busca_TextChanged(object sender, TextChangedEventArgs e)
+    {
+        var vazio = string.IsNullOrEmpty(Busca.Text);
+        PlaceholderBusca.Visibility = vazio ? Visibility.Visible : Visibility.Collapsed;
+        BtnLimparBusca.Visibility = vazio ? Visibility.Collapsed : Visibility.Visible;
+        RecarregarGrade();
+    }
+
+    private void LimparBusca_Click(object sender, RoutedEventArgs e)
+    {
+        Busca.Text = "";
+        Busca.Focus();
+    }
+
     private void Busca_KeyDown(object sender, KeyEventArgs e)
     {
         if (e.Key == Key.Enter) RecarregarGrade();
+        else if (e.Key == Key.Escape && !string.IsNullOrEmpty(Busca.Text)) Busca.Text = "";
+    }
+
+    private void BuscaFichario_TextChanged(object sender, TextChangedEventArgs e) => RecarregarGrade();
+    private void BuscaFichas_TextChanged(object sender, TextChangedEventArgs e) => RecarregarGrade();
+    private void FiltroPeriodo_Mudou(object sender, SelectionChangedEventArgs e) => RecarregarGrade();
+
+    private void FiltroPagamento_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is Button btn && btn.Tag is string tag)
+        {
+            DefinirFiltroPagamento(tag);
+            RecarregarGrade();
+        }
+    }
+
+    private void DefinirFiltroPagamento(string tag)
+    {
+        _filtroPagamento = tag;
+        var chip = (Style)FindResource("BotaoChip");
+        var chipAtivo = (Style)FindResource("BotaoChipAtivo");
+        BtnFiltroPagoTodos.Style = tag == "TODOS" ? chipAtivo : chip;
+        BtnFiltroPagoSim.Style = tag == "PAGOS" ? chipAtivo : chip;
+        BtnFiltroPagoPendente.Style = tag == "PENDENTES" ? chipAtivo : chip;
     }
 
     private async void Empresa_Mudou(object sender, SelectionChangedEventArgs e)
     {
+        if (_inicializandoEmpresas) return;
         if (Empresas.SelectedItem is ClienteApi.Empresa empresa)
         {
             _local.Estado.EmpresaId = empresa.Id;
@@ -555,50 +1048,33 @@ public partial class MainWindow : Window
     private Atendimento? Selecionado() => Grade.SelectedItem as Atendimento;
     private ArmazenamentoLocal.Ficha? FichaSelecionada() => GradeFichas.SelectedItem as ArmazenamentoLocal.Ficha;
 
-    private void EntrarVeicular_Click(object sender, RoutedEventArgs e) => EntrarNaArea("AUTOMOTIVO", 0);
-    private void ConsultarVeicularInicial_Click(object sender, RoutedEventArgs e) => EntrarNaArea("AUTOMOTIVO", 2);
-    private void EntrarResidencial_Click(object sender, RoutedEventArgs e) => EntrarNaArea("RESIDENCIAL", 0);
-    private void ConsultarResidencialInicial_Click(object sender, RoutedEventArgs e) => EntrarNaArea("RESIDENCIAL", 2);
-
-    private void EntrarNaArea(string seg, int abaInicial)
-    {
-        if (!ModulosAtivosAtuais().Contains(seg))
-        {
-            Plano_Click(this, new RoutedEventArgs());
-            return;
-        }
-        _modalidadeAtiva = seg;
-        AbasPrincipal.SelectedIndex = abaInicial;
-        AtualizarInterfaceModalidade();
-        RecarregarGrade();
-    }
-
-    private void TrocarArea_Click(object sender, RoutedEventArgs e)
-    {
-        _modalidadeAtiva = null;
-        AtualizarInterfaceModalidade();
-    }
-
-    private void Plano_Click(object sender, RoutedEventArgs e)
-    {
-        if (_api is null || string.IsNullOrWhiteSpace(_local.Estado.EmpresaId))
-        {
-            Status.Text = "Selecione uma empresa ativa para consultar o plano.";
-            return;
-        }
-        var janela = new PlanoWindow(_api, _local, _local.Estado.EmpresaId) { Owner = this };
-        janela.ShowDialog();
-        AtualizarInterfaceModalidade();
-        RecarregarGrade();
-        if (janela.Atualizado)
-        {
-            _ = Sincronizar();
-        }
-    }
+    private void Grade_SelectionChanged(object sender, SelectionChangedEventArgs e) => AtualizarPainelDetalhe();
 
     private void Grade_DoubleClick(object sender, MouseButtonEventArgs e)
     {
         if (Selecionado() is not null) Editar_Click(sender, e);
+    }
+
+    private void GradeFicharioVeiculos_DoubleClick(object sender, MouseButtonEventArgs e)
+    {
+        if (GradeFicharioVeiculos.SelectedItem is ItemFicharioVeiculo item)
+        {
+            Busca.Text = $"{item.Marca} {item.Modelo}".Trim();
+            _secaoAtiva = SecaoAtiva.Atendimentos;
+            AtualizarInterfaceModalidade();
+            RecarregarGrade();
+        }
+    }
+
+    private void GradeFicharioResidencial_DoubleClick(object sender, MouseButtonEventArgs e)
+    {
+        if (GradeFicharioResidencial.SelectedItem is ItemFicharioResidencial item)
+        {
+            Busca.Text = $"{item.TipoLocal} {item.MarcaFechadura} {item.ModeloFechadura}".Trim();
+            _secaoAtiva = SecaoAtiva.Atendimentos;
+            AtualizarInterfaceModalidade();
+            RecarregarGrade();
+        }
     }
 
     private void GradeFichas_DoubleClick(object sender, MouseButtonEventArgs e)
@@ -606,10 +1082,17 @@ public partial class MainWindow : Window
         if (FichaSelecionada() is not null) VerManualFicha_Click(sender, e);
     }
 
+    // ==================== CRUD DE ATENDIMENTOS ====================
+
     private void Novo_Click(object sender, RoutedEventArgs e)
     {
         if (!PodeEditarEmpresa()) return;
-        var seg = SegmentoSelecionado() == "RESIDENCIAL" ? "RESIDENCIAL" : "AUTOMOTIVO";
+        var seg = GarantirModalidadeAtiva();
+        if (string.IsNullOrEmpty(seg))
+        {
+            Plano_Click(sender, e);
+            return;
+        }
         var item = new Atendimento
         {
             Uuid = Guid.NewGuid().ToString(),
@@ -618,6 +1101,37 @@ public partial class MainWindow : Window
             TiposServico = [seg == "RESIDENCIAL" ? "ABERTURA_RESIDENCIAL" : "CHAVE_CODIFICADA"],
         };
         AbrirEditorAtendimento(item, []);
+    }
+
+    private void RepetirAtendimento_Click(object sender, RoutedEventArgs e)
+    {
+        if (!PodeEditarEmpresa()) return;
+        var origem = Selecionado();
+        if (origem is null) return;
+        var copia = new Atendimento
+        {
+            Uuid = Guid.NewGuid().ToString(),
+            Segmento = origem.Segmento,
+            Placa = origem.Placa,
+            Marca = origem.Marca,
+            Modelo = origem.Modelo,
+            Ano = origem.Ano,
+            Chassi = origem.Chassi,
+            TipoLocal = origem.TipoLocal,
+            AmbientePorta = origem.AmbientePorta,
+            MarcaFechadura = origem.MarcaFechadura,
+            ModeloFechadura = origem.ModeloFechadura,
+            TipoCilindro = origem.TipoCilindro,
+            EnderecoLocal = origem.EnderecoLocal,
+            ClienteNome = origem.ClienteNome,
+            ClienteTelefone = origem.ClienteTelefone,
+            ChipTransponder = origem.ChipTransponder,
+            CodigoChave = origem.CodigoChave,
+            CodigoConfiguracao = origem.CodigoConfiguracao,
+            DataServico = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(),
+            TiposServico = [origem.Segmento == "RESIDENCIAL" ? "ABERTURA_RESIDENCIAL" : "CHAVE_CODIFICADA"],
+        };
+        AbrirEditorAtendimento(copia, []);
     }
 
     private void Editar_Click(object sender, RoutedEventArgs e)
@@ -644,7 +1158,10 @@ public partial class MainWindow : Window
                 item,
                 fotos,
                 segmentoFixo: _modalidadeAtiva is not null,
-                aoVerFicha: rascunho => AbrirFichaParaAtendimento(rascunho, (Window?)editor ?? this, permitirAcoes: false))
+                aoVerFicha: rascunho => AbrirFichaParaAtendimento(rascunho, (Window?)editor ?? this, permitirAcoes: false),
+                api: _api,
+                empresaId: _local.Estado.EmpresaId,
+                historicoLocal: _local.Estado.Atendimentos.Where(a => a.ExcluidoEm is null).ToList())
             {
                 Owner = this,
             };
@@ -660,6 +1177,8 @@ public partial class MainWindow : Window
             _editandoModal = false;
         }
         if (!confirmado) return;
+        if (_secaoAtiva == SecaoAtiva.Inicio) _secaoAtiva = SecaoAtiva.Atendimentos;
+        AtualizarInterfaceModalidade();
         RecarregarGrade();
         AtualizarStatus();
         _ = Sincronizar();
@@ -696,7 +1215,7 @@ public partial class MainWindow : Window
             ? (string.IsNullOrWhiteSpace(item.AmbientePorta) ? "Serviço Residencial" : $"{item.TipoLocal} · {item.AmbientePorta}")
             : (string.IsNullOrWhiteSpace(item.Placa) ? $"{item.Marca} {item.Modelo}" : $"{item.Placa} · {item.Marca} {item.Modelo}");
 
-        string servicos = item.TiposServico.Count > 0 ? string.Join(", ", item.TiposServico) : "Serviço de chaveiro";
+        string servicos = item.TiposServico.Count > 0 ? item.TiposFormatados : "Serviço de chaveiro";
         string data = DateTimeOffset.FromUnixTimeMilliseconds(item.DataServico).ToLocalTime().ToString("dd/MM/yyyy");
         string valor = (item.ValorCentavos / 100m).ToString("C2", CultureInfo.GetCultureInfo("pt-BR"));
 
@@ -760,6 +1279,7 @@ public partial class MainWindow : Window
         {
             PagePadding = new Thickness(48),
             ColumnWidth = double.PositiveInfinity,
+            FontFamily = new FontFamily("Segoe UI"),
         };
         documento.Blocks.Add(new Paragraph(new Run("ChaveiroCar — Relatório de atendimento"))
         {
@@ -769,7 +1289,7 @@ public partial class MainWindow : Window
         });
         var data = DateTimeOffset.FromUnixTimeMilliseconds(atendimento.DataServico).ToLocalTime();
         AdicionarLinha(documento, "Data", data.ToString("dd/MM/yyyy"));
-        AdicionarLinha(documento, "Segmento", atendimento.Segmento == "RESIDENCIAL" ? "Residencial" : "Automotivo");
+        AdicionarLinha(documento, "Segmento", atendimento.Segmento == "RESIDENCIAL" ? "Residencial" : "Veicular");
         if (atendimento.Segmento == "RESIDENCIAL")
         {
             AdicionarLinha(documento, "Tipo de local", atendimento.TipoLocal);
@@ -786,7 +1306,7 @@ public partial class MainWindow : Window
         }
         AdicionarLinha(documento, "Cliente", atendimento.ClienteNome);
         AdicionarLinha(documento, "Telefone", atendimento.ClienteTelefone);
-        AdicionarLinha(documento, "Serviço", string.Join(", ", atendimento.TiposServico));
+        AdicionarLinha(documento, "Serviço", atendimento.TiposFormatados);
         AdicionarLinha(documento, "Defeito", atendimento.Defeito);
         AdicionarLinha(documento, "Solução", atendimento.Solucao);
         AdicionarLinha(documento, "Observações", atendimento.Abertura);
@@ -795,8 +1315,8 @@ public partial class MainWindow : Window
         if (atendimento.Segmento != "RESIDENCIAL")
             AdicionarLinha(documento, "Chip / transponder", atendimento.ChipTransponder);
         AdicionarLinha(documento, "Ferramenta", atendimento.Ferramenta);
-        AdicionarLinha(documento, "Valor", (atendimento.ValorCentavos / 100m).ToString("C"));
-        AdicionarLinha(documento, "Pagamento", atendimento.Pago ? "Pago" : "Pendente");
+        AdicionarLinha(documento, "Valor", (atendimento.ValorCentavos / 100m).ToString("C2", CultureInfo.GetCultureInfo("pt-BR")));
+        AdicionarLinha(documento, "Pagamento", atendimento.Pago ? "Pago" : "A receber");
 
         var impressora = new PrintDialog();
         if (impressora.ShowDialog() == true)
@@ -822,6 +1342,8 @@ public partial class MainWindow : Window
         paragrafo.Inlines.Add(new Run(valor));
         documento.Blocks.Add(paragrafo);
     }
+
+    // ==================== FICHAS TÉCNICAS E MANUAIS ====================
 
     private void NovaFicha_Click(object sender, RoutedEventArgs e)
     {
@@ -1029,8 +1551,9 @@ public partial class MainWindow : Window
                     ? new[] { item.MarcaFechadura, item.ModeloFechadura }
                     : new[] { item.Marca, item.Modelo })
                 .Where(s => !string.IsNullOrWhiteSpace(s)));
-            Busca.Text = termo;
-            AbasPrincipal.SelectedIndex = 2;
+            BuscaFichas.Text = termo;
+            _secaoAtiva = SecaoAtiva.Fichas;
+            AtualizarInterfaceModalidade();
             RecarregarGrade();
             Status.Text = "Nenhuma ficha exata encontrada; consulta técnica aberta com a busca.";
         }
@@ -1038,7 +1561,7 @@ public partial class MainWindow : Window
         {
             MessageBox.Show(
                 owner,
-                "Nenhuma ficha exata encontrada no catálogo para este veículo/fechadura. Salve ou volte para consultar na aba Fichas Técnicas.",
+                "Nenhuma ficha exata encontrada no catálogo para este veículo/fechadura. Salve ou volte para consultar em Fichas e Manuais.",
                 "ChaveiroCar",
                 MessageBoxButton.OK,
                 MessageBoxImage.Information);
@@ -1059,6 +1582,7 @@ public partial class MainWindow : Window
             Owner = owner,
             Background = (Brush)Application.Current.FindResource("CorFundoJanela"),
         };
+        IconeApp.Aplicar(dialogo);
         var list = new ListBox
         {
             ItemsSource = opcoes.Select(f =>
@@ -1080,7 +1604,7 @@ public partial class MainWindow : Window
         {
             Content = "Abrir ficha selecionada",
             Style = (Style)Application.Current.FindResource("BotaoPrimario"),
-            Width = 170,
+            Width = 180,
         };
         btnAbrir.Click += (_, _) =>
         {
@@ -1116,6 +1640,7 @@ public partial class MainWindow : Window
             Owner = owner,
             Background = (Brush)Application.Current.FindResource("CorFundoJanela"),
         };
+        IconeApp.Aplicar(dialogo);
 
         var root = new Grid();
         root.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
@@ -1187,7 +1712,7 @@ public partial class MainWindow : Window
         scroll.Content = new Border
         {
             Background = (Brush)Application.Current.FindResource("CorSuperficie"),
-            BorderBrush = (Brush)Application.Current.FindResource("CorBorda"),
+            BorderBrush = (Brush)Application.Current.FindResource("CorBordaSuave"),
             BorderThickness = new Thickness(1),
             CornerRadius = new CornerRadius(10),
             Padding = new Thickness(18, 12, 18, 16),
@@ -1199,7 +1724,7 @@ public partial class MainWindow : Window
         var footer = new Border
         {
             Background = (Brush)Application.Current.FindResource("CorSuperficie"),
-            BorderBrush = (Brush)Application.Current.FindResource("CorBorda"),
+            BorderBrush = (Brush)Application.Current.FindResource("CorBordaSuave"),
             BorderThickness = new Thickness(0, 1, 0, 0),
             Padding = new Thickness(18, 12, 18, 12),
         };
@@ -1249,6 +1774,25 @@ public partial class MainWindow : Window
         root.Children.Add(footer);
         dialogo.Content = root;
         dialogo.ShowDialog();
+    }
+
+    // ==================== ADMINISTRAÇÃO E CONFLITOS ====================
+
+    private void Plano_Click(object sender, RoutedEventArgs e)
+    {
+        if (_api is null || string.IsNullOrWhiteSpace(_local.Estado.EmpresaId))
+        {
+            Status.Text = "Selecione uma empresa ativa para consultar o plano.";
+            return;
+        }
+        var janela = new PlanoWindow(_api, _local, _local.Estado.EmpresaId) { Owner = this };
+        janela.ShowDialog();
+        AtualizarInterfaceModalidade();
+        RecarregarGrade();
+        if (janela.Atualizado)
+        {
+            _ = Sincronizar();
+        }
     }
 
     private void Equipe_Click(object sender, RoutedEventArgs e)

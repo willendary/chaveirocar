@@ -27,6 +27,7 @@ public partial class FichaEditorWindow : Window
         _original = Copiar(original);
         _fotosExistentes = fotos.Select(Copiar).ToList();
         InitializeComponent();
+        IconeApp.Aplicar(this);
         Segmento.IsEnabled = !segmentoFixo;
         BannerOficial.Visibility = copiaDeOficial ? Visibility.Visible : Visibility.Collapsed;
         FotosExistentes.ItemsSource = _fotosExistentes;

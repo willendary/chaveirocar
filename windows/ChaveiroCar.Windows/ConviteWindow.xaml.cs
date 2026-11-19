@@ -13,6 +13,7 @@ public partial class ConviteWindow : Window
     {
         _local = local;
         InitializeComponent();
+        IconeApp.Aplicar(this);
         _api = new ClienteApi(_local.Estado.BaseUrl);
         DadosContaNova.Visibility = Visibility.Visible;
     }

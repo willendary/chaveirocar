@@ -119,7 +119,12 @@ fun TelaAjustes(
     ) {
       PainelDestaque("Tudo em ordem.", "Gerencie sua conta, proteja seus registros e mantenha o app atualizado.", "CHAVEIROCAR · $versao")
       TituloSecao("Segurança")
-      Card(modifier = Modifier.fillMaxWidth()) {
+      Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = androidx.compose.foundation.shape.RoundedCornerShape(16.dp),
+        colors = androidx.compose.material3.CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+      ) {
         Column(modifier = Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
           LinhaInterruptor(
             titulo = "Exigir PIN ao abrir",
@@ -175,7 +180,12 @@ fun TelaAjustes(
 
       if (empresaAtualId.isNotBlank()) {
         TituloSecao("Plano e assinatura")
-        Card(modifier = Modifier.fillMaxWidth()) {
+        Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = androidx.compose.foundation.shape.RoundedCornerShape(16.dp),
+        colors = androidx.compose.material3.CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+      ) {
           Column(modifier = Modifier.padding(20.dp)) {
             SecaoPlanoAssinatura(
               empresaId = empresaAtualId,
@@ -189,7 +199,12 @@ fun TelaAjustes(
       }
 
       TituloSecao("Atualizações")
-      Card(modifier = Modifier.fillMaxWidth()) {
+      Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = androidx.compose.foundation.shape.RoundedCornerShape(16.dp),
+        colors = androidx.compose.material3.CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+      ) {
         Column(modifier = Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
           Text(
             text = if (atualizacao != null) "Versão ${atualizacao.versao} disponível para baixar."
@@ -216,7 +231,12 @@ fun TelaAjustes(
       }
 
       TituloSecao("Sobre")
-      Card(modifier = Modifier.fillMaxWidth()) {
+      Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = androidx.compose.foundation.shape.RoundedCornerShape(16.dp),
+        colors = androidx.compose.material3.CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+      ) {
         Column(modifier = Modifier.padding(20.dp)) {
           Text("ChaveiroCar $versao", style = MaterialTheme.typography.titleSmall)
           Spacer(Modifier.height(4.dp))

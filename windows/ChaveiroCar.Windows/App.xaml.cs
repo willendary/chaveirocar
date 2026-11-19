@@ -9,6 +9,7 @@ public partial class App : Application
 
     protected override void OnStartup(StartupEventArgs e)
     {
+        IconeApp.ConfigurarIdentidadeProcesso();
         base.OnStartup(e);
 
         var local = new ArmazenamentoLocal();

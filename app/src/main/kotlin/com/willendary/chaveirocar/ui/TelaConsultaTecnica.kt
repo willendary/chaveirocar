@@ -182,32 +182,35 @@ fun TelaConsultaTecnica(
 
   Scaffold(
     topBar = {
-      TopAppBar(
-        navigationIcon = { if (onVoltar != null) BotaoVoltar(onVoltar) },
-        title = {
-          Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            MarcaChaveiro()
-            Column {
-              Text("Consulta técnica", style = MaterialTheme.typography.titleLarge)
-              Text(
-                text = if (segmento == SegmentoAtendimento.RESIDENCIAL)
-                  "Fechaduras, cilindros, digitais e manuais"
-                else "Chip, chave, sistema e manuais por veículo",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-              )
+      Column {
+        TopAppBar(
+          navigationIcon = { if (onVoltar != null) BotaoVoltar(onVoltar) },
+          title = {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+              MarcaChaveiro(42.dp)
+              Column {
+                Text("Consulta técnica", style = MaterialTheme.typography.titleLarge)
+                Text(
+                  text = if (segmento == SegmentoAtendimento.RESIDENCIAL)
+                    "Fechaduras, cilindros, digitais e manuais"
+                  else "Chip, chave, sistema e manuais por veículo",
+                  style = MaterialTheme.typography.bodySmall,
+                  color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+              }
             }
-          }
-        },
-        actions = {
-          if (podeEditar) {
-            IconButton(onClick = { onNova(baseNova()) }) {
-              Icon(Icons.Default.Add, contentDescription = "Nova ficha técnica")
+          },
+          actions = {
+            if (podeEditar) {
+              IconButton(onClick = { onNova(baseNova()) }) {
+                Icon(Icons.Default.Add, contentDescription = "Nova ficha técnica")
+              }
             }
-          }
-        },
-        colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.background),
-      )
+          },
+          colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.surface),
+        )
+        androidx.compose.material3.HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.7f))
+      }
     },
     contentWindowInsets = WindowInsets(0, 0, 0, 0),
     containerColor = MaterialTheme.colorScheme.background,

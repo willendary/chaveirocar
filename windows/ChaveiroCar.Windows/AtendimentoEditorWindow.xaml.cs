@@ -2,8 +2,10 @@ using System.Collections.ObjectModel;
 using System.Diagnostics;
 using System.Globalization;
 using System.IO;
+using System.Text.RegularExpressions;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Media;
 using ChaveiroCar.Windows.Services;
 using Microsoft.Win32;
 
@@ -11,6 +13,8 @@ namespace ChaveiroCar.Windows;
 
 public partial class AtendimentoEditorWindow : Window
 {
+    private static readonly Regex RegexPlacaValida = new(@"^[A-Z]{3}[0-9][A-Z0-9][0-9]{2}$", RegexOptions.Compiled);
+
     private static readonly (string Rotulo, string Tag)[] TiposAutomotivos =
     [
         ("Chave codificada", "CHAVE_CODIFICADA"),
@@ -38,8 +42,14 @@ public partial class AtendimentoEditorWindow : Window
     private readonly Atendimento _original;
     private readonly List<ArmazenamentoLocal.FotoLocal> _fotosExistentes;
     private readonly Action<Atendimento>? _aoVerFicha;
+    private readonly ClienteApi? _api;
+    private readonly string? _empresaId;
+    private readonly IReadOnlyList<Atendimento> _historicoLocal;
     private readonly List<string> _novasCopias = [];
     private readonly ObservableCollection<ArmazenamentoLocal.FotoLocal> _fotosNovas = [];
+    private readonly List<CheckBox> _checksTipos = [];
+    private CancellationTokenSource? _ctsPlaca;
+    private string _ultimaPlacaConsultada = "";
     private bool _carregando;
 
     public Atendimento? Resultado { get; private set; }
@@ -49,12 +59,19 @@ public partial class AtendimentoEditorWindow : Window
         Atendimento original,
         IEnumerable<ArmazenamentoLocal.FotoLocal> fotos,
         bool segmentoFixo = false,
-        Action<Atendimento>? aoVerFicha = null)
+        Action<Atendimento>? aoVerFicha = null,
+        ClienteApi? api = null,
+        string? empresaId = null,
+        IReadOnlyList<Atendimento>? historicoLocal = null)
     {
         _original = Copiar(original);
         _fotosExistentes = fotos.Select(Copiar).ToList();
         _aoVerFicha = aoVerFicha;
+        _api = api;
+        _empresaId = empresaId;
+        _historicoLocal = historicoLocal ?? [];
         InitializeComponent();
+        IconeApp.Aplicar(this);
         Segmento.IsEnabled = !segmentoFixo;
         BtnVerFicha.Visibility = _aoVerFicha is not null ? Visibility.Visible : Visibility.Collapsed;
         FotosExistentes.ItemsSource = _fotosExistentes;
@@ -65,10 +82,12 @@ public partial class AtendimentoEditorWindow : Window
         Valor.LostFocus += Valor_LostFocus;
         Closed += (_, _) =>
         {
+            _ctsPlaca?.Cancel();
+            _ctsPlaca?.Dispose();
             if (DialogResult == true) return;
             foreach (var caminho in _novasCopias)
             {
-                File.Delete(caminho);
+                if (File.Exists(caminho)) File.Delete(caminho);
                 var orig = FotosLocais.CaminhoOriginal(caminho);
                 if (File.Exists(orig)) File.Delete(orig);
             }
@@ -85,6 +104,7 @@ public partial class AtendimentoEditorWindow : Window
         _carregando = true;
         Segmento.SelectedIndex = _original.Segmento == "RESIDENCIAL" ? 1 : 0;
         Placa.Text = _original.Placa;
+        _ultimaPlacaConsultada = NormalizarPlaca(_original.Placa);
         Marca.Text = _original.Marca;
         Modelo.Text = _original.Modelo;
         Ano.Text = _original.Ano;
@@ -113,13 +133,15 @@ public partial class AtendimentoEditorWindow : Window
 
     private void Segmento_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {
-        if (_carregando || PainelAutomotivo is null || PainelResidencial is null || TiposServico is null) return;
-        var selecionados = TiposServico.SelectedItems.OfType<ListBoxItem>()
-            .Select(item => item.Tag?.ToString() ?? "")
-            .Where(s => s.Length > 0)
-            .ToList();
-        AtualizarCamposPorSegmento(selecionados);
+        if (_carregando || PainelAutomotivo is null || PainelResidencial is null || PainelTiposServico is null) return;
+        AtualizarCamposPorSegmento(ObterTiposSelecionados());
     }
+
+    private List<string> ObterTiposSelecionados() =>
+        _checksTipos
+            .Where(c => c.IsChecked == true && c.Tag is string s && s.Length > 0)
+            .Select(c => (string)c.Tag)
+            .ToList();
 
     private void AtualizarCamposPorSegmento(IReadOnlyCollection<string> selecionadosAtuais)
     {
@@ -127,34 +149,167 @@ public partial class AtendimentoEditorWindow : Window
         PainelAutomotivo.Visibility = residencial ? Visibility.Collapsed : Visibility.Visible;
         PainelResidencial.Visibility = residencial ? Visibility.Visible : Visibility.Collapsed;
         PainelChipTransponder.Visibility = residencial ? Visibility.Collapsed : Visibility.Visible;
+        TxtSeloSegmento.Text = residencial ? "Área Residencial" : "Área Veicular";
 
         var opcoes = residencial ? TiposResidenciais : TiposAutomotivos;
         var padrao = residencial ? "ABERTURA_RESIDENCIAL" : "CHAVE_CODIFICADA";
-        TiposServico.Items.Clear();
+        PainelTiposServico.Children.Clear();
+        _checksTipos.Clear();
+
         var marcouAlgum = false;
         foreach (var (rotulo, tag) in opcoes)
         {
-            var item = new ListBoxItem
+            var check = new CheckBox
             {
                 Content = rotulo,
                 Tag = tag,
-                IsSelected = selecionadosAtuais.Contains(tag),
+                IsChecked = selecionadosAtuais.Contains(tag),
+                Margin = new Thickness(0, 4, 10, 4),
             };
-            if (item.IsSelected) marcouAlgum = true;
-            TiposServico.Items.Add(item);
+            if (check.IsChecked == true) marcouAlgum = true;
+            _checksTipos.Add(check);
+            PainelTiposServico.Children.Add(check);
         }
-        if (!marcouAlgum && TiposServico.Items.Count > 0)
+        if (!marcouAlgum)
         {
-            foreach (var item in TiposServico.Items.OfType<ListBoxItem>())
+            var padraoCheck = _checksTipos.FirstOrDefault(c => (string?)c.Tag == padrao) ?? _checksTipos.FirstOrDefault();
+            if (padraoCheck is not null) padraoCheck.IsChecked = true;
+        }
+    }
+
+    // ==================== CONSULTA AUTOMÁTICA DE VEÍCULO PELA PLACA ====================
+
+    private static string NormalizarPlaca(string valor) =>
+        new((valor ?? "").Trim().ToUpperInvariant().Where(char.IsLetterOrDigit).ToArray());
+
+    private void Placa_TextChanged(object sender, TextChangedEventArgs e)
+    {
+        if (_carregando) return;
+        var limpo = NormalizarPlaca(Placa.Text);
+        if (limpo.Length > 7) limpo = limpo[..7];
+        string formatado = limpo;
+        if (limpo.Length == 7 &&
+            char.IsLetter(limpo[0]) && char.IsLetter(limpo[1]) && char.IsLetter(limpo[2]) &&
+            char.IsDigit(limpo[3]) && char.IsDigit(limpo[4]) && char.IsDigit(limpo[5]) && char.IsDigit(limpo[6]))
+        {
+            formatado = $"{limpo[..3]}-{limpo[3..]}";
+        }
+        if (Placa.Text != formatado)
+        {
+            var sel = Placa.SelectionStart;
+            Placa.Text = formatado;
+            Placa.SelectionStart = Math.Min(sel, Placa.Text.Length);
+        }
+
+        if (SegmentoAtual() == "AUTOMOTIVO" && RegexPlacaValida.IsMatch(limpo) && limpo != _ultimaPlacaConsultada)
+        {
+            _ = ConsultarPlacaAsync(limpo, aguardarDebounce: true);
+        }
+        else if (limpo.Length < 7)
+        {
+            _ctsPlaca?.Cancel();
+            TxtStatusPlaca.Visibility = Visibility.Collapsed;
+        }
+    }
+
+    private void BuscarPlaca_Click(object sender, RoutedEventArgs e)
+    {
+        var limpo = NormalizarPlaca(Placa.Text);
+        if (!RegexPlacaValida.IsMatch(limpo))
+        {
+            MostrarStatusPlaca("Informe uma placa brasileira válida (antiga ou Mercosul).", erro: true);
+            Placa.Focus();
+            return;
+        }
+        _ = ConsultarPlacaAsync(limpo, aguardarDebounce: false, forcar: true);
+    }
+
+    private async Task ConsultarPlacaAsync(string placaNormalizada, bool aguardarDebounce, bool forcar = false)
+    {
+        _ctsPlaca?.Cancel();
+        _ctsPlaca?.Dispose();
+        var cts = new CancellationTokenSource();
+        _ctsPlaca = cts;
+        var ct = cts.Token;
+
+        try
+        {
+            if (aguardarDebounce)
             {
-                if (item.Tag?.ToString() == padrao)
+                await Task.Delay(450, ct);
+            }
+            if (ct.IsCancellationRequested || NormalizarPlaca(Placa.Text) != placaNormalizada) return;
+
+            _ultimaPlacaConsultada = placaNormalizada;
+
+            // 1. Aproveita histórico local da empresa antes de consultar a rede
+            var localMatch = _historicoLocal
+                .Where(a => a.Segmento != "RESIDENCIAL" && NormalizarPlaca(a.Placa) == placaNormalizada && !string.IsNullOrWhiteSpace(a.Modelo))
+                .OrderByDescending(a => a.DataServico)
+                .FirstOrDefault();
+
+            if (localMatch is not null)
+            {
+                AplicarDadosPlaca(localMatch.Modelo, localMatch.Marca, localMatch.Ano, forcar);
+                MostrarStatusPlaca("Veículo preenchido pelo histórico local da empresa.", erro: false);
+                return;
+            }
+
+            if (_api is null || string.IsNullOrWhiteSpace(_empresaId))
+            {
+                MostrarStatusPlaca("Sem conexão ativa. Informe o modelo manualmente.", erro: true);
+                return;
+            }
+
+            MostrarStatusPlaca("Consultando dados da placa…", erro: false);
+            BtnBuscarPlaca.IsEnabled = false;
+            try
+            {
+                var res = await _api.ConsultarVeiculoPorPlacaAsync(_empresaId, placaNormalizada);
+                if (ct.IsCancellationRequested || NormalizarPlaca(Placa.Text) != placaNormalizada) return;
+
+                if (res.Encontrado)
                 {
-                    item.IsSelected = true;
-                    break;
+                    AplicarDadosPlaca(res.Modelo, res.Marca, res.Ano, forcar);
+                    MostrarStatusPlaca("Modelo preenchido automaticamente. Confira os dados do veículo.", erro: false);
                 }
+                else
+                {
+                    MostrarStatusPlaca(res.Mensagem ?? "Placa não localizada. Informe o modelo manualmente.", erro: true);
+                }
+            }
+            finally
+            {
+                BtnBuscarPlaca.IsEnabled = true;
+            }
+        }
+        catch (OperationCanceledException) { }
+        catch
+        {
+            if (!ct.IsCancellationRequested)
+            {
+                MostrarStatusPlaca("Consulta indisponível no momento. Informe o modelo manualmente.", erro: true);
             }
         }
     }
+
+    private void AplicarDadosPlaca(string modelo, string marca, string ano, bool forcar)
+    {
+        if (forcar || string.IsNullOrWhiteSpace(Modelo.Text)) Modelo.Text = modelo;
+        if ((forcar || string.IsNullOrWhiteSpace(Marca.Text)) && !string.IsNullOrWhiteSpace(marca)) Marca.Text = marca;
+        if ((forcar || string.IsNullOrWhiteSpace(Ano.Text)) && !string.IsNullOrWhiteSpace(ano)) Ano.Text = ano;
+    }
+
+    private void MostrarStatusPlaca(string texto, bool erro)
+    {
+        TxtStatusPlaca.Text = texto;
+        TxtStatusPlaca.Foreground = erro
+            ? (Brush)FindResource("CorAlerta")
+            : (Brush)FindResource("CorPrimariaEscura");
+        TxtStatusPlaca.Visibility = Visibility.Visible;
+    }
+
+    // ==================== FOTOS E MÁSCARAS ====================
 
     private void AdicionarFotos_Click(object sender, RoutedEventArgs e)
     {
@@ -193,7 +348,7 @@ public partial class AtendimentoEditorWindow : Window
         if (FotosNovas.SelectedItem is not ArmazenamentoLocal.FotoLocal foto) return;
         _fotosNovas.Remove(foto);
         _novasCopias.Remove(foto.CaminhoLocal);
-        File.Delete(foto.CaminhoLocal);
+        if (File.Exists(foto.CaminhoLocal)) File.Delete(foto.CaminhoLocal);
         var orig = FotosLocais.CaminhoOriginal(foto.CaminhoLocal);
         if (File.Exists(orig)) File.Delete(orig);
     }
@@ -245,27 +400,6 @@ public partial class AtendimentoEditorWindow : Window
         }
     }
 
-    private void Placa_TextChanged(object sender, TextChangedEventArgs e)
-    {
-        if (_carregando) return;
-        var texto = Placa.Text.ToUpperInvariant().Trim();
-        var limpo = new string(texto.Where(char.IsLetterOrDigit).ToArray());
-        if (limpo.Length > 7) limpo = limpo[..7];
-        string formatado = limpo;
-        if (limpo.Length == 7 &&
-            char.IsLetter(limpo[0]) && char.IsLetter(limpo[1]) && char.IsLetter(limpo[2]) &&
-            char.IsDigit(limpo[3]) && char.IsDigit(limpo[4]) && char.IsDigit(limpo[5]) && char.IsDigit(limpo[6]))
-        {
-            formatado = $"{limpo[..3]}-{limpo[3..]}";
-        }
-        if (Placa.Text != formatado)
-        {
-            var sel = Placa.SelectionStart;
-            Placa.Text = formatado;
-            Placa.SelectionStart = Math.Min(sel, Placa.Text.Length);
-        }
-    }
-
     private void ClienteTelefone_LostFocus(object sender, RoutedEventArgs e)
     {
         var digitos = new string(ClienteTelefone.Text.Where(char.IsDigit).ToArray());
@@ -281,11 +415,25 @@ public partial class AtendimentoEditorWindow : Window
 
     private void Valor_LostFocus(object sender, RoutedEventArgs e)
     {
-        var texto = Valor.Text.Trim().Replace("R$", "").Trim();
-        if (decimal.TryParse(texto, NumberStyles.Number, CultureInfo.CurrentCulture, out var v))
+        if (TentarLerValor(Valor.Text, out var v))
         {
             Valor.Text = v.ToString("N2", CultureInfo.CurrentCulture);
         }
+    }
+
+    private static bool TentarLerValor(string texto, out decimal valor)
+    {
+        var limpo = (texto ?? "").Replace("R$", "", StringComparison.OrdinalIgnoreCase).Trim();
+        if (limpo.Length == 0)
+        {
+            valor = 0m;
+            return true;
+        }
+        if (decimal.TryParse(limpo, NumberStyles.Number, CultureInfo.CurrentCulture, out valor) && valor >= 0)
+            return true;
+        if (decimal.TryParse(limpo, NumberStyles.Number, CultureInfo.InvariantCulture, out valor) && valor >= 0)
+            return true;
+        return false;
     }
 
     private Atendimento ConstruirRascunho(long valorCentavos, IEnumerable<string> tipos)
@@ -327,16 +475,12 @@ public partial class AtendimentoEditorWindow : Window
 
     private void VerFicha_Click(object sender, RoutedEventArgs e)
     {
-        var tipos = TiposServico.SelectedItems.OfType<ListBoxItem>()
-            .Select(item => item.Tag?.ToString() ?? "")
-            .Where(tipo => tipo.Length > 0);
-        _aoVerFicha?.Invoke(ConstruirRascunho(_original.ValorCentavos, tipos));
+        _aoVerFicha?.Invoke(ConstruirRascunho(_original.ValorCentavos, ObterTiposSelecionados()));
     }
 
     private void Salvar_Click(object sender, RoutedEventArgs e)
     {
         var segmento = SegmentoAtual();
-        var placa = Placa.Text.Trim().ToUpperInvariant();
         var modelo = Modelo.Text.Trim();
         var tipoLocal = TipoLocal.Text.Trim();
         var ambientePorta = AmbientePorta.Text.Trim();
@@ -362,18 +506,15 @@ public partial class AtendimentoEditorWindow : Window
             }
         }
 
-        var tipos = TiposServico.SelectedItems.OfType<ListBoxItem>()
-            .Select(item => item.Tag?.ToString() ?? "")
-            .Where(tipo => tipo.Length > 0)
-            .ToList();
+        var tipos = ObterTiposSelecionados();
         if (tipos.Count == 0)
         {
             Erro.Text = "Selecione ao menos um tipo de serviço.";
             return;
         }
-        if (!decimal.TryParse(Valor.Text, NumberStyles.Number, CultureInfo.CurrentCulture, out var valor) || valor < 0)
+        if (!TentarLerValor(Valor.Text, out var valor))
         {
-            Erro.Text = "Informe um valor válido, ou 0.";
+            Erro.Text = "Informe um valor válido, ou deixe vazio para R$ 0,00.";
             Valor.Focus();
             return;
         }

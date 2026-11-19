@@ -12,20 +12,26 @@
             <RowDefinition Height="*"/>
         </Grid.RowDefinitions>
 
-        <!-- Cabeçalho Institucional Azul Petróleo + Jade -->
-        <Border Grid.Row="0" Background="{StaticResource CorCabecalho}" Padding="32,26,32,24">
+        <!-- Cabeçalho Institucional -->
+        <Border Grid.Row="0" Padding="32,26,32,24">
+            <Border.Background>
+                <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                    <GradientStop Color="#0F172A" Offset="0"/>
+                    <GradientStop Color="#134E4A" Offset="1"/>
+                </LinearGradientBrush>
+            </Border.Background>
             <StackPanel>
                 <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
                     <Border Width="54" Height="40" CornerRadius="10" Background="#393A3C" BorderBrush="#525458" BorderThickness="1" Padding="5" Margin="0,0,14,0">
                         <Image x:Name="LogoCabecalho" Stretch="Uniform" RenderOptions.BitmapScalingMode="HighQuality"/>
                     </Border>
                     <StackPanel VerticalAlignment="Center">
-                        <TextBlock Text="CHAVEIROCAR" FontSize="11" FontWeight="Bold" Foreground="#2DD4BF"/>
+                        <TextBlock Text="CHAVEIROCAR" FontSize="11" FontWeight="Bold" Foreground="#5EEAD4"/>
                         <TextBlock Text="ChaveiroCar Desktop" FontSize="22" FontWeight="Bold" Foreground="#FFFFFF"/>
                     </StackPanel>
                 </StackPanel>
                 <TextBlock Text="Acesse sua conta para consultar e sincronizar atendimentos automotivos, residenciais e fichas técnicas."
-                           Foreground="#94A3B8" FontSize="13" TextWrapping="Wrap" Margin="0,10,0,0"/>
+                           Foreground="#CBD5E1" FontSize="12.5" TextWrapping="Wrap" Margin="0,12,0,0"/>
             </StackPanel>
         </Border>
 

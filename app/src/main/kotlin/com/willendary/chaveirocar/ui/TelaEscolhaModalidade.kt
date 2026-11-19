@@ -58,30 +58,33 @@ fun TelaEscolhaModalidade(
 
   Scaffold(
     topBar = {
-      TopAppBar(
-        title = {
-          Row(
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(12.dp),
-          ) {
-            MarcaChaveiro()
-            Column {
-              Text("ChaveiroCar", style = MaterialTheme.typography.titleLarge)
-              Text(
-                text = if (sincronizando) "Sincronizando dados..." else "Escolha a área de trabalho",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-              )
+      Column {
+        TopAppBar(
+          title = {
+            Row(
+              verticalAlignment = Alignment.CenterVertically,
+              horizontalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+              MarcaChaveiro(42.dp)
+              Column {
+                Text("ChaveiroCar", style = MaterialTheme.typography.titleLarge)
+                Text(
+                  text = if (sincronizando) "Sincronizando dados..." else "Escolha a área de trabalho",
+                  style = MaterialTheme.typography.bodySmall,
+                  color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+              }
             }
-          }
-        },
-        actions = {
-          IconButton(onClick = onAbrirAjustes) {
-            Icon(Icons.Default.Settings, contentDescription = "Ajustes e conta")
-          }
-        },
-        colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.background),
-      )
+          },
+          actions = {
+            IconButton(onClick = onAbrirAjustes) {
+              Icon(Icons.Default.Settings, contentDescription = "Ajustes e conta")
+            }
+          },
+          colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.surface),
+        )
+        androidx.compose.material3.HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.7f))
+      }
     },
     contentWindowInsets = WindowInsets(0, 0, 0, 0),
     containerColor = MaterialTheme.colorScheme.background,
@@ -180,18 +183,26 @@ private fun CartaoModalidade(
   Card(
     onClick = onPrincipal,
     modifier = Modifier.fillMaxWidth().testTag(tagCard),
+    shape = androidx.compose.foundation.shape.RoundedCornerShape(18.dp),
     colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
     border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
   ) {
-    Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+    Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
       Row(
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(10.dp),
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
       ) {
-        icone()
+        androidx.compose.material3.Surface(
+          shape = androidx.compose.foundation.shape.RoundedCornerShape(12.dp),
+          color = MaterialTheme.colorScheme.primaryContainer,
+        ) {
+          androidx.compose.foundation.layout.Box(Modifier.padding(10.dp)) {
+            icone()
+          }
+        }
         Text(
           text = titulo,
-          style = MaterialTheme.typography.headlineSmall,
+          style = MaterialTheme.typography.titleLarge,
           fontWeight = FontWeight.Bold,
           modifier = Modifier.weight(1f),
         )
@@ -205,11 +216,19 @@ private fun CartaoModalidade(
         style = MaterialTheme.typography.bodyMedium,
         color = MaterialTheme.colorScheme.onSurfaceVariant,
       )
-      Button(onClick = onPrincipal, modifier = Modifier.fillMaxWidth()) {
-        Text(textoBotaoPrincipal)
+      Button(
+        onClick = onPrincipal,
+        modifier = Modifier.fillMaxWidth().height(46.dp),
+        shape = androidx.compose.foundation.shape.RoundedCornerShape(12.dp),
+      ) {
+        Text(textoBotaoPrincipal, fontWeight = FontWeight.SemiBold)
       }
       if (textoBotaoConsulta != null) {
-        OutlinedButton(onClick = onConsulta, modifier = Modifier.fillMaxWidth()) {
+        OutlinedButton(
+          onClick = onConsulta,
+          modifier = Modifier.fillMaxWidth().height(44.dp),
+          shape = androidx.compose.foundation.shape.RoundedCornerShape(12.dp),
+        ) {
           Icon(Icons.Default.Search, contentDescription = null)
           Spacer(Modifier.padding(horizontal = 4.dp))
           Text(textoBotaoConsulta)

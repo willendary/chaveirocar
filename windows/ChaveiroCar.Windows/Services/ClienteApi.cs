@@ -489,6 +489,42 @@ public sealed class ClienteApi : IDisposable
         throw new InvalidOperationException("Não foi possível enviar a foto.");
     }
 
+    public async Task<ResultadoConsultaPlaca> ConsultarVeiculoPorPlacaAsync(string empresaId, string placa)
+    {
+        var normalizada = new string(placa.Trim().ToUpperInvariant().Where(char.IsLetterOrDigit).ToArray());
+        if (normalizada.Length != 7)
+        {
+            return new ResultadoConsultaPlaca(false, 400, "", "", "", "Placa inválida.");
+        }
+
+        using var resposta = await GetAsync($"/api/v1/empresas/{empresaId}/veiculos/{Uri.EscapeDataString(normalizada)}");
+        var status = (int)resposta.StatusCode;
+        if (!resposta.IsSuccessStatusCode)
+        {
+            var msg = status switch
+            {
+                404 => "Placa não encontrada. Informe o modelo manualmente.",
+                429 => "Muitas consultas em sequência. Aguarde um instante ou informe manualmente.",
+                _ => "Consulta automática indisponível. Informe o modelo manualmente.",
+            };
+            return new ResultadoConsultaPlaca(false, status, "", "", "", msg);
+        }
+
+        var doc = await LerJson(resposta);
+        var modelo = doc.TryGetProperty("modelo", out var mod) && mod.ValueKind == JsonValueKind.String ? mod.GetString() ?? "" : "";
+        var marca = doc.TryGetProperty("marca", out var mar) && mar.ValueKind == JsonValueKind.String ? mar.GetString() ?? "" : "";
+        var ano = doc.TryGetProperty("ano", out var an) && an.ValueKind == JsonValueKind.String ? an.GetString() ?? "" : "";
+        return new ResultadoConsultaPlaca(!string.IsNullOrWhiteSpace(modelo), status, modelo, marca, ano, null);
+    }
+
+    public sealed record ResultadoConsultaPlaca(
+        bool Encontrado,
+        int StatusHttp,
+        string Modelo,
+        string Marca,
+        string Ano,
+        string? Mensagem);
+
     private async Task<HttpResponseMessage> GetAsync(string caminho)
     {
         for (int tentativa = 0; tentativa < 2; tentativa++)
@@ -705,8 +741,28 @@ public sealed class Atendimento
     [JsonIgnore]
     public string TiposFormatados =>
         TiposServico.Count > 0
-            ? string.Join(", ", TiposServico.Select(t => t.Replace('_', ' ')))
+            ? string.Join(", ", TiposServico.Select(FormatarTipoServico))
             : "—";
+
+    public static string FormatarTipoServico(string codigo) => codigo switch
+    {
+        "CHAVE_CODIFICADA" => "Chave codificada",
+        "TRANSPONDER" => "Transponder",
+        "TELECOMANDO" => "Telecomando",
+        "ABERTURA" => "Abertura",
+        "IGNICAO" => "Ignição",
+        "CONSERTO" => "Conserto",
+        "PROGRAMACAO_CHAVE" => "Programação de chave",
+        "ABERTURA_RESIDENCIAL" => "Abertura residencial",
+        "COPIA_CHAVE" => "Cópia de chave",
+        "TROCA_SEGREDO" => "Troca de segredo",
+        "INSTALACAO_FECHADURA" => "Instalação de fechadura",
+        "TROCA_CILINDRO" => "Cilindro / fechadura",
+        "FECHADURA_DIGITAL" => "Fechadura digital",
+        "REPARO_FECHADURA" => "Reparo de fechadura",
+        "OUTRO" => "Outro",
+        _ => codigo.Replace('_', ' '),
+    };
 
     [JsonIgnore]
     public string ValorFormatado =>

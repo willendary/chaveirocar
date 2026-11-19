@@ -26,6 +26,7 @@ public partial class FotoAnotadorWindow : Window
         _bitmap = FotosLocais.CarregarBaseParaEdicao(caminho);
         _setas = FotosLocais.LerAnotacoes(anotacoesIniciais);
         InitializeComponent();
+        IconeApp.Aplicar(this);
 
         ImagemBase.Source = _bitmap;
         AreaImagem.Width = _bitmap.PixelWidth;

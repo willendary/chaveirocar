@@ -11,6 +11,7 @@ public partial class RecuperacaoSenhaWindow : Window
     {
         _baseUrl = baseUrl;
         InitializeComponent();
+        IconeApp.Aplicar(this);
         Email.Text = email;
     }
 

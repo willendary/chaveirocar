@@ -19,6 +19,7 @@ public partial class PlanoWindow : Window
         _local = local;
         _empresaId = empresaId;
         InitializeComponent();
+        IconeApp.Aplicar(this);
         AplicarCacheLocal();
     }
 

@@ -177,7 +177,12 @@ fun TelaDetalhe(
       verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
       PainelDestaque(tituloPainel, subtituloPainel, registro.tiposEmTexto)
-      Card(modifier = Modifier.fillMaxWidth()) {
+      Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(16.dp),
+        colors = androidx.compose.material3.CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+      ) {
         Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
           FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Selo(registro.segmento.rotulo)
@@ -230,7 +235,12 @@ fun TelaDetalhe(
 
       if (registro.codigoChave.isNotBlank() || registro.codigoConfiguracao.isNotBlank() || (!residencial && registro.chipTransponder.isNotBlank())) {
         TituloSecao(if (residencial) "Códigos e referências" else "Códigos do veículo")
-        Card(modifier = Modifier.fillMaxWidth()) {
+        Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(16.dp),
+        colors = androidx.compose.material3.CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+      ) {
           Column(
             modifier = Modifier.padding(20.dp),
             verticalArrangement = Arrangement.spacedBy(10.dp),
@@ -264,7 +274,12 @@ fun TelaDetalhe(
 
       if (registro.defeito.isNotBlank() || registro.solucao.isNotBlank() || registro.ferramenta.isNotBlank()) {
         TituloSecao("Diagnóstico e solução")
-        Card(modifier = Modifier.fillMaxWidth()) {
+        Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(16.dp),
+        colors = androidx.compose.material3.CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+      ) {
           Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             if (registro.defeito.isNotBlank()) {
               Text("Defeito encontrado", style = MaterialTheme.typography.labelLarge)

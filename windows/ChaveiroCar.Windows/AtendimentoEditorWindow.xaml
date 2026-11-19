@@ -2,7 +2,7 @@
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="ChaveiroCar — Cadastro de Atendimento"
-        Height="800" Width="880" MinHeight="660" MinWidth="740"
+        Height="820" Width="900" MinHeight="660" MinWidth="760"
         WindowStartupLocation="CenterOwner"
         Background="{StaticResource CorFundoJanela}">
     <Grid>
@@ -12,239 +12,279 @@
             <RowDefinition Height="Auto"/>
         </Grid.RowDefinitions>
 
+        <!-- Cabeçalho -->
         <Border Grid.Row="0" Background="{StaticResource CorCabecalho}" Padding="24,16">
-            <StackPanel>
-                <TextBlock Text="Registro de Atendimento" Foreground="White" FontSize="19" FontWeight="Bold"/>
-                <TextBlock Text="Preencha os dados do veículo ou fechadura, procedimentos executados e fotos."
-                           Foreground="#FF94A3B8" FontSize="12" Margin="0,2,0,0"/>
-            </StackPanel>
+            <DockPanel LastChildFill="False">
+                <StackPanel DockPanel.Dock="Left">
+                    <TextBlock Text="Registro de Atendimento" Foreground="White" FontSize="19" FontWeight="Bold"/>
+                    <TextBlock Text="Preencha os dados do veículo ou fechadura, procedimentos técnicos, valor e fotos."
+                               Foreground="#94A3B8" FontSize="12" Margin="0,2,0,0"/>
+                </StackPanel>
+                <Border DockPanel.Dock="Right" Background="#134E4A" CornerRadius="8" Padding="10,5" VerticalAlignment="Center">
+                    <TextBlock x:Name="TxtSeloSegmento" Text="Área Veicular" Foreground="#5EEAD4" FontWeight="Bold" FontSize="12"/>
+                </Border>
+            </DockPanel>
         </Border>
 
-        <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" Margin="20,16,20,12">
-            <Border Background="{StaticResource CorSuperficie}" BorderBrush="{StaticResource CorBorda}"
-                    BorderThickness="1" CornerRadius="10" Padding="22,18">
-                <StackPanel>
-                    <UniformGrid Columns="2" Margin="0,0,0,12">
-                        <StackPanel Margin="0,0,10,0">
-                            <TextBlock Text="Segmento do serviço" FontSize="12.5" FontWeight="SemiBold"
-                                       Foreground="{StaticResource CorTextoSecundario}" Margin="0,0,0,5"/>
-                            <ComboBox x:Name="Segmento" SelectedIndex="0" SelectionChanged="Segmento_SelectionChanged">
-                                <ComboBoxItem Content="Veicular" Tag="AUTOMOTIVO"/>
-                                <ComboBoxItem Content="Residencial" Tag="RESIDENCIAL"/>
-                            </ComboBox>
-                        </StackPanel>
-                        <StackPanel Margin="10,0,0,0">
-                            <TextBlock Text="Data do atendimento" FontSize="12.5" FontWeight="SemiBold"
-                                       Foreground="{StaticResource CorTextoSecundario}" Margin="0,0,0,5"/>
-                            <DatePicker x:Name="DataServico" Height="36" VerticalContentAlignment="Center"/>
-                        </StackPanel>
-                    </UniformGrid>
-
-                    <StackPanel x:Name="PainelAutomotivo">
-                        <TextBlock Text="Dados do Veículo" FontSize="16" FontWeight="Bold"
-                                   Foreground="{StaticResource CorTextoPrimario}" Margin="0,8,0,10"/>
-                        <UniformGrid Columns="2">
-                            <StackPanel Margin="0,0,10,10">
-                                <TextBlock Text="Modelo *" FontSize="12.5" FontWeight="SemiBold"
-                                           Foreground="{StaticResource CorTextoSecundario}" Margin="0,0,0,4"/>
-                                <TextBox x:Name="Modelo"/>
+        <!-- Corpo Rolável com Cartões Organizados -->
+        <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" Padding="20,16">
+            <StackPanel>
+                <!-- Seção 1: Identificação -->
+                <Border Background="{StaticResource CorSuperficie}" BorderBrush="{StaticResource CorBordaSuave}"
+                        BorderThickness="1" CornerRadius="12" Padding="20,16" Margin="0,0,0,14">
+                    <StackPanel>
+                        <UniformGrid Columns="2" Margin="0,0,0,12">
+                            <StackPanel Margin="0,0,10,0">
+                                <TextBlock Text="Segmento do serviço" FontSize="12" FontWeight="SemiBold"
+                                           Foreground="{StaticResource CorTextoSecundario}" Margin="0,0,0,5"/>
+                                <ComboBox x:Name="Segmento" SelectedIndex="0" SelectionChanged="Segmento_SelectionChanged">
+                                    <ComboBoxItem Content="Veicular" Tag="AUTOMOTIVO"/>
+                                    <ComboBoxItem Content="Residencial" Tag="RESIDENCIAL"/>
+                                </ComboBox>
                             </StackPanel>
-                            <StackPanel Margin="10,0,0,10">
-                                <TextBlock Text="Placa (opcional)" FontSize="12.5" FontWeight="SemiBold"
-                                           Foreground="{StaticResource CorTextoSecundario}" Margin="0,0,0,4"/>
-                                <TextBox x:Name="Placa"/>
-                            </StackPanel>
-                            <StackPanel Margin="0,0,10,10">
-                                <TextBlock Text="Marca" FontSize="12.5" FontWeight="SemiBold"
-                                           Foreground="{StaticResource CorTextoSecundario}" Margin="0,0,0,4"/>
-                                <TextBox x:Name="Marca"/>
-                            </StackPanel>
-                            <StackPanel Margin="10,0,0,10">
-                                <TextBlock Text="Ano" FontSize="12.5" FontWeight="SemiBold"
-                                           Foreground="{StaticResource CorTextoSecundario}" Margin="0,0,0,4"/>
-                                <TextBox x:Name="Ano"/>
-                            </StackPanel>
-                            <StackPanel Margin="0,0,10,10">
-                                <TextBlock Text="Chassi (opcional)" FontSize="12.5" FontWeight="SemiBold"
-                                           Foreground="{StaticResource CorTextoSecundario}" Margin="0,0,0,4"/>
-                                <TextBox x:Name="Chassi"/>
+                            <StackPanel Margin="10,0,0,0">
+                                <TextBlock Text="Data do atendimento" FontSize="12" FontWeight="SemiBold"
+                                           Foreground="{StaticResource CorTextoSecundario}" Margin="0,0,0,5"/>
+                                <DatePicker x:Name="DataServico" Height="36" VerticalContentAlignment="Center"/>
                             </StackPanel>
                         </UniformGrid>
-                    </StackPanel>
 
-                    <StackPanel x:Name="PainelResidencial" Visibility="Collapsed">
-                        <TextBlock Text="Local e Fechadura" FontSize="16" FontWeight="Bold"
-                                   Foreground="{StaticResource CorTextoPrimario}" Margin="0,8,0,10"/>
-                        <UniformGrid Columns="2">
-                            <StackPanel Margin="0,0,10,10">
-                                <TextBlock Text="Tipo de local *" FontSize="12.5" FontWeight="SemiBold"
+                        <StackPanel x:Name="PainelAutomotivo">
+                            <TextBlock Text="Dados do Veículo" FontSize="15" FontWeight="Bold"
+                                       Foreground="{StaticResource CorTextoPrimario}" Margin="0,4,0,10"/>
+                            <UniformGrid Columns="2">
+                                <StackPanel Margin="0,0,10,10">
+                                    <TextBlock Text="Placa (opcional — busca automática)" FontSize="12" FontWeight="SemiBold"
+                                               Foreground="{StaticResource CorTextoSecundario}" Margin="0,0,0,4"/>
+                                    <DockPanel LastChildFill="True">
+                                        <Button x:Name="BtnBuscarPlaca" DockPanel.Dock="Right" Content="Buscar"
+                                                Click="BuscarPlaca_Click" Style="{StaticResource BotaoCompacto}"
+                                                Margin="6,0,0,0" ToolTip="Consultar modelo pela placa agora"/>
+                                        <TextBox x:Name="Placa" FontFamily="Consolas" FontWeight="Bold"/>
+                                    </DockPanel>
+                                    <TextBlock x:Name="TxtStatusPlaca" Text="" FontSize="11.5"
+                                               Foreground="{StaticResource CorPrimariaEscura}" Margin="2,4,0,0"
+                                               TextWrapping="Wrap" Visibility="Collapsed"/>
+                                </StackPanel>
+                                <StackPanel Margin="10,0,0,10">
+                                    <TextBlock Text="Modelo *" FontSize="12" FontWeight="SemiBold"
+                                               Foreground="{StaticResource CorTextoSecundario}" Margin="0,0,0,4"/>
+                                    <TextBox x:Name="Modelo"/>
+                                </StackPanel>
+                                <StackPanel Margin="0,0,10,10">
+                                    <TextBlock Text="Marca" FontSize="12" FontWeight="SemiBold"
+                                               Foreground="{StaticResource CorTextoSecundario}" Margin="0,0,0,4"/>
+                                    <TextBox x:Name="Marca"/>
+                                </StackPanel>
+                                <StackPanel Margin="10,0,0,10">
+                                    <TextBlock Text="Ano" FontSize="12" FontWeight="SemiBold"
+                                               Foreground="{StaticResource CorTextoSecundario}" Margin="0,0,0,4"/>
+                                    <TextBox x:Name="Ano"/>
+                                </StackPanel>
+                                <StackPanel Margin="0,0,10,0">
+                                    <TextBlock Text="Chassi (opcional)" FontSize="12" FontWeight="SemiBold"
+                                               Foreground="{StaticResource CorTextoSecundario}" Margin="0,0,0,4"/>
+                                    <TextBox x:Name="Chassi" FontFamily="Consolas"/>
+                                </StackPanel>
+                            </UniformGrid>
+                        </StackPanel>
+
+                        <StackPanel x:Name="PainelResidencial" Visibility="Collapsed">
+                            <TextBlock Text="Local e Fechadura" FontSize="15" FontWeight="Bold"
+                                       Foreground="{StaticResource CorTextoPrimario}" Margin="0,4,0,10"/>
+                            <UniformGrid Columns="2">
+                                <StackPanel Margin="0,0,10,10">
+                                    <TextBlock Text="Tipo de local *" FontSize="12" FontWeight="SemiBold"
+                                               Foreground="{StaticResource CorTextoSecundario}" Margin="0,0,0,4"/>
+                                    <ComboBox x:Name="TipoLocal" IsEditable="True">
+                                        <ComboBoxItem Content="Casa"/>
+                                        <ComboBoxItem Content="Apartamento"/>
+                                        <ComboBoxItem Content="Comércio"/>
+                                        <ComboBoxItem Content="Condomínio"/>
+                                        <ComboBoxItem Content="Portão"/>
+                                        <ComboBoxItem Content="Outro"/>
+                                    </ComboBox>
+                                </StackPanel>
+                                <StackPanel Margin="10,0,0,10">
+                                    <TextBlock Text="Ambiente / porta" FontSize="12" FontWeight="SemiBold"
+                                               Foreground="{StaticResource CorTextoSecundario}" Margin="0,0,0,4"/>
+                                    <ComboBox x:Name="AmbientePorta" IsEditable="True">
+                                        <ComboBoxItem Content="Porta principal"/>
+                                        <ComboBoxItem Content="Porta social"/>
+                                        <ComboBoxItem Content="Portão"/>
+                                        <ComboBoxItem Content="Quarto"/>
+                                        <ComboBoxItem Content="Escritório"/>
+                                        <ComboBoxItem Content="Gaveta / armário"/>
+                                    </ComboBox>
+                                </StackPanel>
+                                <StackPanel Margin="0,0,10,10">
+                                    <TextBlock Text="Marca da fechadura" FontSize="12" FontWeight="SemiBold"
+                                               Foreground="{StaticResource CorTextoSecundario}" Margin="0,0,0,4"/>
+                                    <ComboBox x:Name="MarcaFechadura" IsEditable="True">
+                                        <ComboBoxItem Content="Papaiz"/>
+                                        <ComboBoxItem Content="Pado"/>
+                                        <ComboBoxItem Content="Stam"/>
+                                        <ComboBoxItem Content="La Fonte"/>
+                                        <ComboBoxItem Content="Intelbras"/>
+                                        <ComboBoxItem Content="Yale"/>
+                                        <ComboBoxItem Content="Arouca"/>
+                                        <ComboBoxItem Content="Aliança"/>
+                                    </ComboBox>
+                                </StackPanel>
+                                <StackPanel Margin="10,0,0,10">
+                                    <TextBlock Text="Modelo da fechadura" FontSize="12" FontWeight="SemiBold"
+                                               Foreground="{StaticResource CorTextoSecundario}" Margin="0,0,0,4"/>
+                                    <TextBox x:Name="ModeloFechadura"/>
+                                </StackPanel>
+                                <StackPanel Margin="0,0,10,0">
+                                    <TextBlock Text="Cilindro / tipo de chave" FontSize="12" FontWeight="SemiBold"
+                                               Foreground="{StaticResource CorTextoSecundario}" Margin="0,0,0,4"/>
+                                    <ComboBox x:Name="TipoCilindro" IsEditable="True">
+                                        <ComboBoxItem Content="Yale / simples"/>
+                                        <ComboBoxItem Content="Tetra"/>
+                                        <ComboBoxItem Content="Multiponto"/>
+                                        <ComboBoxItem Content="Gorje"/>
+                                        <ComboBoxItem Content="Fechadura digital"/>
+                                    </ComboBox>
+                                </StackPanel>
+                                <StackPanel Margin="10,0,0,0">
+                                    <TextBlock Text="Endereço / referência (opcional)" FontSize="12" FontWeight="SemiBold"
+                                               Foreground="{StaticResource CorTextoSecundario}" Margin="0,0,0,4"/>
+                                    <TextBox x:Name="EnderecoLocal"/>
+                                </StackPanel>
+                            </UniformGrid>
+                        </StackPanel>
+                    </StackPanel>
+                </Border>
+
+                <!-- Seção 2: Cliente e Tipos de Serviço -->
+                <Border Background="{StaticResource CorSuperficie}" BorderBrush="{StaticResource CorBordaSuave}"
+                        BorderThickness="1" CornerRadius="12" Padding="20,16" Margin="0,0,0,14">
+                    <StackPanel>
+                        <TextBlock Text="Cliente e Serviços Realizados" FontSize="15" FontWeight="Bold"
+                                   Foreground="{StaticResource CorTextoPrimario}" Margin="0,0,0,10"/>
+                        <UniformGrid Columns="2" Margin="0,0,0,10">
+                            <StackPanel Margin="0,0,10,0">
+                                <TextBlock Text="Nome do cliente" FontSize="12" FontWeight="SemiBold"
                                            Foreground="{StaticResource CorTextoSecundario}" Margin="0,0,0,4"/>
-                                <ComboBox x:Name="TipoLocal" IsEditable="True">
-                                    <ComboBoxItem Content="Casa"/>
-                                    <ComboBoxItem Content="Apartamento"/>
-                                    <ComboBoxItem Content="Comércio"/>
-                                    <ComboBoxItem Content="Condomínio"/>
-                                    <ComboBoxItem Content="Portão"/>
-                                    <ComboBoxItem Content="Outro"/>
-                                </ComboBox>
+                                <TextBox x:Name="ClienteNome"/>
                             </StackPanel>
-                            <StackPanel Margin="10,0,0,10">
-                                <TextBlock Text="Ambiente / porta" FontSize="12.5" FontWeight="SemiBold"
+                            <StackPanel Margin="10,0,0,0">
+                                <TextBlock Text="Telefone / WhatsApp" FontSize="12" FontWeight="SemiBold"
                                            Foreground="{StaticResource CorTextoSecundario}" Margin="0,0,0,4"/>
-                                <ComboBox x:Name="AmbientePorta" IsEditable="True">
-                                    <ComboBoxItem Content="Porta principal"/>
-                                    <ComboBoxItem Content="Porta social"/>
-                                    <ComboBoxItem Content="Portão"/>
-                                    <ComboBoxItem Content="Quarto"/>
-                                    <ComboBoxItem Content="Escritório"/>
-                                    <ComboBoxItem Content="Gaveta / armário"/>
-                                </ComboBox>
-                            </StackPanel>
-                            <StackPanel Margin="0,0,10,10">
-                                <TextBlock Text="Marca da fechadura" FontSize="12.5" FontWeight="SemiBold"
-                                           Foreground="{StaticResource CorTextoSecundario}" Margin="0,0,0,4"/>
-                                <ComboBox x:Name="MarcaFechadura" IsEditable="True">
-                                    <ComboBoxItem Content="Papaiz"/>
-                                    <ComboBoxItem Content="Pado"/>
-                                    <ComboBoxItem Content="Stam"/>
-                                    <ComboBoxItem Content="La Fonte"/>
-                                    <ComboBoxItem Content="Intelbras"/>
-                                    <ComboBoxItem Content="Yale"/>
-                                    <ComboBoxItem Content="Arouca"/>
-                                    <ComboBoxItem Content="Aliança"/>
-                                </ComboBox>
-                            </StackPanel>
-                            <StackPanel Margin="10,0,0,10">
-                                <TextBlock Text="Modelo da fechadura" FontSize="12.5" FontWeight="SemiBold"
-                                           Foreground="{StaticResource CorTextoSecundario}" Margin="0,0,0,4"/>
-                                <TextBox x:Name="ModeloFechadura"/>
-                            </StackPanel>
-                            <StackPanel Margin="0,0,10,10">
-                                <TextBlock Text="Cilindro / tipo de chave" FontSize="12.5" FontWeight="SemiBold"
-                                           Foreground="{StaticResource CorTextoSecundario}" Margin="0,0,0,4"/>
-                                <ComboBox x:Name="TipoCilindro" IsEditable="True">
-                                    <ComboBoxItem Content="Yale / simples"/>
-                                    <ComboBoxItem Content="Tetra"/>
-                                    <ComboBoxItem Content="Multiponto"/>
-                                    <ComboBoxItem Content="Gorje"/>
-                                    <ComboBoxItem Content="Fechadura digital"/>
-                                </ComboBox>
-                            </StackPanel>
-                            <StackPanel Margin="10,0,0,10">
-                                <TextBlock Text="Endereço / referência (opcional)" FontSize="12.5" FontWeight="SemiBold"
-                                           Foreground="{StaticResource CorTextoSecundario}" Margin="0,0,0,4"/>
-                                <TextBox x:Name="EnderecoLocal"/>
+                                <TextBox x:Name="ClienteTelefone"/>
                             </StackPanel>
                         </UniformGrid>
+
+                        <TextBlock Text="Tipos de serviço (marque um ou mais)" FontSize="12" FontWeight="SemiBold"
+                                   Foreground="{StaticResource CorTextoSecundario}" Margin="0,2,0,8"/>
+                        <Border Background="#F8FAFC" BorderBrush="{StaticResource CorBordaSuave}" BorderThickness="1"
+                                CornerRadius="8" Padding="12,10">
+                            <UniformGrid x:Name="PainelTiposServico" Columns="4"/>
+                        </Border>
                     </StackPanel>
+                </Border>
 
-                    <TextBlock Text="Dados do Cliente" FontSize="16" FontWeight="Bold"
-                               Foreground="{StaticResource CorTextoPrimario}" Margin="0,8,0,10"/>
-                    <UniformGrid Columns="2">
-                        <StackPanel Margin="0,0,10,10">
-                            <TextBlock Text="Nome do cliente" FontSize="12.5" FontWeight="SemiBold"
-                                       Foreground="{StaticResource CorTextoSecundario}" Margin="0,0,0,4"/>
-                            <TextBox x:Name="ClienteNome"/>
-                        </StackPanel>
-                        <StackPanel Margin="10,0,0,10">
-                            <TextBlock Text="Telefone / WhatsApp" FontSize="12.5" FontWeight="SemiBold"
-                                       Foreground="{StaticResource CorTextoSecundario}" Margin="0,0,0,4"/>
-                            <TextBox x:Name="ClienteTelefone"/>
-                        </StackPanel>
-                    </UniformGrid>
+                <!-- Seção 3: Memória Técnica e Financeiro -->
+                <Border Background="{StaticResource CorSuperficie}" BorderBrush="{StaticResource CorBordaSuave}"
+                        BorderThickness="1" CornerRadius="12" Padding="20,16" Margin="0,0,0,14">
+                    <StackPanel>
+                        <TextBlock Text="Memória Técnica e Financeiro" FontSize="15" FontWeight="Bold"
+                                   Foreground="{StaticResource CorTextoPrimario}" Margin="0,0,0,10"/>
+                        <TextBlock Text="Defeito relatado" FontSize="12" FontWeight="SemiBold"
+                                   Foreground="{StaticResource CorTextoSecundario}" Margin="0,0,0,4"/>
+                        <TextBox x:Name="Defeito" MinHeight="52" AcceptsReturn="True" TextWrapping="Wrap" VerticalContentAlignment="Top"/>
 
-                    <TextBlock Text="Tipos de serviço realizados" FontSize="12.5" FontWeight="SemiBold"
-                               Foreground="{StaticResource CorTextoSecundario}" Margin="0,6,0,5"/>
-                    <ListBox x:Name="TiposServico" SelectionMode="Multiple" Height="130"
-                             BorderBrush="{StaticResource CorBorda}" BorderThickness="1"/>
+                        <TextBlock Text="Solução aplicada" FontSize="12" FontWeight="SemiBold"
+                                   Foreground="{StaticResource CorTextoSecundario}" Margin="0,10,0,4"/>
+                        <TextBox x:Name="Solucao" MinHeight="52" AcceptsReturn="True" TextWrapping="Wrap" VerticalContentAlignment="Top"/>
 
-                    <TextBlock Text="Detalhes Técnicos e Financeiros" FontSize="16" FontWeight="Bold"
-                               Foreground="{StaticResource CorTextoPrimario}" Margin="0,16,0,10"/>
-                    <TextBlock Text="Defeito relatado" FontSize="12.5" FontWeight="SemiBold"
-                               Foreground="{StaticResource CorTextoSecundario}" Margin="0,0,0,4"/>
-                    <TextBox x:Name="Defeito" MinHeight="56" AcceptsReturn="True" TextWrapping="Wrap"/>
+                        <TextBlock Text="Método de abertura / observações técnicas" FontSize="12" FontWeight="SemiBold"
+                                   Foreground="{StaticResource CorTextoSecundario}" Margin="0,10,0,4"/>
+                        <TextBox x:Name="Abertura" MinHeight="52" AcceptsReturn="True" TextWrapping="Wrap" VerticalContentAlignment="Top"/>
 
-                    <TextBlock Text="Solução aplicada" FontSize="12.5" FontWeight="SemiBold"
-                               Foreground="{StaticResource CorTextoSecundario}" Margin="0,10,0,4"/>
-                    <TextBox x:Name="Solucao" MinHeight="56" AcceptsReturn="True" TextWrapping="Wrap"/>
-
-                    <TextBlock Text="Método de abertura / observações" FontSize="12.5" FontWeight="SemiBold"
-                               Foreground="{StaticResource CorTextoSecundario}" Margin="0,10,0,4"/>
-                    <TextBox x:Name="Abertura" MinHeight="56" AcceptsReturn="True" TextWrapping="Wrap"/>
-
-                    <UniformGrid Columns="2" Margin="0,12,0,0">
-                        <StackPanel Margin="0,0,10,10">
-                            <TextBlock Text="Código da chave" FontSize="12.5" FontWeight="SemiBold"
-                                       Foreground="{StaticResource CorTextoSecundario}" Margin="0,0,0,4"/>
-                            <TextBox x:Name="CodigoChave"/>
-                        </StackPanel>
-                        <StackPanel Margin="10,0,0,10">
-                            <TextBlock Text="Código de configuração" FontSize="12.5" FontWeight="SemiBold"
-                                       Foreground="{StaticResource CorTextoSecundario}" Margin="0,0,0,4"/>
-                            <TextBox x:Name="CodigoConfiguracao"/>
-                        </StackPanel>
-                        <StackPanel x:Name="PainelChipTransponder" Margin="0,0,10,10">
-                            <TextBlock Text="Chip / transponder" FontSize="12.5" FontWeight="SemiBold"
-                                       Foreground="{StaticResource CorTextoSecundario}" Margin="0,0,0,4"/>
-                            <TextBox x:Name="ChipTransponder"/>
-                        </StackPanel>
-                        <StackPanel Margin="10,0,0,10">
-                            <TextBlock Text="Ferramenta utilizada" FontSize="12.5" FontWeight="SemiBold"
-                                       Foreground="{StaticResource CorTextoSecundario}" Margin="0,0,0,4"/>
-                            <TextBox x:Name="Ferramenta"/>
-                        </StackPanel>
-                        <StackPanel Margin="0,0,10,10">
-                            <TextBlock Text="Valor cobrado (R$)" FontSize="12.5" FontWeight="SemiBold"
-                                       Foreground="{StaticResource CorTextoSecundario}" Margin="0,0,0,4"/>
-                            <TextBox x:Name="Valor"/>
-                        </StackPanel>
-                        <CheckBox x:Name="Pago" Content="Pagamento já recebido" FontWeight="SemiBold"
-                                  VerticalAlignment="Center" Margin="10,14,0,10"/>
-                    </UniformGrid>
-
-                    <TextBlock Text="Fotos e Anotações Visuais" FontSize="16" FontWeight="Bold"
-                               Foreground="{StaticResource CorTextoPrimario}" Margin="0,12,0,8"/>
-                    <TextBlock Text="Fotos sincronizadas" FontSize="12.5" FontWeight="SemiBold"
-                               Foreground="{StaticResource CorTextoSecundario}" Margin="0,0,0,4"/>
-                    <ListBox x:Name="FotosExistentes" Height="80" DisplayMemberPath="Legenda"
-                             BorderBrush="{StaticResource CorBorda}"/>
-                    <StackPanel Orientation="Horizontal" Margin="0,6,0,10">
-                        <Button Content="Abrir foto selecionada" Click="AbrirFoto_Click"/>
-                        <Button Content="Anotar com setas…" Click="AnotarFotoExistente_Click" Margin="8,0,0,0"/>
+                        <UniformGrid Columns="2" Margin="0,12,0,0">
+                            <StackPanel Margin="0,0,10,10">
+                                <TextBlock Text="Código da chave" FontSize="12" FontWeight="SemiBold"
+                                           Foreground="{StaticResource CorTextoSecundario}" Margin="0,0,0,4"/>
+                                <TextBox x:Name="CodigoChave" FontFamily="Consolas"/>
+                            </StackPanel>
+                            <StackPanel Margin="10,0,0,10">
+                                <TextBlock Text="Código de configuração" FontSize="12" FontWeight="SemiBold"
+                                           Foreground="{StaticResource CorTextoSecundario}" Margin="0,0,0,4"/>
+                                <TextBox x:Name="CodigoConfiguracao" FontFamily="Consolas"/>
+                            </StackPanel>
+                            <StackPanel x:Name="PainelChipTransponder" Margin="0,0,10,10">
+                                <TextBlock Text="Chip / transponder" FontSize="12" FontWeight="SemiBold"
+                                           Foreground="{StaticResource CorTextoSecundario}" Margin="0,0,0,4"/>
+                                <TextBox x:Name="ChipTransponder" FontFamily="Consolas"/>
+                            </StackPanel>
+                            <StackPanel Margin="10,0,0,10">
+                                <TextBlock Text="Ferramenta utilizada" FontSize="12" FontWeight="SemiBold"
+                                           Foreground="{StaticResource CorTextoSecundario}" Margin="0,0,0,4"/>
+                                <TextBox x:Name="Ferramenta"/>
+                            </StackPanel>
+                            <StackPanel Margin="0,0,10,0">
+                                <TextBlock Text="Valor cobrado (R$)" FontSize="12" FontWeight="SemiBold"
+                                           Foreground="{StaticResource CorTextoSecundario}" Margin="0,0,0,4"/>
+                                <TextBox x:Name="Valor"/>
+                            </StackPanel>
+                            <CheckBox x:Name="Pago" Content="Pagamento já recebido" FontWeight="SemiBold"
+                                      VerticalAlignment="Center" Margin="10,16,0,0"/>
+                        </UniformGrid>
                     </StackPanel>
+                </Border>
 
-                    <UniformGrid Columns="2" Margin="0,0,0,8">
-                        <StackPanel Margin="0,0,10,0">
-                            <TextBlock Text="Categoria das novas fotos" FontSize="12.5" FontWeight="SemiBold"
-                                       Foreground="{StaticResource CorTextoSecundario}" Margin="0,0,0,4"/>
-                            <ComboBox x:Name="CategoriaFoto" SelectedIndex="0">
-                                <ComboBoxItem Content="Veículo / Fechadura" Tag="CARRO"/>
-                                <ComboBoxItem Content="Procedimento" Tag="PROCEDIMENTO"/>
-                            </ComboBox>
+                <!-- Seção 4: Fotos e Anotações Visuais -->
+                <Border Background="{StaticResource CorSuperficie}" BorderBrush="{StaticResource CorBordaSuave}"
+                        BorderThickness="1" CornerRadius="12" Padding="20,16">
+                    <StackPanel>
+                        <TextBlock Text="Fotos e Anotações com Setas" FontSize="15" FontWeight="Bold"
+                                   Foreground="{StaticResource CorTextoPrimario}" Margin="0,0,0,10"/>
+                        <TextBlock Text="Fotos sincronizadas" FontSize="12" FontWeight="SemiBold"
+                                   Foreground="{StaticResource CorTextoSecundario}" Margin="0,0,0,4"/>
+                        <ListBox x:Name="FotosExistentes" Height="74" DisplayMemberPath="Legenda"
+                                 BorderBrush="{StaticResource CorBordaSuave}"/>
+                        <StackPanel Orientation="Horizontal" Margin="0,6,0,12">
+                            <Button Content="Abrir foto selecionada" Click="AbrirFoto_Click" Style="{StaticResource BotaoCompacto}"/>
+                            <Button Content="Anotar com setas…" Click="AnotarFotoExistente_Click" Style="{StaticResource BotaoCompacto}" Margin="8,0,0,0"/>
                         </StackPanel>
-                        <StackPanel Margin="10,0,0,0">
-                            <TextBlock Text="Legenda (opcional)" FontSize="12.5" FontWeight="SemiBold"
-                                       Foreground="{StaticResource CorTextoSecundario}" Margin="0,0,0,4"/>
-                            <TextBox x:Name="LegendaFoto"/>
-                        </StackPanel>
-                    </UniformGrid>
 
-                    <ListBox x:Name="FotosNovas" Height="90" DisplayMemberPath="Legenda"
-                             BorderBrush="{StaticResource CorBorda}"/>
-                    <StackPanel Orientation="Horizontal" Margin="0,8,0,0">
-                        <Button Content="Adicionar fotos…" Click="AdicionarFotos_Click"/>
-                        <Button Content="Anotar foto nova com setas…" Click="AnotarFotoNova_Click" Margin="8,0,0,0"/>
-                        <Button Content="Remover foto nova" Style="{StaticResource BotaoPerigo}" Click="RemoverFoto_Click" Margin="8,0,0,0"/>
+                        <UniformGrid Columns="2" Margin="0,0,0,8">
+                            <StackPanel Margin="0,0,10,0">
+                                <TextBlock Text="Categoria das novas fotos" FontSize="12" FontWeight="SemiBold"
+                                           Foreground="{StaticResource CorTextoSecundario}" Margin="0,0,0,4"/>
+                                <ComboBox x:Name="CategoriaFoto" SelectedIndex="0">
+                                    <ComboBoxItem Content="Veículo / Fechadura" Tag="CARRO"/>
+                                    <ComboBoxItem Content="Procedimento" Tag="PROCEDIMENTO"/>
+                                </ComboBox>
+                            </StackPanel>
+                            <StackPanel Margin="10,0,0,0">
+                                <TextBlock Text="Legenda (opcional)" FontSize="12" FontWeight="SemiBold"
+                                           Foreground="{StaticResource CorTextoSecundario}" Margin="0,0,0,4"/>
+                                <TextBox x:Name="LegendaFoto"/>
+                            </StackPanel>
+                        </UniformGrid>
+
+                        <ListBox x:Name="FotosNovas" Height="82" DisplayMemberPath="Legenda"
+                                 BorderBrush="{StaticResource CorBordaSuave}"/>
+                        <StackPanel Orientation="Horizontal" Margin="0,8,0,0">
+                            <Button Content="+ Adicionar fotos…" Click="AdicionarFotos_Click" Style="{StaticResource BotaoCompacto}"/>
+                            <Button Content="Anotar foto nova…" Click="AnotarFotoNova_Click" Style="{StaticResource BotaoCompacto}" Margin="8,0,0,0"/>
+                            <Button Content="Remover foto nova" Style="{StaticResource BotaoPerigo}" Padding="10,5" MinHeight="30" FontSize="12"
+                                    Click="RemoverFoto_Click" Margin="8,0,0,0"/>
+                        </StackPanel>
+
+                        <TextBlock x:Name="Erro" Foreground="{StaticResource CorPerigo}"
+                                   FontSize="12.5" FontWeight="SemiBold" TextWrapping="Wrap" Margin="0,12,0,0"/>
                     </StackPanel>
-
-                    <TextBlock x:Name="Erro" Foreground="{StaticResource CorPerigo}"
-                               FontSize="12.5" TextWrapping="Wrap" Margin="0,10,0,0"/>
-                </StackPanel>
-            </Border>
+                </Border>
+            </StackPanel>
         </ScrollViewer>
 
+        <!-- Rodapé -->
         <Border Grid.Row="2" Background="{StaticResource CorSuperficie}"
-                BorderBrush="{StaticResource CorBorda}" BorderThickness="0,1,0,0"
+                BorderBrush="{StaticResource CorBordaSuave}" BorderThickness="0,1,0,0"
                 Padding="24,14">
             <DockPanel LastChildFill="False">
                 <Button DockPanel.Dock="Left" x:Name="BtnVerFicha" Content="Ver ficha técnica / manual"
@@ -252,7 +292,7 @@
                 <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
                     <Button Content="Cancelar" IsCancel="True" Width="110" Margin="0,0,10,0"/>
                     <Button Content="Salvar atendimento" IsDefault="True" Style="{StaticResource BotaoPrimario}"
-                            Width="160" Click="Salvar_Click"/>
+                            Width="165" Click="Salvar_Click"/>
                 </StackPanel>
             </DockPanel>
         </Border>

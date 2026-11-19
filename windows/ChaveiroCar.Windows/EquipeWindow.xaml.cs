@@ -16,6 +16,7 @@ public partial class EquipeWindow : Window
         _empresaId = empresaId;
         _podeGerenciar = podeGerenciar;
         InitializeComponent();
+        IconeApp.Aplicar(this);
         PainelConvite.Visibility = _podeGerenciar ? Visibility.Visible : Visibility.Collapsed;
         AcoesMembro.Visibility = _podeGerenciar ? Visibility.Visible : Visibility.Collapsed;
         AbaConvites.Visibility = _podeGerenciar ? Visibility.Visible : Visibility.Collapsed;

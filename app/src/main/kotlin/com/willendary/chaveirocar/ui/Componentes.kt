@@ -135,6 +135,7 @@ fun Selo(texto: String, modificador: Modifier = Modifier, pendente: Boolean = fa
   Text(
     text = texto,
     style = MaterialTheme.typography.labelSmall,
+    fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold,
     color = if (pendente) MaterialTheme.colorScheme.onTertiaryContainer else MaterialTheme.colorScheme.onPrimaryContainer,
     modifier = modificador
       .clip(RoundedCornerShape(8.dp))
@@ -145,12 +146,24 @@ fun Selo(texto: String, modificador: Modifier = Modifier, pendente: Boolean = fa
 
 @Composable
 fun TituloSecao(texto: String, modificador: Modifier = Modifier) {
-  Text(
-    text = texto,
-    style = MaterialTheme.typography.titleMedium,
-    color = MaterialTheme.colorScheme.onSurfaceVariant,
-    modifier = modificador.padding(top = 16.dp, bottom = 6.dp),
-  )
+  androidx.compose.foundation.layout.Row(
+    modifier = modificador.padding(top = 14.dp, bottom = 4.dp),
+    verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
+    horizontalArrangement = Arrangement.spacedBy(8.dp),
+  ) {
+    Box(
+      modifier = Modifier
+        .clip(RoundedCornerShape(99.dp))
+        .background(MaterialTheme.colorScheme.primary)
+        .padding(horizontal = 1.5.dp, vertical = 7.dp),
+    )
+    Text(
+      text = texto,
+      style = MaterialTheme.typography.titleMedium,
+      fontWeight = androidx.compose.ui.text.font.FontWeight.Bold,
+      color = MaterialTheme.colorScheme.onSurface,
+    )
+  }
 }
 
 /**

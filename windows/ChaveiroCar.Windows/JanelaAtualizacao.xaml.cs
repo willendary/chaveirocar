@@ -31,19 +31,12 @@ public partial class JanelaAtualizacao : Window
 
     private void CarregarIconeSeguro()
     {
-        try
+        IconeApp.Aplicar(this);
+        var logo = IconeApp.ObterLogoSimbolo();
+        if (logo is not null)
         {
-            var uri = new Uri("pack://application:,,,/ChaveiroCar.Windows;component/Assets/logo.png", UriKind.Absolute);
-            Icon = System.Windows.Media.Imaging.BitmapFrame.Create(uri);
+            LogoCabecalho.Source = logo;
         }
-        catch { }
-
-        try
-        {
-            var uriLogo = new Uri("pack://application:,,,/ChaveiroCar.Windows;component/Assets/logo-simbolo.png", UriKind.Absolute);
-            LogoCabecalho.Source = System.Windows.Media.Imaging.BitmapFrame.Create(uriLogo);
-        }
-        catch { }
     }
 
     private async void Baixar_Click(object sender, RoutedEventArgs e)

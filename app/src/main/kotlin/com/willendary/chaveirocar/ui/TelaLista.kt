@@ -15,6 +15,7 @@ import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.runtime.saveable.rememberSaveable
 
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -347,14 +348,44 @@ fun TelaLista(
               } else {
                 listOf(registro.marca, registro.modelo).filter { it.isNotBlank() }.joinToString(" ")
               }
-              Card(onClick = { onAbrir(registro.id) }, modifier = Modifier.width(188.dp),
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer)) {
-                Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                  Text(tituloRapido, fontFamily = FontFamily.Monospace, fontWeight = FontWeight.Bold, fontSize = 18.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                  Text(subtituloRapido,
-                    style = MaterialTheme.typography.bodySmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                  Text(formatarData(registro.dataServico), style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant)
+              Card(
+                onClick = { onAbrir(registro.id) },
+                modifier = Modifier.width(192.dp),
+                shape = androidx.compose.foundation.shape.RoundedCornerShape(14.dp),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+              ) {
+                Column {
+                  Box(
+                    Modifier
+                      .fillMaxWidth()
+                      .height(3.dp)
+                      .background(MaterialTheme.colorScheme.primary),
+                  )
+                  Column(Modifier.padding(horizontal = 14.dp, vertical = 12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Text(
+                      tituloRapido,
+                      fontFamily = FontFamily.Monospace,
+                      fontWeight = FontWeight.Bold,
+                      fontSize = 17.sp,
+                      maxLines = 1,
+                      overflow = TextOverflow.Ellipsis,
+                      color = MaterialTheme.colorScheme.onSurface,
+                    )
+                    Text(
+                      subtituloRapido,
+                      style = MaterialTheme.typography.bodySmall,
+                      maxLines = 1,
+                      overflow = TextOverflow.Ellipsis,
+                      color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    Text(
+                      formatarData(registro.dataServico),
+                      style = MaterialTheme.typography.labelSmall,
+                      color = MaterialTheme.colorScheme.primary,
+                      fontWeight = FontWeight.SemiBold,
+                    )
+                  }
                 }
               }
             }
@@ -446,18 +477,35 @@ private fun CartaoRegistro(registro: Atendimento, onAbrir: () -> Unit) {
   }
 
   Card(
-    onClick = onAbrir, modifier = Modifier.fillMaxWidth(),
+    onClick = onAbrir,
+    modifier = Modifier.fillMaxWidth(),
+    shape = androidx.compose.foundation.shape.RoundedCornerShape(16.dp),
     colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
     border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
   ) {
-    Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-      Row(verticalAlignment = Alignment.CenterVertically) {
-        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-          Text(titulo, fontFamily = if (residencial || registro.placa.isBlank()) FontFamily.Default else FontFamily.Monospace,
-            fontWeight = FontWeight.Bold, fontSize = 22.sp, color = MaterialTheme.colorScheme.onSurface)
+    Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+      Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+          Text(
+            titulo,
+            fontFamily = if (residencial || registro.placa.isBlank()) FontFamily.Default else FontFamily.Monospace,
+            fontWeight = FontWeight.Bold,
+            fontSize = 20.sp,
+            color = MaterialTheme.colorScheme.onSurface,
+          )
           Text(subtitulo, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
-        Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+        androidx.compose.material3.Surface(
+          shape = androidx.compose.foundation.shape.CircleShape,
+          color = MaterialTheme.colorScheme.surfaceVariant,
+        ) {
+          Icon(
+            Icons.AutoMirrored.Filled.KeyboardArrowRight,
+            contentDescription = null,
+            tint = MaterialTheme.colorScheme.primary,
+            modifier = Modifier.padding(6.dp),
+          )
+        }
       }
       FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
         Selo(registro.segmento.rotulo)
@@ -469,13 +517,35 @@ private fun CartaoRegistro(registro: Atendimento, onAbrir: () -> Unit) {
         registro.defeito.isNotBlank() -> registro.defeito
         else -> registro.solucao
       }
-      if (resumo.isNotBlank()) Text(resumo, style = MaterialTheme.typography.bodyMedium, maxLines = 2, overflow = TextOverflow.Ellipsis)
-      HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
-      FlowRow(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-        Text(formatarData(registro.dataServico), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        if (registro.quantidadeFotos > 0) Text("${registro.quantidadeFotos} foto(s)", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        if (registro.valorCentavos > 0) Text(com.willendary.chaveirocar.util.formatarValor(registro.valorCentavos),
-          style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
+      if (resumo.isNotBlank()) {
+        Text(
+          resumo,
+          style = MaterialTheme.typography.bodyMedium,
+          color = MaterialTheme.colorScheme.onSurface,
+          maxLines = 2,
+          overflow = TextOverflow.Ellipsis,
+        )
+      }
+      HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.7f))
+      Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.SpaceBetween,
+      ) {
+        Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
+          Text(formatarData(registro.dataServico), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+          if (registro.quantidadeFotos > 0) {
+            Text("· ${registro.quantidadeFotos} foto(s)", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+          }
+        }
+        if (registro.valorCentavos > 0) {
+          Text(
+            com.willendary.chaveirocar.util.formatarValor(registro.valorCentavos),
+            style = MaterialTheme.typography.titleSmall,
+            fontWeight = FontWeight.Bold,
+            color = MaterialTheme.colorScheme.primary,
+          )
+        }
       }
     }
   }
