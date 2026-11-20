@@ -1,5 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { extrairVeiculoDeHtml, resetarOrcamentoPlacasWeb } from "../src/servicos/placasWeb.js";
+import {
+  consultarVeiculoEmPaginas, extrairVeiculoDeHtml, interpretarPreviaCarroFipe, resetarOrcamentoPlacasWeb,
+} from "../src/servicos/placasWeb.js";
 import { cadastrar, criarAmbiente, type Ambiente } from "./ajuda.js";
 
 const placa = "ITR1J02";
@@ -37,7 +39,60 @@ describe("extrator de HTML de placas", () => {
   });
 });
 
-describe("provedor HTML no backend (sem API Parallelum)", () => {
+// Formato consumido pelo JavaScript público de /consultar em 20/11/2026.
+// Os valores abaixo são fictícios; não são uma consulta real de veículo.
+const previa = { simulated: false, marca: "Volkswagen", modelo: "Gol 1.0", ano: "2017/2018" };
+
+describe("prévia gratuita do CarroFIPE", () => {
+  it("extrai apenas marca, modelo e ano-modelo do JSON usado pelo site", () => {
+    expect(interpretarPreviaCarroFipe({ preview: { ...previa, cor: "Prata", chassi: "ignorar" } }, placa)).toEqual({
+      status: "encontrado", dados: { marca: "Volkswagen", modelo: "Gol 1.0", ano: "2018" }, fonte: "CarroFIPE",
+    });
+  });
+
+  it("aceita ano numérico e placa confirmada pela fonte", () => {
+    expect(interpretarPreviaCarroFipe({ preview: { ...previa, placa: "ITR-1J02", ano: 2018 } }, placa)).toMatchObject({
+      status: "encontrado", dados: { ano: "2018" },
+    });
+  });
+
+  it("preenche o modelo mesmo quando a fonte não informa os campos opcionais", () => {
+    expect(interpretarPreviaCarroFipe({ preview: { simulated: false, modelo: "Gol" } }, placa)).toMatchObject({
+      status: "encontrado", dados: { modelo: "Gol", marca: "", ano: "" },
+    });
+  });
+
+  it.each([
+    null, [], {}, { marca: "Fiat", modelo: "Uno", ano: "2010" }, { preview: [] },
+    { preview: { ...previa, simulated: true } }, { preview: { ...previa, simulated: undefined } },
+    { preview: { ...previa, simulated: "false" } },
+    { preview: { ...previa, providerDown: true } },
+    { preview: { ...previa, placa: "ABC1234" } },
+    { placa: "ABC1234", preview: previa },
+    { preview: { ...previa, modelo: "Não encontrado" } },
+    { preview: { ...previa, modelo: "<b>Gol</b>" } },
+    { preview: { ...previa, modelo: "G".repeat(101) } },
+    { preview: { simulated: false } },
+  ])("rejeita prévia inválida, demonstração ou dados de outra placa: %j", (resposta) => {
+    expect(interpretarPreviaCarroFipe(resposta, placa)).toEqual({ status: "indisponivel" });
+  });
+
+  it("só considera ausência quando a resposta real a informa explicitamente", () => {
+    expect(interpretarPreviaCarroFipe({ preview: { simulated: false, note: "Placa não encontrada" } }, placa))
+      .toEqual({ status: "nao_encontrado" });
+    expect(interpretarPreviaCarroFipe({ preview: { simulated: false, providerDown: true, note: "Placa não encontrada" } }, placa))
+      .toEqual({ status: "indisponivel" });
+  });
+
+  it("não considera placa ausente quando a prévia real só valida o formato", () => {
+    expect(interpretarPreviaCarroFipe({
+      preview: { simulated: false },
+      note: "Placa válida. Os dados completos saem no relatório.",
+    }, placa)).toEqual({ status: "indisponivel" });
+  });
+});
+
+describe("provedor gratuito no backend (sem API Parallelum)", () => {
   let ambiente: Ambiente | undefined;
   afterEach(async () => {
     vi.unstubAllGlobals();
@@ -62,11 +117,15 @@ describe("provedor HTML no backend (sem API Parallelum)", () => {
   }
 
   it("usa CarroFIPE por padrão quando PLACAS_WEB_ATIVAS não é informado", async () => {
-    const chamada = vi.fn(async (url: unknown) => {
-      if (String(url).startsWith("https://www.carrofipe.com.br/consultar?placa=")) {
-        return new Response(exemplo, {
-          status: 200, headers: { "content-type": "text/html; charset=utf-8" },
-        });
+    const chamada = vi.fn(async (url: unknown, opcoes?: RequestInit) => {
+      if (String(url) === "https://www.carrofipe.com.br/api/consultar") {
+        expect(opcoes?.method).toBe("POST");
+        expect(JSON.parse(String(opcoes?.body))).toEqual({ placa });
+        expect(opcoes?.headers).toMatchObject({ "Content-Type": "application/json", Accept: "application/json" });
+        expect(opcoes?.headers).not.toHaveProperty("Cookie");
+        expect(opcoes?.headers).not.toHaveProperty("Authorization");
+        expect(opcoes?.redirect).toBe("error");
+        return Response.json({ preview: previa });
       }
       throw new Error("Não deveria consultar outro provedor");
     });
@@ -76,7 +135,7 @@ describe("provedor HTML no backend (sem API Parallelum)", () => {
     expect(r.json()).toEqual({ marca: "Volkswagen", modelo: "Gol 1.0", ano: "2018" });
     expect(chamada).toHaveBeenCalledTimes(1);
     expect(String(chamada.mock.calls[0]?.[0])).toBe(
-      "https://www.carrofipe.com.br/consultar?placa=ITR1J02",
+      "https://www.carrofipe.com.br/api/consultar",
     );
   });
 
@@ -99,7 +158,7 @@ describe("provedor HTML no backend (sem API Parallelum)", () => {
     expect(r.statusCode).toBe(200);
     expect(r.json()).toEqual({ marca: "Volkswagen", modelo: "Gol 1.0", ano: "2018" });
     expect(chamada).toHaveBeenCalledTimes(2);
-    expect(String(chamada.mock.calls[0]?.[0])).toBe("https://www.carrofipe.com.br/consultar?placa=ITR1J02");
+    expect(String(chamada.mock.calls[0]?.[0])).toBe("https://www.carrofipe.com.br/api/consultar");
     expect(String(chamada.mock.calls[1]?.[0])).toBe("https://placaipva.com.br/placa/ITR1J02");
   });
 
@@ -111,5 +170,43 @@ describe("provedor HTML no backend (sem API Parallelum)", () => {
     const r = await consultar(false);
     expect(r.statusCode).toBe(503);
     expect(chamada).not.toHaveBeenCalled();
+  });
+
+  it.each(["html_inicial", "json_invalido", "demonstracao", "fornecedor_fora", "rota_404", "captcha", "grande", "stream_grande", "timeout"])(
+    "tenta HTML alternativo quando a prévia falha: %s", async (falha) => {
+      const chamada = vi.fn(async (url: unknown) => {
+        if (String(url).includes("/api/consultar")) {
+          if (falha === "timeout") throw new DOMException("Timeout", "TimeoutError");
+          if (falha === "json_invalido") return new Response("{", { headers: { "content-type": "application/json" } });
+          if (falha === "demonstracao") return Response.json({ preview: { ...previa, simulated: true } });
+          if (falha === "fornecedor_fora") return Response.json({ preview: { ...previa, providerDown: true } });
+          if (falha === "rota_404") return new Response("Not Found", { status: 404 });
+          if (falha === "grande") return Response.json({ preview: previa }, { headers: { "content-length": "200001" } });
+          if (falha === "stream_grande") return Response.json({ preview: previa, extra: "a".repeat(200001) });
+          return new Response(falha === "captcha" ? "<html>Verify you are human</html>" : "<html>Consultar placa</html>", {
+            headers: { "content-type": "text/html" },
+          });
+        }
+        return new Response(exemplo, { headers: { "content-type": "text/html" } });
+      });
+      vi.stubGlobal("fetch", chamada);
+      expect((await consultar()).json()).toEqual({ marca: "Volkswagen", modelo: "Gol 1.0", ano: "2018" });
+      expect(chamada).toHaveBeenCalledTimes(2);
+    },
+  );
+
+  it("não confunde ausência em uma fonte com falha nas outras", async () => {
+    vi.stubGlobal("fetch", vi.fn(async (url: unknown) => String(url).includes("/api/consultar")
+      ? Response.json({ preview: { simulated: false, note: "Placa não encontrada" } })
+      : new Response("<html>Consultar placa</html>", { headers: { "content-type": "text/html" } })));
+    expect((await consultar()).statusCode).toBe(503);
+  });
+
+  it("respeita o orçamento de requisições também na prévia JSON", async () => {
+    const chamada = vi.fn(async () => Response.json({ preview: previa }));
+    vi.stubGlobal("fetch", chamada);
+    for (let i = 0; i < 60; i++) expect((await consultarVeiculoEmPaginas(placa)).status).toBe("encontrado");
+    expect((await consultarVeiculoEmPaginas(placa)).status).toBe("indisponivel");
+    expect(chamada).toHaveBeenCalledTimes(60);
   });
 });

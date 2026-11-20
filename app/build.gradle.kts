@@ -22,8 +22,8 @@ android {
     applicationId = "com.willendary.chaveirocar"
     minSdk = 24
     targetSdk = 36
-    versionCode = 31
-    versionName = "1.16.0"
+    versionCode = 32
+    versionName = "1.16.1"
     testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
   }
 

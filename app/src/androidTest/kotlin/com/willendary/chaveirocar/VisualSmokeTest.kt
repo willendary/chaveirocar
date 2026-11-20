@@ -190,14 +190,19 @@ class VisualSmokeTest {
     ))
     var aberta = 0L
     tela { TelaConsultaTecnica(banco, EstadoConsulta(), {}, { aberta = it }, {}) }
+    fun escolher(texto: String) {
+      // Em celular, opções como VVDI ficam fora da área composta da LazyColumn.
+      compose.onNode(hasScrollAction()).performScrollToNode(hasText(texto))
+      compose.onNodeWithText(texto).performClick()
+    }
     esperar("Escolha o equipamento")
-    compose.onNodeWithText("VVDI").performClick()
+    escolher("VVDI")
     esperar("Escolha a montadora")
-    compose.onNodeWithText("Volkswagen").performClick()
+    escolher("Volkswagen")
     esperar("Escolha o modelo")
-    compose.onNodeWithText("Gol").performClick()
+    escolher("Gol")
     esperar("Escolha o ano ou geração")
-    compose.onNodeWithText("2010").performClick()
+    escolher("2010")
     esperar("G5")
     foto("13-consulta-tecnica")
     compose.onNodeWithText("G5").performClick()
