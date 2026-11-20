@@ -50,9 +50,11 @@ e importar cópias locais em `.zip`.
 
 Ao informar uma placa brasileira válida, o Android primeiro aproveita o
 histórico local. Quando necessário, o backend busca apenas `marca`, `modelo` e
-`ano` por leitura direta de páginas HTML públicas — usando **CarroFIPE**
-(`carrofipe.com.br`) como fonte principal, seguida por **PlacaIPVA**, **KePlaca**
-e **PlacaFIPE** — e guarda esses dados técnicos em cache no Turso por 90 dias.
+`ano` na prévia gratuita do **CarroFIPE** (`carrofipe.com.br`), pela mesma chamada
+JSON usada pelo site. Como alternativas, lê o HTML de **PlacaIPVA**, **KePlaca**
+e **PlacaFIPE**. Guarda apenas os dados técnicos em cache no Turso por 90 dias.
+Prévias de demonstração são descartadas. Uma falha da fonte ou página sem dados
+é tratada como indisponibilidade, sem afirmar que a placa não existe.
 A API da Parallelum (limitada a 5 consultas/mês) foi removida na versão 1.14.0.
 Se a placa não for localizada ou as fontes estiverem indisponíveis, o modelo
 continua editável manualmente (inclusive offline).

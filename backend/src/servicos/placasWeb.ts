@@ -1,8 +1,8 @@
 /**
- * Consulta direta em páginas HTML públicas de consulta veicular por placa.
+ * Consulta a prévia pública gratuita do CarroFIPE e páginas HTML alternativas.
  *
- * Estratégia conservadora de múltiplas fontes HTML (CarroFIPE como principal,
- * seguida por PlacaIPVA, KePlaca e PlacaFIPE), sem contornar autenticação,
+ * O CarroFIPE carrega a prévia por POST /api/consultar no navegador: o HTML de
+ * /consultar é apenas o formulário. As alternativas são consultadas sem contornar autenticação,
  * CAPTCHA, bloqueios HTTP 403/429 ou TLS, extraindo apenas marca, modelo e ano.
  */
 export interface DadosVeiculoWeb {
@@ -23,13 +23,14 @@ interface Fonte {
 }
 
 export const FONTES_HTML_PLACAS: readonly Fonte[] = [
-  { nome: "CarroFIPE", origem: "https://www.carrofipe.com.br", caminho: (placa) => "/consultar?placa=" + encodeURIComponent(placa) },
   { nome: "PlacaIPVA", origem: "https://placaipva.com.br", caminho: (placa) => "/placa/" + placa },
   { nome: "KePlaca", origem: "https://www.keplaca.com", caminho: (placa) => "/placa/" + placa },
   { nome: "PlacaFIPE", origem: "https://placafipe.com", caminho: (placa) => "/placa/" + placa },
 ];
 
-const MAX_HTML_BYTES = 200_000;
+const URL_PREVIA_CARROFIPE = "https://www.carrofipe.com.br/api/consultar";
+const USER_AGENT = "ChaveiroCar-ConsultaTecnica (+https://github.com/willendary/chaveirocar)";
+const MAX_RESPOSTA_BYTES = 200_000;
 const INTERVALO_HORA = 60 * 60_000;
 const MAX_TENTATIVAS_POR_HORA = 60;
 let janelaInicio = Date.now();
@@ -74,7 +75,7 @@ function normalizarRotulo(valor: string): string {
  * Descarta páginas sem a placa solicitada ou campos incompletos.
  */
 export function extrairVeiculoDeHtml(html: string, placa: string): DadosVeiculoWeb | null {
-  if (html.length > MAX_HTML_BYTES) return null;
+  if (html.length > MAX_RESPOSTA_BYTES) return null;
   const placaLimpa = placa.toUpperCase().replace(/[^A-Z0-9]/g, "");
   if (!/^[A-Z]{3}[0-9][A-Z0-9][0-9]{2}$/.test(placaLimpa)) return null;
 
@@ -115,9 +116,12 @@ export function extrairVeiculoDeHtml(html: string, placa: string): DadosVeiculoW
   return { marca, modelo, ano };
 }
 
-async function lerHtmlLimitado(resposta: Response): Promise<string | null> {
+async function lerTextoLimitado(resposta: Response): Promise<string | null> {
   const tamanho = resposta.headers.get("content-length");
-  if (tamanho && Number(tamanho) > MAX_HTML_BYTES) return null;
+  if (tamanho && Number(tamanho) > MAX_RESPOSTA_BYTES) {
+    await resposta.body?.cancel().catch(() => undefined);
+    return null;
+  }
   if (!resposta.body) return null;
 
   const leitor = resposta.body.getReader();
@@ -128,7 +132,7 @@ async function lerHtmlLimitado(resposta: Response): Promise<string | null> {
       const { done, value } = await leitor.read();
       if (done) break;
       total += value.byteLength;
-      if (total > MAX_HTML_BYTES) return null;
+      if (total > MAX_RESPOSTA_BYTES) return null;
       pedacos.push(value);
     }
   } finally {
@@ -143,13 +147,81 @@ async function lerHtmlLimitado(resposta: Response): Promise<string | null> {
   return new TextDecoder().decode(buffer);
 }
 
+function objeto(valor: unknown): Record<string, unknown> | null {
+  return valor !== null && typeof valor === "object" && !Array.isArray(valor)
+    ? valor as Record<string, unknown> : null;
+}
+
+function textoCampo(valor: unknown, limite: number): string {
+  if (typeof valor !== "string") return "";
+  const texto = valor.replace(/\s+/g, " ").trim();
+  if (texto.length > limite || /[<>\x00-\x1f]/.test(texto) ||
+      /^(?:n[aã]o (?:encontrad[oa]|informad[oa])|n\/a|desconhecid[oa]|indispon[ií]vel|-+)$/i.test(texto)) return "";
+  return texto;
+}
+
+function confirmaAusencia(texto: unknown): boolean {
+  if (typeof texto !== "string") return false;
+  const normalizado = texto.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+  return /\b(?:placa|veiculo) nao (?:encontrad[oa]|localizad[oa])\b/.test(normalizado) ||
+    /\b(?:nenhum veiculo encontrado|nao (?:encontramos|localizamos) (?:dados|o veiculo) para (?:esta|essa) placa)\b/.test(normalizado);
+}
+
+/** Aceita somente a prévia real; nunca usa demonstrações ou dados do laudo pago. */
+export function interpretarPreviaCarroFipe(valor: unknown, placa: string): ResultadoConsultaWeb {
+  const resposta = objeto(valor);
+  const previa = objeto(resposta?.preview);
+  if (!previa || previa.simulated !== false || previa.providerDown === true) {
+    return { status: "indisponivel" };
+  }
+  // A prévia nem sempre repete a placa. Quando informa, deve coincidir com a consulta.
+  for (const informada of [resposta?.placa, previa.placa]) {
+    if (informada !== undefined && (typeof informada !== "string" ||
+        informada.toUpperCase().replace(/[\s-]/g, "") !== placa)) {
+      return { status: "indisponivel" };
+    }
+  }
+  const modelo = textoCampo(previa.modelo, 100);
+  if (!modelo) {
+    return confirmaAusencia(previa.note ?? resposta?.note)
+      ? { status: "nao_encontrado" } : { status: "indisponivel" };
+  }
+  const marca = textoCampo(previa.marca, 80);
+  const anoBruto = typeof previa.ano === "number" ? String(previa.ano) : textoCampo(previa.ano, 30);
+  const ano = anoBruto.match(/\b(?:19|20)\d{2}\b/g)?.at(-1) ?? "";
+  return { status: "encontrado", dados: { marca, modelo, ano }, fonte: "CarroFIPE" };
+}
+
+async function consultarPreviaCarroFipe(placa: string): Promise<ResultadoConsultaWeb> {
+  if (!dentroDoOrcamento()) return { status: "indisponivel" };
+  try {
+    const resposta = await fetch(URL_PREVIA_CARROFIPE, {
+      method: "POST",
+      headers: { Accept: "application/json", "Content-Type": "application/json", "User-Agent": USER_AGENT },
+      body: JSON.stringify({ placa }),
+      redirect: "error",
+      signal: AbortSignal.timeout(12_000),
+    });
+    if (!resposta.ok || !resposta.headers.get("content-type")?.toLowerCase().includes("application/json")) {
+      await resposta.body?.cancel().catch(() => undefined);
+      return { status: "indisponivel" };
+    }
+    const texto = await lerTextoLimitado(resposta);
+    return texto ? interpretarPreviaCarroFipe(JSON.parse(texto), placa) : { status: "indisponivel" };
+  } catch {
+    return { status: "indisponivel" };
+  }
+}
+
 /**
- * Consulta as fontes HTML públicas em ordem de prioridade.
+ * Consulta a prévia gratuita e, se necessário, as fontes HTML alternativas.
  * Requisições externas não usam cookies, credenciais, proxies ou redirecionamento.
  * 403/429/CAPTCHA são respeitados: nunca tentamos contorná-los.
  */
 export async function consultarVeiculoEmPaginas(placa: string): Promise<ResultadoConsultaWeb> {
-  let houveRespostaSemResultado = false;
+  const previa = await consultarPreviaCarroFipe(placa);
+  if (previa.status === "encontrado") return previa;
+  let houveIndisponibilidade = previa.status === "indisponivel";
 
   for (const fonte of FONTES_HTML_PLACAS) {
     if (!dentroDoOrcamento()) {
@@ -161,30 +233,37 @@ export async function consultarVeiculoEmPaginas(placa: string): Promise<Resultad
         method: "GET",
         headers: {
           Accept: "text/html",
-          "User-Agent": "ChaveiroCar-ConsultaTecnica/1.14.0 (+https://github.com/willendary/chaveirocar)",
+          "User-Agent": USER_AGENT,
         },
         redirect: "error",
         signal: AbortSignal.timeout(5000),
       });
-      if (resposta.status === 404) {
-        houveRespostaSemResultado = true;
+      if ((!resposta.ok && resposta.status !== 404) ||
+          !resposta.headers.get("content-type")?.toLowerCase().includes("text/html")) {
+        houveIndisponibilidade = true;
+        await resposta.body?.cancel().catch(() => undefined);
         continue;
       }
-      if (resposta.status === 403 || resposta.status === 429) continue;
-      if (!resposta.ok || !resposta.headers.get("content-type")?.includes("text/html")) continue;
-      const html = await lerHtmlLimitado(resposta);
-      if (!html) continue;
-      const dados = extrairVeiculoDeHtml(html, placa);
+      const html = await lerTextoLimitado(resposta);
+      if (!html) {
+        houveIndisponibilidade = true;
+        continue;
+      }
+      const dados = resposta.ok ? extrairVeiculoDeHtml(html, placa) : null;
       if (dados) {
         return { status: "encontrado", dados, fonte: fonte.nome };
       }
-      houveRespostaSemResultado = true;
+      // HTML inicial, CAPTCHA, mudança de layout ou 404 da rota não provam ausência.
+      const texto = textoHtml(html);
+      const placaPresente = texto.toUpperCase().replace(/[\s-]/g, "").includes(placa);
+      if (!placaPresente || !confirmaAusencia(texto)) houveIndisponibilidade = true;
     } catch {
+      houveIndisponibilidade = true;
       // Não ocultamos CAPTCHA ou burlamos bloqueios. A próxima fonte pode responder.
     }
   }
 
-  return houveRespostaSemResultado ? { status: "nao_encontrado" } : { status: "indisponivel" };
+  return houveIndisponibilidade ? { status: "indisponivel" } : { status: "nao_encontrado" };
 }
 
 export async function buscarVeiculoEmPaginas(placa: string): Promise<DadosVeiculoWeb | null> {
