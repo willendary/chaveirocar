@@ -114,6 +114,12 @@ Também dá para baixar direto do GitHub:
 
 Backlog: `https://github.com/willendary/chaveirocar/issues`
 
+## Versão 1.16.1 — correção da consulta de placas
+
+- Consulta da prévia gratuita do CarroFIPE pelo JSON usado pelo site.
+- Falhas das fontes e respostas sem dados deixam de ser tratadas como placa inexistente.
+- A consulta continua sujeita à disponibilidade das fontes; preenchimento manual e Catálogo FIPE permanecem disponíveis.
+
 ## Versão 1.14.0 — logo oficial e consulta por páginas HTML
 
 - Nova **logo oficial do ChaveiroCar** convertida em SVG, VectorDrawable, PNG, WebP e ICO e aplicada em Android, Windows Desktop, instalador e arquivos de design (`docs/design/`).

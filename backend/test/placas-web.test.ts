@@ -83,6 +83,13 @@ describe("prévia gratuita do CarroFIPE", () => {
     expect(interpretarPreviaCarroFipe({ preview: { simulated: false, providerDown: true, note: "Placa não encontrada" } }, placa))
       .toEqual({ status: "indisponivel" });
   });
+
+  it("não considera placa ausente quando a prévia real só valida o formato", () => {
+    expect(interpretarPreviaCarroFipe({
+      preview: { simulated: false },
+      note: "Placa válida. Os dados completos saem no relatório.",
+    }, placa)).toEqual({ status: "indisponivel" });
+  });
 });
 
 describe("provedor gratuito no backend (sem API Parallelum)", () => {
