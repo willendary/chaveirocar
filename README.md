@@ -114,6 +114,14 @@ Também dá para baixar direto do GitHub:
 
 Backlog: `https://github.com/willendary/chaveirocar/issues`
 
+
+## Versão 1.16.2 — consulta de placas com backend atualizado
+
+- Republicação dos aplicativos Android e Windows depois da integração da correção #139 à branch principal usada pelo Render.
+- O backend consulta a prévia JSON do CarroFIPE em vez de apenas o HTML do formulário e diferencia consulta indisponível de placa não localizada.
+- Histórico e cache continuam disponíveis; caso a fonte gratuita não forneça modelo, o usuário poderá preencher manualmente pelo Catálogo FIPE.
+- A liberação do APK não garante que todas as placas terão resultados; o servidor deve estar implantado e a fonte externa precisa entregar os dados.
+
 ## Versão 1.16.1 — correção da consulta de placas
 
 - Consulta da prévia gratuita do CarroFIPE pelo JSON usado pelo site.
