@@ -202,11 +202,11 @@ describe("provedor gratuito no backend (sem API Parallelum)", () => {
     expect((await consultar()).statusCode).toBe(503);
   });
 
-  it("respeita o orçamento de requisições também na prévia JSON", async () => {
+  it("respeita o novo orçamento de 1200 requisições também na prévia JSON", async () => {
     const chamada = vi.fn(async () => Response.json({ preview: previa }));
     vi.stubGlobal("fetch", chamada);
-    for (let i = 0; i < 60; i++) expect((await consultarVeiculoEmPaginas(placa)).status).toBe("encontrado");
+    for (let i = 0; i < 1200; i++) expect((await consultarVeiculoEmPaginas(placa)).status).toBe("encontrado");
     expect((await consultarVeiculoEmPaginas(placa)).status).toBe("indisponivel");
-    expect(chamada).toHaveBeenCalledTimes(60);
+    expect(chamada).toHaveBeenCalledTimes(1200);
   });
 });

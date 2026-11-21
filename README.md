@@ -115,6 +115,15 @@ Também dá para baixar direto do GitHub:
 Backlog: `https://github.com/willendary/chaveirocar/issues`
 
 
+## Versão 1.16.3 — melhoria para consultas em lote e histórico da equipe
+
+- Aumentado o orçamento por processo de 60 para 1.200 tentativas externas/hora (até 4 por placa), evitando indisponibilidade depois de aproximadamente 15 placas sem resultado.
+- Consulta de placa no backend reaproveita primeiro os atendimentos da **mesma empresa** no Turso, sem expor dados de outras empresas.
+- Limite do endpoint por sessão aumentado de 10 para 30 consultas por minuto, mantendo controle antiabuso e respeito a HTTP 403/429/CAPTCHA das fontes.
+- Android: botão para repetir consulta e mensagem objetiva quando fontes não fornecem dados.
+- Teste de carga e regressão com 240 placas **sintéticas** e fontes simuladas, sem requisições em massa a sites públicos. Não é validação de 240 veículos reais.
+- CarroFIPE e fontes HTML alternativas não garantem resposta gratuita para cada placa. O Catálogo FIPE permite preencher marca/modelo/ano quando essa informação não é fornecida.
+
 ## Versão 1.16.2 — consulta de placas com backend atualizado
 
 - Republicação dos aplicativos Android e Windows depois da integração da correção #139 à branch principal usada pelo Render.

@@ -193,6 +193,7 @@ fun TelaFormulario(
   }
 
   var mensagemPlaca by remember { mutableStateOf("") }
+  var tentativaConsultaPlaca by remember { mutableStateOf(0) }
   var placaDigitada by remember { mutableStateOf(false) }
   var automatico by remember { mutableStateOf<Atendimento?>(null) }
   fun mudarPlaca(valor: String) {
@@ -209,7 +210,7 @@ fun TelaFormulario(
     atendimento = atendimento.copy(placa = valor)
   }
   val placaParaHistorico = Placa.normalizar(atendimento.placa)
-  LaunchedEffect(placaParaHistorico, atendimento.segmento, placaDigitada) {
+  LaunchedEffect(placaParaHistorico, atendimento.segmento, placaDigitada, tentativaConsultaPlaca) {
     mensagemPlaca = ""
     if (atendimento.segmento != SegmentoAtendimento.AUTOMOTIVO) return@LaunchedEffect
     kotlinx.coroutines.delay(350)
@@ -235,8 +236,8 @@ fun TelaFormulario(
       }.onFailure { falha ->
         avisoConsulta = when {
           falha.message.orEmpty().contains("API 429") -> "Muitas consultas em sequência. Aguarde um instante ou informe o modelo manualmente."
-          falha.message.orEmpty().contains("API 404") -> "Placa não encontrada. Informe o modelo manualmente."
-          else -> "Consulta indisponível. Informe o modelo manualmente."
+          falha.message.orEmpty().contains("API 404") -> "As fontes não localizaram esta placa. Confira a digitação ou escolha pelo Catálogo FIPE."
+          else -> "As fontes gratuitas não forneceram o modelo. Tente novamente ou use o Catálogo FIPE."
         }
       }.getOrNull()
     }
@@ -698,6 +699,11 @@ fun TelaFormulario(
                       else -> estendidas.alerta
                     },
                   )
+                }
+              }
+              if (!consultando && !sucesso && Placa.valida(placaParaHistorico) && atendimento.modelo.isBlank()) {
+                TextButton(onClick = { tentativaConsultaPlaca += 1 }) {
+                  Text("Tentar consulta novamente")
                 }
               }
             }
