@@ -21,6 +21,16 @@ describe("extrator de HTML de placas", () => {
     });
   });
 
+  it("extrai o HTML do Puxa Placa e rejeita dados de outra placa", () => {
+    const html = '<html><head><title>Placa NAQ2405</title></head><body><h1>Placa NAQ-2405</h1>' +
+      '<table><tr><td>Marca:</td><td><a>FIAT</a></td></tr>' +
+      '<tr><td>Modelo:</td><td>MOBI DRIVE</td></tr>' +
+      '<tr><td>Ano:</td><td>2017</td></tr>' +
+      '<tr><td>Ano Modelo:</td><td>2018</td></tr></table></body></html>';
+    expect(extrairVeiculoDeHtml(html, "NAQ2405")).toEqual({ marca: "FIAT", modelo: "MOBI DRIVE", ano: "2018" });
+    expect(extrairVeiculoDeHtml(html, "HLF2034")).toBeNull();
+  });
+
   it("aceita pares dt/dd e placas com hífen", () => {
     const html = `<html><body>Placa ABC-1234<dl>
       <dt>Marca</dt><dd>Fiat</dd>
@@ -146,7 +156,7 @@ describe("provedor gratuito no backend (sem API Parallelum)", () => {
       if (destino.startsWith("https://www.carrofipe.com.br/")) {
         return new Response("Bloqueado", { status: 403 });
       }
-      if (destino.startsWith("https://placaipva.com.br/placa/")) {
+      if (destino.startsWith("https://puxaplaca.com.br/placa/")) {
         return new Response(exemplo, {
           status: 200, headers: { "content-type": "text/html; charset=utf-8" },
         });
@@ -159,7 +169,7 @@ describe("provedor gratuito no backend (sem API Parallelum)", () => {
     expect(r.json()).toEqual({ marca: "Volkswagen", modelo: "Gol 1.0", ano: "2018" });
     expect(chamada).toHaveBeenCalledTimes(2);
     expect(String(chamada.mock.calls[0]?.[0])).toBe("https://www.carrofipe.com.br/api/consultar");
-    expect(String(chamada.mock.calls[1]?.[0])).toBe("https://placaipva.com.br/placa/ITR1J02");
+    expect(String(chamada.mock.calls[1]?.[0])).toBe("https://puxaplaca.com.br/placa/ITR1J02");
   });
 
   it("com PLACAS_WEB_ATIVAS=false não faz chamadas externas nem consulta Parallelum", async () => {
