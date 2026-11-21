@@ -212,6 +212,19 @@ describe("provedor gratuito no backend (sem API Parallelum)", () => {
     expect((await consultar()).statusCode).toBe(503);
   });
 
+  it("suspende Puxa Placa após HTTP 429 sem repetir a chamada seguinte", async () => {
+    const chamada = vi.fn(async (url: unknown) => {
+      const endereco = String(url);
+      if (endereco.includes("/api/consultar")) return Response.json({ preview: { simulated: false } });
+      if (endereco.includes("puxaplaca.com.br")) return new Response("Limite", { status: 429 });
+      return new Response("Indisponível", { status: 403 });
+    });
+    vi.stubGlobal("fetch", chamada);
+    expect((await consultarVeiculoEmPaginas("ABC1234")).status).toBe("indisponivel");
+    expect((await consultarVeiculoEmPaginas("XYZ1234")).status).toBe("indisponivel");
+    expect(chamada.mock.calls.filter(args => String(args[0]).includes("puxaplaca.com.br"))).toHaveLength(1);
+  });
+
   it("respeita o novo orçamento de 1200 requisições também na prévia JSON", async () => {
     const chamada = vi.fn(async () => Response.json({ preview: previa }));
     vi.stubGlobal("fetch", chamada);
