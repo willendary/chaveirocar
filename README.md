@@ -115,6 +115,14 @@ Também dá para baixar direto do GitHub:
 Backlog: `https://github.com/willendary/chaveirocar/issues`
 
 
+## Versão 1.16.4 — consulta HTML pública com casos reais
+
+- Fonte alternativa **Puxa Placa** adicionada após o CarroFIPE, antes de outras páginas que bloqueavam o backend. O parser valida a placa e só lê campos estruturados.
+- Teste com requisições HTTP reais pelo runner do GitHub em 21/11/2026: NAQ2405 retornou FIAT / MOBI DRIVE / 2018, além de RIZ1B98 e CIX6290.
+- Requisições ao Puxa Placa espaçadas em 4,5s por processo; recebendo HTTP 403 ou 429, o backend suspende temporariamente a fonte sem burlar proteções.
+- Cache Turso, histórico da mesma empresa e preenchimento manual com Catálogo FIPE continuam disponíveis.
+- **Limitação:** o site respondeu HTTP 429 após três consultas mesmo com 4s de intervalo. Não é possível garantir 200 consultas gratuitas de placas reais por mês com essas fontes; para volume previsível, será necessária uma fonte de consulta autorizada.
+
 ## Versão 1.16.3 — melhoria para consultas em lote e histórico da equipe
 
 - Aumentado o orçamento por processo de 60 para 1.200 tentativas externas/hora (até 4 por placa), evitando indisponibilidade depois de aproximadamente 15 placas sem resultado.

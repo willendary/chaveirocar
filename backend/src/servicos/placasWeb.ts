@@ -23,6 +23,7 @@ interface Fonte {
 }
 
 export const FONTES_HTML_PLACAS: readonly Fonte[] = [
+  { nome: "PuxaPlaca", origem: "https://puxaplaca.com.br", caminho: (placa) => "/placa/" + placa },
   { nome: "PlacaIPVA", origem: "https://placaipva.com.br", caminho: (placa) => "/placa/" + placa },
   { nome: "KePlaca", origem: "https://www.keplaca.com", caminho: (placa) => "/placa/" + placa },
   { nome: "PlacaFIPE", origem: "https://placafipe.com", caminho: (placa) => "/placa/" + placa },
@@ -35,12 +36,45 @@ const INTERVALO_HORA = 60 * 60_000;
 // Inclui a consulta principal e até três alternativas por placa: 300 placas/h em pior caso.
 // O limite impede excesso acidental de tráfego, sem bloquear os primeiros 15 veículos.
 const MAX_TENTATIVAS_POR_HORA = 1_200;
+const ESPACAMENTO_PUXA_MS = 4_500;
+const bloqueadasAte = new Map<string, number>();
+let proxPuxa = 0;
+let filaPuxa: Promise<void> = Promise.resolve();
+
+function bloqueada(origem: string): boolean {
+  return (bloqueadasAte.get(origem) ?? 0) > Date.now();
+}
+
+function aplicarRestricao(origem: string, status: number): void {
+  if (status === 429) bloqueadasAte.set(origem, Date.now() + 30 * 60_000);
+  else if (status === 403) bloqueadasAte.set(origem, Date.now() + 60 * 60_000);
+  else if (origem === "https://puxaplaca.com.br" && status >= 500)
+    bloqueadasAte.set(origem, Date.now() + 2 * 60_000);
+}
+
+async function aguardarPuxa(): Promise<void> {
+  const anterior = filaPuxa;
+  let liberar: () => void = () => undefined;
+  filaPuxa = new Promise<void>((resolve) => { liberar = resolve; });
+  await anterior;
+  try {
+    const atraso = Math.max(0, proxPuxa - Date.now());
+    if (atraso > 0) await new Promise<void>((resolve) => setTimeout(resolve, atraso));
+    proxPuxa = Date.now() + ESPACAMENTO_PUXA_MS;
+  } finally {
+    liberar();
+  }
+}
+
 let janelaInicio = Date.now();
 let tentativas = 0;
 
 export function resetarOrcamentoPlacasWeb(): void {
   janelaInicio = Date.now();
   tentativas = 0;
+  bloqueadasAte.clear();
+  proxPuxa = 0;
+  filaPuxa = Promise.resolve();
 }
 
 function dentroDoOrcamento(): boolean {
@@ -195,7 +229,7 @@ export function interpretarPreviaCarroFipe(valor: unknown, placa: string): Resul
 }
 
 async function consultarPreviaCarroFipe(placa: string): Promise<ResultadoConsultaWeb> {
-  if (!dentroDoOrcamento()) return { status: "indisponivel" };
+  if (bloqueada("https://www.carrofipe.com.br") || !dentroDoOrcamento()) return { status: "indisponivel" };
   try {
     const resposta = await fetch(URL_PREVIA_CARROFIPE, {
       method: "POST",
@@ -204,6 +238,7 @@ async function consultarPreviaCarroFipe(placa: string): Promise<ResultadoConsult
       redirect: "error",
       signal: AbortSignal.timeout(12_000),
     });
+    aplicarRestricao("https://www.carrofipe.com.br", resposta.status);
     if (!resposta.ok || !resposta.headers.get("content-type")?.toLowerCase().includes("application/json")) {
       await resposta.body?.cancel().catch(() => undefined);
       return { status: "indisponivel" };
@@ -226,11 +261,22 @@ export async function consultarVeiculoEmPaginas(placa: string): Promise<Resultad
   let houveIndisponibilidade = previa.status === "indisponivel";
 
   for (const fonte of FONTES_HTML_PLACAS) {
+    if (bloqueada(fonte.origem)) {
+      houveIndisponibilidade = true;
+      continue;
+    }
     if (!dentroDoOrcamento()) {
       return { status: "indisponivel" };
     }
     const url = fonte.origem + fonte.caminho(placa);
     try {
+      if (fonte.nome === "PuxaPlaca") {
+        await aguardarPuxa();
+        if (bloqueada(fonte.origem)) {
+          houveIndisponibilidade = true;
+          continue;
+        }
+      }
       const resposta = await fetch(url, {
         method: "GET",
         headers: {
@@ -240,6 +286,7 @@ export async function consultarVeiculoEmPaginas(placa: string): Promise<Resultad
         redirect: "error",
         signal: AbortSignal.timeout(5000),
       });
+      aplicarRestricao(fonte.origem, resposta.status);
       if ((!resposta.ok && resposta.status !== 404) ||
           !resposta.headers.get("content-type")?.toLowerCase().includes("text/html")) {
         houveIndisponibilidade = true;
