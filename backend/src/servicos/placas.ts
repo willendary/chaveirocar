@@ -24,9 +24,29 @@ function normalizarPlaca(placa: string): string {
 export async function consultarPlaca(
   banco: Banco,
   placa: string,
-  opcoes: { consultaWebAtiva?: boolean } = {},
+  opcoes: { consultaWebAtiva?: boolean; empresaId?: string } = {},
 ): Promise<DadosVeiculo> {
   const normalizada = normalizarPlaca(placa);
+
+  // Um veículo já cadastrado pela própria equipe tem prioridade sobre fontes externas.
+  // Nunca aproveita registros de outra empresa nem salva dados privados no cache global.
+  if (opcoes.empresaId) {
+    const historico = await banco.execute({
+      sql: `SELECT modelo, marca, ano FROM atendimentos
+            WHERE empresa_id = ? AND placa_busca = ? AND segmento = 'AUTOMOTIVO'
+              AND excluido_em IS NULL AND TRIM(modelo) <> ''
+            ORDER BY atualizado_em DESC LIMIT 1`,
+      args: [opcoes.empresaId, normalizada],
+    });
+    const registrado = historico.rows[0];
+    if (registrado) {
+      return {
+        modelo: String(registrado.modelo),
+        marca: String(registrado.marca ?? ""),
+        ano: String(registrado.ano ?? ""),
+      };
+    }
+  }
 
   const consultaCache = await banco.execute({
     sql: `SELECT modelo, marca, ano FROM cache_consultas_placa

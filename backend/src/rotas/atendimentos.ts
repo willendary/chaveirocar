@@ -38,7 +38,7 @@ export const rotasAtendimentos: FastifyPluginAsync<ContextoRotas> = async (app, 
 
   app.get("/empresas/:empresaId/veiculos/:placa", {
     preHandler: autenticacao.exigir,
-    config: { rateLimit: { max: 10, timeWindow: "1 minute" } },
+    config: { rateLimit: { max: 30, timeWindow: "1 minute" } },
     schema: {
       tags: ["Atendimentos"],
       security: [{ bearerAuth: [] }],
@@ -49,7 +49,7 @@ export const rotasAtendimentos: FastifyPluginAsync<ContextoRotas> = async (app, 
     const { empresaId, placa } = request.params as { empresaId: string; placa: string };
     exigirEscrita(await exigirMembro(banco, empresaId, exigirUsuario(request).usuarioId));
     await exigirModuloAtivo(banco, empresaId, "AUTOMOTIVO");
-    return consultarPlaca(banco, placa, { consultaWebAtiva: config.placasWebAtivas });
+    return consultarPlaca(banco, placa, { consultaWebAtiva: config.placasWebAtivas, empresaId });
   });
 
   app.get(

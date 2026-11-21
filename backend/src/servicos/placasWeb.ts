@@ -32,7 +32,9 @@ const URL_PREVIA_CARROFIPE = "https://www.carrofipe.com.br/api/consultar";
 const USER_AGENT = "ChaveiroCar-ConsultaTecnica (+https://github.com/willendary/chaveirocar)";
 const MAX_RESPOSTA_BYTES = 200_000;
 const INTERVALO_HORA = 60 * 60_000;
-const MAX_TENTATIVAS_POR_HORA = 60;
+// Inclui a consulta principal e até três alternativas por placa: 300 placas/h em pior caso.
+// O limite impede excesso acidental de tráfego, sem bloquear os primeiros 15 veículos.
+const MAX_TENTATIVAS_POR_HORA = 1_200;
 let janelaInicio = Date.now();
 let tentativas = 0;
 
